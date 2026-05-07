@@ -30,8 +30,9 @@ jobs:
 
       - name: Run Junie
         id: junie
-        uses: JetBrains/junie-github-action@v0
+        uses: JetBrains/junie-github-action@v1.3.9
         with:
           junie_api_key: ${{ secrets.JUNIE_API_KEY }}
           use_single_comment: true
-          # model: "claude-opus-4-5-20251101"  # Optional: specify which model to use
+          junie_version: "latest"
+          model: "gemini-3-flash-preview"
