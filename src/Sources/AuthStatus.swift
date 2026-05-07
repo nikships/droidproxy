@@ -4,12 +4,14 @@ enum ServiceType: String, CaseIterable {
     case claude
     case codex
     case gemini
+    case cursor
     
     var displayName: String {
         switch self {
         case .claude: return "Claude Code"
         case .codex: return "Codex"
         case .gemini: return "Gemini"
+        case .cursor: return "Cursor"
         }
     }
 }

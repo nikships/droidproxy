@@ -537,6 +537,7 @@ struct SettingsView: View {
     @State private var claudeModelsExpanded = true
     @State private var codexModelsExpanded = true
     @State private var geminiModelsExpanded = true
+    @State private var cursorModelsExpanded = true
     @State private var opus47EffortExpanded = false
     @State private var opus46EffortExpanded = false
     @State private var opus45EffortExpanded = false
@@ -544,6 +545,7 @@ struct SettingsView: View {
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
+    private let cursorEffortSelectionColor = Color(red: 0x6E/255, green: 0x56/255, blue: 0xCF/255)
     private let oledWindowBackground = Color.black
     private let oledSectionBackground = Color(red: 0x12/255, green: 0x12/255, blue: 0x12/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
@@ -1065,6 +1067,22 @@ struct SettingsView: View {
                         }
                         .padding(.leading, 28)
                     }
+
+                    ServiceRow(
+                        serviceType: .cursor,
+                        iconName: "system:cursorarrow",
+                        accounts: authManager.accounts(for: .cursor),
+                        isAuthenticating: authenticatingService == .cursor,
+                        helpText: nil,
+                        isEnabled: serverManager.isProviderEnabled("cursor"),
+                        customTitle: nil,
+                        onConnect: { connectService(.cursor) },
+                        onDisconnect: { account in disconnectAccount(account) },
+                        onToggleDisabled: { account in toggleAccountDisabled(account) },
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled("cursor", enabled: enabled) },
+                        toggleTint: cursorEffortSelectionColor,
+                        onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
+                    ) { EmptyView() }
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -1370,6 +1388,7 @@ struct SettingsView: View {
         case .claude: command = .claudeLogin
         case .codex: command = .codexLogin
         case .gemini: command = .geminiLogin
+        case .cursor: command = .cursorLogin
         }
         
         serverManager.runAuthCommand(command) { success, output in
@@ -1398,6 +1417,8 @@ struct SettingsView: View {
             return "🌐 Browser opened for Codex authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .gemini:
             return "🌐 Browser opened for Gemini authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -login"
+        case .cursor:
+            return "🌐 Browser opened for Cursor authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         }
     }
     

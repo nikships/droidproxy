@@ -76,7 +76,8 @@ class ServerManager: ObservableObject {
     static let oauthProviderKeys: [String: String] = [
         "claude": "claude",
         "codex": "codex",
-        "gemini": "gemini-cli"
+        "gemini": "gemini-cli",
+        "cursor": "cursor"
     ]
 
     init() {
@@ -268,6 +269,8 @@ class ServerManager: ObservableObject {
             authProcess.arguments = ["--config", configPath, "-codex-login"]
         case .geminiLogin:
             authProcess.arguments = ["--config", configPath, "-login"]
+        case .cursorLogin:
+            authProcess.arguments = ["--config", configPath, "-cursor-login"]
         }
 
         // Create pipes for output
@@ -486,4 +489,5 @@ enum AuthCommand: Equatable {
     case claudeLogin
     case codexLogin
     case geminiLogin
+    case cursorLogin
 }

@@ -69,7 +69,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             ("icon-inactive.png", statusIconSize),
             ("icon-claude.png", serviceIconSize),
             ("icon-codex.png", serviceIconSize),
-            ("icon-gemini.png", serviceIconSize)
+            ("icon-gemini.png", serviceIconSize),
+            ("system:cursorarrow", serviceIconSize)
         ]
         
         for (name, size) in iconsToPreload {

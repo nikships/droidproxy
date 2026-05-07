@@ -10,6 +10,18 @@ final class IconCatalog {
     private init() {}
     
     func image(named name: String, resizedTo size: NSSize? = nil, template: Bool = false) -> NSImage? {
+        if name.hasPrefix("system:") {
+            let symbolName = String(name.dropFirst(7))
+            if let image = NSImage(systemSymbolName: symbolName, accessibilityDescription: nil) {
+                let result = image.copy() as! NSImage
+                if let size = size {
+                    result.size = size
+                }
+                result.isTemplate = template
+                return result
+            }
+        }
+
         let key = cacheKey(name: name, size: size, template: template)
         
         cacheLock.lock()
