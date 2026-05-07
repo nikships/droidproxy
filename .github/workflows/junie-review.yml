@@ -7,7 +7,7 @@ on:
 
 jobs:
   review:
-    if: contains(github.event.pull_request.labels.*.name, 'junie')
+    if: contains(github.event.pull_request.labels.*.name, 'junie-review')
     runs-on: ubuntu-latest
     permissions:
       contents: read
