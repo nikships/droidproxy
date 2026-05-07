@@ -2,11 +2,12 @@ name: Code Review
 
 on:
   pull_request:
-    types: [opened, synchronize]
+    types: [opened, synchronize, labeled]
     branches: [main]
 
 jobs:
   review:
+    if: contains(github.event.pull_request.labels.*.name, 'junie')
     runs-on: ubuntu-latest
     permissions:
       contents: read

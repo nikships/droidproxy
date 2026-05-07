@@ -8,18 +8,18 @@ on:
   issues:
     types: [opened, assigned]
   pull_request:
-    types: [opened]
+    types: [opened, assigned]
   pull_request_review:
     types: [submitted]
 
 jobs:
   junie:
     if: |
-      (github.event_name == 'issue_comment' && contains(github.event.comment.body, '@junie-agent')) ||
-      (github.event_name == 'pull_request_review_comment' && contains(github.event.comment.body, '@junie-agent')) ||
-      (github.event_name == 'pull_request_review' && contains(github.event.review.body, '@junie-agent')) ||
-      (github.event_name == 'issues' && (contains(github.event.issue.body, '@junie-agent') || contains(github.event.issue.title, '@junie-agent'))) ||
-      (github.event_name == 'pull_request' && (contains(github.event.pull_request.body, '@junie-agent') || contains(github.event.pull_request.title, '@junie-agent')))
+      (github.event_name == 'issue_comment' && (contains(github.event.comment.body, '@junie-agent') || contains(github.event.comment.body, '@junie'))) ||
+      (github.event_name == 'pull_request_review_comment' && (contains(github.event.comment.body, '@junie-agent') || contains(github.event.comment.body, '@junie'))) ||
+      (github.event_name == 'pull_request_review' && (contains(github.event.review.body, '@junie-agent') || contains(github.event.review.body, '@junie'))) ||
+      (github.event_name == 'issues' && (github.event.issue.assignee.login == 'junie-agent' || contains(github.event.issue.body, '@junie-agent') || contains(github.event.issue.body, '@junie') || contains(github.event.issue.title, '@junie-agent') || contains(github.event.issue.title, '@junie'))) ||
+      (github.event_name == 'pull_request' && (github.event.pull_request.assignee.login == 'junie-agent' || contains(github.event.pull_request.body, '@junie-agent') || contains(github.event.pull_request.body, '@junie') || contains(github.event.pull_request.title, '@junie-agent') || contains(github.event.pull_request.title, '@junie')))
     runs-on: ubuntu-latest
     permissions:
       contents: write
@@ -36,6 +36,7 @@ jobs:
         uses: JetBrains/junie-github-action@v1.3.9
         with:
           junie_api_key: ${{ secrets.JUNIE_API_KEY }}
+          assignee_trigger: "junie-agent"
           use_single_comment: true
           junie_version: "latest"
           model: "gemini-3-flash-preview"
