@@ -1,0 +1,25 @@
+name: Code Review
+
+on:
+  pull_request:
+    types: [opened, synchronize]
+    branches: [main]
+
+jobs:
+  review:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: write
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 1
+
+      - uses: JetBrains/junie-github-action@v0
+        with:
+          junie_api_key: ${{ secrets.JUNIE_API_KEY }}
+          use_single_comment: "true"
+          prompt: "code-review"
+          # model: "claude-opus-4-5-20251101"  # Optional: specify which model to use
