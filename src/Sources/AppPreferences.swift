@@ -35,6 +35,22 @@ enum AppPreferences {
     static let defaultClaudeMaxBudgetMode = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
+    static let showUsageInMenuBarKey = "showUsageInMenuBar"
+    static let usageAutoRefreshSecondsKey = "usageAutoRefreshSeconds"
+    static let defaultShowUsageInMenuBar = true
+    static let defaultUsageAutoRefreshSeconds = 300
+
+    static var showUsageInMenuBar: Bool {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: showUsageInMenuBarKey) != nil else { return defaultShowUsageInMenuBar }
+        return defaults.bool(forKey: showUsageInMenuBarKey)
+    }
+
+    static var usageAutoRefreshSeconds: Int {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: usageAutoRefreshSecondsKey) != nil else { return defaultUsageAutoRefreshSeconds }
+        return defaults.integer(forKey: usageAutoRefreshSecondsKey)
+    }
 
     static var opus47ThinkingEffort: String {
         let defaults = UserDefaults.standard

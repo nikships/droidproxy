@@ -33,6 +33,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         // Initialize managers
         serverManager = ServerManager()
         thinkingProxy = ThinkingProxy()
+        
+        // Initialize UsageStore
+        UsageStore.shared.start()
 
         // Warm commonly used icons to avoid first-use disk hits
         preloadIcons()
@@ -47,6 +50,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             self,
             selector: #selector(updateMenuBarStatus),
             name: .serverStatusChanged,
+            object: nil
+        )
+        
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(updateUsageMenu),
+            name: .usageUpdated,
+            object: nil
+        )
+        
+        NSWorkspace.shared.notificationCenter.addObserver(
+            self,
+            selector: #selector(handleWake),
+            name: NSWorkspace.didWakeNotification,
             object: nil
         )
 
@@ -145,6 +162,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         // Main Actions
         menu.addItem(NSMenuItem(title: "Open Settings", action: #selector(openSettings), keyEquivalent: "s"))
         menu.addItem(NSMenuItem.separator())
+        
+        // Usage
+        let claudeUsageItem = NSMenuItem(title: "● Claude   --", action: nil, keyEquivalent: "")
+        claudeUsageItem.tag = 200
+        menu.addItem(claudeUsageItem)
+        
+        let codexUsageItem = NSMenuItem(title: "● Codex    --", action: nil, keyEquivalent: "")
+        codexUsageItem.tag = 201
+        menu.addItem(codexUsageItem)
+        
+        let refreshUsageItem = NSMenuItem(title: "Refresh Usage", action: #selector(refreshUsage), keyEquivalent: "r")
+        refreshUsageItem.tag = 202
+        menu.addItem(refreshUsageItem)
+        
+        let usageSeparator = NSMenuItem.separator()
+        usageSeparator.tag = 203
+        menu.addItem(usageSeparator)
 
         // Server Control
         let startStopItem = NSMenuItem(title: "Start Server", action: #selector(toggleServer), keyEquivalent: "")
@@ -378,6 +412,107 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             if let error = error {
                 NSLog("[Notifications] Failed to deliver notification '%@': %@", title, error.localizedDescription)
             }
+        }
+    }
+
+    @MainActor @objc func refreshUsage() {
+        UsageStore.shared.refresh()
+    }
+    
+    @MainActor @objc func handleWake() {
+        UsageStore.shared.refresh()
+    }
+    
+    @MainActor @objc func updateUsageMenu() {
+        let showUsage = AppPreferences.showUsageInMenuBar
+        
+        menu.item(withTag: 200)?.isHidden = !showUsage
+        menu.item(withTag: 201)?.isHidden = !showUsage
+        menu.item(withTag: 202)?.isHidden = !showUsage
+        menu.item(withTag: 203)?.isHidden = !showUsage
+        
+        guard showUsage else {
+            // Restore original title if usage hidden
+            if statusItem.button?.title != "" {
+                statusItem.button?.title = ""
+            }
+            return
+        }
+        
+        var titleComponents = [String]()
+        
+        if let claudeItem = menu.item(withTag: 200) {
+            if let snapshot = UsageStore.shared.claudeUsage {
+                if let error = snapshot.error {
+                    claudeItem.title = "● Claude   Error: \(error)"
+                } else if snapshot.windows.isEmpty {
+                    claudeItem.title = "● Claude   No usage data"
+                } else {
+                    let hourly = snapshot.windows.first { $0.kind == .other } // We mapped 5h to other
+                    let weekly = snapshot.windows.first { $0.kind == .weekly }
+                    
+                    var title = "● Claude"
+                    if let h = hourly {
+                        title += String(format: "   5h: %2d%%", Int(h.percentUsed))
+                        titleComponents.append(String(format: "Cl %d", Int(h.percentUsed)))
+                    }
+                    if let w = weekly {
+                        title += String(format: "   Week: %2d%%", Int(w.percentUsed))
+                        if titleComponents.isEmpty {
+                            titleComponents.append(String(format: "Cl %d/%d", Int(hourly?.percentUsed ?? 0), Int(w.percentUsed)))
+                        } else {
+                            titleComponents[titleComponents.count - 1] += String(format: "/%d", Int(w.percentUsed))
+                        }
+                    }
+                    if let h = hourly, let resetsAt = h.resetsAt {
+                        let diff = Int(resetsAt.timeIntervalSinceNow / 3600)
+                        title += "   (resets \(diff)h)"
+                    }
+                    claudeItem.title = title
+                }
+            } else {
+                claudeItem.title = "● Claude   Loading..."
+            }
+        }
+        
+        if let codexItem = menu.item(withTag: 201) {
+            if let snapshot = UsageStore.shared.codexUsage {
+                if let error = snapshot.error {
+                    codexItem.title = "● Codex    Error: \(error)"
+                } else if snapshot.windows.isEmpty {
+                    codexItem.title = "● Codex    No usage data"
+                } else {
+                    let hourly = snapshot.windows.first { $0.kind == .other }
+                    let weekly = snapshot.windows.first { $0.kind == .weekly }
+                    
+                    var title = "● Codex"
+                    if let h = hourly {
+                        title += String(format: "    5h: %2d%%", Int(h.percentUsed))
+                        titleComponents.append(String(format: "Cx %d", Int(h.percentUsed)))
+                    }
+                    if let w = weekly {
+                        title += String(format: "   Week: %2d%%", Int(w.percentUsed))
+                        if titleComponents.isEmpty {
+                            // Shouldn't hit but just in case
+                        } else {
+                            titleComponents[titleComponents.count - 1] += String(format: "/%d", Int(w.percentUsed))
+                        }
+                    }
+                    if let h = hourly, let resetsAt = h.resetsAt {
+                        let diff = Int(resetsAt.timeIntervalSinceNow / 3600)
+                        title += "   (resets \(diff)h)"
+                    }
+                    codexItem.title = title
+                }
+            } else {
+                codexItem.title = "● Codex    Loading..."
+            }
+        }
+        
+        let newTitle = titleComponents.joined(separator: "  ")
+        if statusItem.button?.title != newTitle {
+            statusItem.button?.title = newTitle
+            statusItem.button?.imagePosition = .imageLeft
         }
     }
 
