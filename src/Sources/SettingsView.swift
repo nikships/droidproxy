@@ -521,6 +521,8 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.claudeMaxBudgetModeKey) private var claudeMaxBudgetMode = AppPreferences.defaultClaudeMaxBudgetMode
+    @AppStorage(AppPreferences.showUsageInMenuBarKey) private var showUsageInMenuBar = AppPreferences.defaultShowUsageInMenuBar
+    @AppStorage(AppPreferences.usageAutoRefreshSecondsKey) private var usageAutoRefreshSeconds = AppPreferences.defaultUsageAutoRefreshSeconds
     @AppStorage(AppPreferences.oledThemeKey) private var oledTheme = AppPreferences.defaultOledTheme
     @AppStorage(AppPreferences.factoryAdvancedModelsKey) private var factoryAdvancedModels = AppPreferences.defaultFactoryAdvancedModels
     @State private var authenticatingService: ServiceType? = nil
@@ -736,6 +738,39 @@ struct SettingsView: View {
                             applyChallengerPlugin()
                         }
                         .droidGlassProminent()
+                        .controlSize(.small)
+                    }
+                }
+                .listRowBackground(glassRowBackground)
+
+                Section {
+                    Toggle("Show usage in menu bar", isOn: $showUsageInMenuBar)
+                        .onChange(of: showUsageInMenuBar) { _ in
+                            NotificationCenter.default.post(name: .usageUpdated, object: nil)
+                        }
+                    
+                    HStack {
+                        Text("Auto-refresh usage")
+                        Spacer()
+                        Picker("", selection: $usageAutoRefreshSeconds) {
+                            Text("Manual").tag(0)
+                            Text("1 minute").tag(60)
+                            Text("5 minutes").tag(300)
+                            Text("10 minutes").tag(600)
+                            Text("30 minutes").tag(1800)
+                        }
+                        .pickerStyle(.menu)
+                        .frame(width: 120)
+                        .onChange(of: usageAutoRefreshSeconds) { _ in
+                            UsageStore.shared.scheduleTimer()
+                        }
+                    }
+                    
+                    HStack {
+                        Spacer()
+                        Button("Refresh now") {
+                            UsageStore.shared.refresh()
+                        }
                         .controlSize(.small)
                     }
                 }
