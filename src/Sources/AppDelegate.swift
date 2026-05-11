@@ -431,16 +431,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         menu.item(withTag: 202)?.isHidden = !showUsage
         menu.item(withTag: 203)?.isHidden = !showUsage
         
-        guard showUsage else {
-            // Restore original title if usage hidden
-            if statusItem.button?.title != "" {
-                statusItem.button?.title = ""
-            }
-            return
+        if statusItem.button?.title != "" {
+            statusItem.button?.title = ""
         }
-        
-        var titleComponents = [String]()
-        
+
+        guard showUsage else { return }
+
         if let claudeItem = menu.item(withTag: 200) {
             if let snapshot = UsageStore.shared.claudeUsage {
                 if let error = snapshot.error {
@@ -450,19 +446,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                 } else {
                     let hourly = snapshot.windows.first { $0.kind == .other } // We mapped 5h to other
                     let weekly = snapshot.windows.first { $0.kind == .weekly }
-                    
+
                     var title = "● Claude"
                     if let h = hourly {
                         title += String(format: "   5h: %2d%%", Int(h.percentUsed))
-                        titleComponents.append(String(format: "Cl %d", Int(h.percentUsed)))
                     }
                     if let w = weekly {
                         title += String(format: "   Week: %2d%%", Int(w.percentUsed))
-                        if titleComponents.isEmpty {
-                            titleComponents.append(String(format: "Cl %d/%d", Int(hourly?.percentUsed ?? 0), Int(w.percentUsed)))
-                        } else {
-                            titleComponents[titleComponents.count - 1] += String(format: "/%d", Int(w.percentUsed))
-                        }
                     }
                     if let h = hourly, let resetsAt = h.resetsAt {
                         let diff = Int(resetsAt.timeIntervalSinceNow / 3600)
@@ -474,7 +464,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                 claudeItem.title = "● Claude   Loading..."
             }
         }
-        
+
         if let codexItem = menu.item(withTag: 201) {
             if let snapshot = UsageStore.shared.codexUsage {
                 if let error = snapshot.error {
@@ -484,19 +474,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                 } else {
                     let hourly = snapshot.windows.first { $0.kind == .other }
                     let weekly = snapshot.windows.first { $0.kind == .weekly }
-                    
+
                     var title = "● Codex"
                     if let h = hourly {
                         title += String(format: "    5h: %2d%%", Int(h.percentUsed))
-                        titleComponents.append(String(format: "Cx %d", Int(h.percentUsed)))
                     }
                     if let w = weekly {
                         title += String(format: "   Week: %2d%%", Int(w.percentUsed))
-                        if titleComponents.isEmpty {
-                            // Shouldn't hit but just in case
-                        } else {
-                            titleComponents[titleComponents.count - 1] += String(format: "/%d", Int(w.percentUsed))
-                        }
                     }
                     if let h = hourly, let resetsAt = h.resetsAt {
                         let diff = Int(resetsAt.timeIntervalSinceNow / 3600)
@@ -507,12 +491,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             } else {
                 codexItem.title = "● Codex    Loading..."
             }
-        }
-        
-        let newTitle = titleComponents.joined(separator: "  ")
-        if statusItem.button?.title != newTitle {
-            statusItem.button?.title = newTitle
-            statusItem.button?.imagePosition = .imageLeft
         }
     }
 

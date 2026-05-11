@@ -6,19 +6,35 @@ class ClaudeUsageProbe {
     struct TokenInfo: Codable {
         let access_token: String
         let refresh_token: String?
-        let expired: Bool?
+        let expired: String?
     }
-    
+
+    private static let expirationFormatters: [ISO8601DateFormatter] = {
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+        return [withFractional, plain]
+    }()
+
+    private static func parseExpiration(_ value: String?) -> Date? {
+        guard let value else { return nil }
+        for formatter in expirationFormatters {
+            if let date = formatter.date(from: value) { return date }
+        }
+        return nil
+    }
+
     func fetchUsage() async -> ProviderUsageSnapshot {
         do {
             let fileURL = try findClaudeAuthFile()
             let data = try Data(contentsOf: fileURL)
             var tokenInfo = try JSONDecoder().decode(TokenInfo.self, from: data)
-            
-            if tokenInfo.expired == true {
+
+            if let expiresAt = Self.parseExpiration(tokenInfo.expired), expiresAt <= Date() {
                 tokenInfo = try await refreshTokens(fileURL: fileURL, currentTokenInfo: tokenInfo)
             }
-            
+
             return try await executeUsageRequest(token: tokenInfo.access_token, fileURL: fileURL, tokenInfo: tokenInfo)
         } catch {
             return ProviderUsageSnapshot(provider: "Claude", lastUpdated: Date(), windows: [], error: error.localizedDescription)
@@ -57,17 +73,22 @@ class ClaudeUsageProbe {
         guard let newAccess = newTokens["access_token"] as? String, let newRefresh = newTokens["refresh_token"] as? String else {
             throw NSError(domain: "ClaudeUsageProbe", code: 4, userInfo: [NSLocalizedDescriptionKey: "Invalid token response format"])
         }
-        
-        // Read existing JSON to preserve structure, just update fields
+
+        let expiresIn = (newTokens["expires_in"] as? Double) ?? 3600
+        let isoFormatter = ISO8601DateFormatter()
+        isoFormatter.formatOptions = [.withInternetDateTime]
+        let newExpiresAt = isoFormatter.string(from: Date().addingTimeInterval(expiresIn))
+
         var existingJson = try JSONSerialization.jsonObject(with: try Data(contentsOf: fileURL), options: []) as? [String: Any] ?? [:]
         existingJson["access_token"] = newAccess
         existingJson["refresh_token"] = newRefresh
-        existingJson["expired"] = false
-        
+        existingJson["expired"] = newExpiresAt
+        existingJson["last_refresh"] = isoFormatter.string(from: Date())
+
         let newData = try JSONSerialization.data(withJSONObject: existingJson, options: [.prettyPrinted])
         try newData.write(to: fileURL)
-        
-        return TokenInfo(access_token: newAccess, refresh_token: newRefresh, expired: false)
+
+        return TokenInfo(access_token: newAccess, refresh_token: newRefresh, expired: newExpiresAt)
     }
     
     private func executeUsageRequest(token: String, fileURL: URL, tokenInfo: TokenInfo) async throws -> ProviderUsageSnapshot {
@@ -103,40 +124,54 @@ class ClaudeUsageProbe {
     }
     
     private func parseUsage(data: Data) throws -> ProviderUsageSnapshot {
-        // Expected Anthropic structure:
-        // { "rate_limits": [ { "window": "5h", "limit": 1000, "used": 120, "resets_at": "2026-05-07T..." }, { "window": "weekly", ... } ] }
-        struct AnthropicUsage: Codable {
-            struct Limit: Codable {
-                let window: String
-                let limit: Int
-                let used: Int
-                let resets_at: String?
-            }
-            let rate_limits: [Limit]
+        // Actual Anthropic response (oauth/usage):
+        // { "five_hour": {"utilization": 30.0, "resets_at": "..."},
+        //   "seven_day": null, "seven_day_opus": null, "seven_day_sonnet": null,
+        //   "seven_day_oauth_apps": null, "seven_day_omelette": {"utilization": 0.0, "resets_at": null},
+        //   "extra_usage": {...} }
+        struct Bucket: Decodable {
+            let utilization: Double?
+            let resets_at: String?
         }
-        
-        let apiResponse = try JSONDecoder().decode(AnthropicUsage.self, from: data)
-        let dateFormatter = ISO8601DateFormatter()
-        dateFormatter.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let fallbackFormatter = ISO8601DateFormatter()
-        
-        let windows: [UsageWindow] = apiResponse.rate_limits.map { limit in
-            let kind: UsageWindowKind
-            if limit.window == "5h" { kind = .other } // Map 5h to other for now, handled by UI
-            else if limit.window.lowercased().contains("week") { kind = .weekly }
-            else if limit.window.lowercased().contains("hour") { kind = .hourly }
-            else { kind = .other }
-            
-            let percent = limit.limit > 0 ? (Double(limit.used) / Double(limit.limit)) * 100.0 : 0.0
-            
-            var resetsAt: Date? = nil
-            if let resetsStr = limit.resets_at {
-                resetsAt = dateFormatter.date(from: resetsStr) ?? fallbackFormatter.date(from: resetsStr)
-            }
-            
-            return UsageWindow(kind: kind, limit: limit.limit, used: limit.used, percentUsed: percent, resetsAt: resetsAt)
+
+        let decoder = JSONDecoder()
+        let raw = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] ?? [:]
+
+        let withFractional = ISO8601DateFormatter()
+        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
+        let plain = ISO8601DateFormatter()
+        plain.formatOptions = [.withInternetDateTime]
+
+        func parseDate(_ str: String?) -> Date? {
+            guard let str else { return nil }
+            return withFractional.date(from: str) ?? plain.date(from: str)
         }
-        
+
+        let knownBuckets: [(key: String, kind: UsageWindowKind)] = [
+            ("five_hour", .other),
+            ("seven_day", .weekly),
+            ("seven_day_opus", .weekly),
+            ("seven_day_sonnet", .weekly),
+            ("seven_day_oauth_apps", .weekly),
+            ("seven_day_cowork", .weekly),
+            ("seven_day_omelette", .weekly)
+        ]
+
+        var windows: [UsageWindow] = []
+        for (key, kind) in knownBuckets {
+            guard let dict = raw[key] as? [String: Any] else { continue }
+            let bucketData = try JSONSerialization.data(withJSONObject: dict, options: [])
+            let bucket = try decoder.decode(Bucket.self, from: bucketData)
+            guard let utilization = bucket.utilization else { continue }
+            windows.append(UsageWindow(
+                kind: kind,
+                limit: 100,
+                used: Int(utilization.rounded()),
+                percentUsed: utilization,
+                resetsAt: parseDate(bucket.resets_at)
+            ))
+        }
+
         return ProviderUsageSnapshot(provider: "Claude", lastUpdated: Date(), windows: windows, error: nil)
     }
 }
