@@ -9,7 +9,7 @@ class ClaudeUsageProbe {
         let expired: String?
     }
 
-    private static let expirationFormatters: [ISO8601DateFormatter] = {
+    private static let dateFormatters: [ISO8601DateFormatter] = {
         let withFractional = ISO8601DateFormatter()
         withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let plain = ISO8601DateFormatter()
@@ -17,9 +17,9 @@ class ClaudeUsageProbe {
         return [withFractional, plain]
     }()
 
-    private static func parseExpiration(_ value: String?) -> Date? {
+    private static func parseDate(_ value: String?) -> Date? {
         guard let value else { return nil }
-        for formatter in expirationFormatters {
+        for formatter in dateFormatters {
             if let date = formatter.date(from: value) { return date }
         }
         return nil
@@ -31,7 +31,7 @@ class ClaudeUsageProbe {
             let data = try Data(contentsOf: fileURL)
             var tokenInfo = try JSONDecoder().decode(TokenInfo.self, from: data)
 
-            if let expiresAt = Self.parseExpiration(tokenInfo.expired), expiresAt <= Date() {
+            if let expiresAt = Self.parseDate(tokenInfo.expired), expiresAt <= Date() {
                 tokenInfo = try await refreshTokens(fileURL: fileURL, currentTokenInfo: tokenInfo)
             }
 
@@ -43,11 +43,10 @@ class ClaudeUsageProbe {
     
     private func findClaudeAuthFile() throws -> URL {
         let contents = try FileManager.default.contentsOfDirectory(at: authDir, includingPropertiesForKeys: nil)
-        for url in contents {
-            if url.lastPathComponent.hasPrefix("claude-") && url.lastPathComponent.hasSuffix(".json") {
-                return url
-            }
-        }
+        let matches = contents
+            .filter { $0.lastPathComponent.hasPrefix("claude-") && $0.lastPathComponent.hasSuffix(".json") }
+            .sorted { $0.lastPathComponent < $1.lastPathComponent }
+        if let first = matches.first { return first }
         throw NSError(domain: "ClaudeUsageProbe", code: 1, userInfo: [NSLocalizedDescriptionKey: "No claude auth file found"])
     }
     
@@ -61,7 +60,8 @@ class ClaudeUsageProbe {
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
         
-        let body = "client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&grant_type=refresh_token&refresh_token=\(refreshToken)"
+        let encodedToken = refreshToken.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) ?? ""
+        let body = "client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&grant_type=refresh_token&refresh_token=\(encodedToken)"
         request.httpBody = body.data(using: .utf8)
         
         let (data, response) = try await URLSession.shared.data(for: request)
@@ -86,7 +86,7 @@ class ClaudeUsageProbe {
         existingJson["last_refresh"] = isoFormatter.string(from: Date())
 
         let newData = try JSONSerialization.data(withJSONObject: existingJson, options: [.prettyPrinted])
-        try newData.write(to: fileURL)
+        try newData.write(to: fileURL, options: [.atomic])
 
         return TokenInfo(access_token: newAccess, refresh_token: newRefresh, expired: newExpiresAt)
     }
@@ -137,16 +137,6 @@ class ClaudeUsageProbe {
         let decoder = JSONDecoder()
         let raw = try JSONSerialization.jsonObject(with: data, options: []) as? [String: Any] ?? [:]
 
-        let withFractional = ISO8601DateFormatter()
-        withFractional.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
-        let plain = ISO8601DateFormatter()
-        plain.formatOptions = [.withInternetDateTime]
-
-        func parseDate(_ str: String?) -> Date? {
-            guard let str else { return nil }
-            return withFractional.date(from: str) ?? plain.date(from: str)
-        }
-
         let knownBuckets: [(key: String, kind: UsageWindowKind)] = [
             ("five_hour", .other),
             ("seven_day", .weekly),
@@ -165,10 +155,10 @@ class ClaudeUsageProbe {
             guard let utilization = bucket.utilization else { continue }
             windows.append(UsageWindow(
                 kind: kind,
-                limit: 100,
-                used: Int(utilization.rounded()),
+                limit: 0,
+                used: 0,
                 percentUsed: utilization,
-                resetsAt: parseDate(bucket.resets_at)
+                resetsAt: Self.parseDate(bucket.resets_at)
             ))
         }
 

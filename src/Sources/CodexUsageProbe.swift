@@ -102,7 +102,7 @@ class CodexUsageProbe {
                 if let durationMins { return Date().addingTimeInterval(durationMins * 60) }
                 return nil
             }()
-            windows.append(UsageWindow(kind: kind, limit: 100, used: Int(percent.rounded()), percentUsed: percent, resetsAt: resetsAt))
+            windows.append(UsageWindow(kind: kind, limit: 0, used: 0, percentUsed: percent, resetsAt: resetsAt))
         }
         return windows
     }
