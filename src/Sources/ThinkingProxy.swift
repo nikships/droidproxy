@@ -19,7 +19,7 @@ import Network
 - Requests whose `model` is exactly `gpt-5.4` or `gpt-5.5` receive `reasoning: {"effort":"..."}`
   from `AppPreferences.gpt54ReasoningEffort` or `AppPreferences.gpt55ReasoningEffort`
 - Other models are forwarded unchanged
-- Requests whose `model` is exactly `k2.6` receive `reasoning: {"effort":"..."}`
+- Requests whose `model` is exactly `kimi-k2.6` receive `reasoning: {"effort":"..."}`
   from `AppPreferences.k26ReasoningEffort`
 
 The proxy edits the raw JSON string instead of re-serializing it so cache-sensitive key
@@ -450,7 +450,7 @@ class ThinkingProxy {
     }
 
     private func kimiReasoningEffort(for model: String) -> String? {
-        if model == "k2.6" {
+        if model == "kimi-k2.6" {
             return AppPreferences.k26ReasoningEffort
         }
         return nil

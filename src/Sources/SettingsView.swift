@@ -545,7 +545,7 @@ struct SettingsView: View {
     @State private var opus46EffortExpanded = false
     @State private var opus45EffortExpanded = false
     @State private var sonnet46EffortExpanded = false
-    @State private var k26EffortExpanded = false
+    @State private var kimiK26EffortExpanded = false
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
@@ -1139,7 +1139,7 @@ struct SettingsView: View {
                                 }
                             }
                             if kimiModelsExpanded {
-                                collapsibleEffortPickerRow("k2.6 reasoning effort", selection: $k26ReasoningEffort, options: ["low", "medium", "high", "xhigh"], tint: kimiEffortSelectionColor, isExpanded: $k26EffortExpanded)
+                                collapsibleEffortPickerRow("Kimi K2.6 reasoning effort", selection: $k26ReasoningEffort, options: ["low", "medium", "high", "max"], tint: kimiEffortSelectionColor, isExpanded: $kimiK26EffortExpanded)
                             }
                         }
                         .padding(.leading, 28)

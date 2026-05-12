@@ -57,11 +57,11 @@ const models = [
   },
   {
     icon: '/assets/icon-codex.png',
-    name: 'Kimi k2.6',
-    id: 'k2.6',
-    levels: ['low', 'medium', 'high', 'xhigh'],
-    max: '128,000',
-    provider: 'Moonshot',
+    name: 'Kimi K2.6',
+    id: 'kimi-k2.6',
+    levels: ['low', 'medium', 'high', 'max'],
+    max: '262,144',
+    provider: 'Moonshot AI',
   },
 ]
 

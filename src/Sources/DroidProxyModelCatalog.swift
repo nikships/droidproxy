@@ -192,16 +192,16 @@ enum DroidProxyModelCatalog {
             levels: geminiFlashLevels
         ),
         DroidProxyModelDefinition(
-            baseModel: "k2.6",
-            idSlug: "k2.6",
-            displayName: "Kimi k2.6",
-            maxOutputTokens: 128000,
-            provider: "moonshot",
+            baseModel: "kimi-k2.6",
+            idSlug: "kimi-k2.6",
+            displayName: "Kimi K2.6",
+            maxOutputTokens: 262144,
+            provider: "moonshotai",
             providerKey: "kimi",
             baseURL: "http://localhost:8317/v1",
             kind: .kimi,
             levelLabel: "Reasoning",
-            levels: codexLevels
+            levels: claudeClassicLevels
         )
     ]
 
@@ -232,7 +232,7 @@ enum DroidProxyModelCatalog {
         if name.hasPrefix("claude") { return "claude" }
         if name.hasPrefix("gpt") { return "codex" }
         if name.hasPrefix("gemini") { return "gemini" }
-        if name.hasPrefix("k2.6") { return "kimi" }
+        if name.hasPrefix("kimi-k2.6") { return "kimi" }
         return nil
     }
 

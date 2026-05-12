@@ -65,7 +65,7 @@ What it does today:
 - Injects `"reasoning":{"effort":"..."}`
 - Reads effort from `AppPreferences.gpt53CodexReasoningEffort`, `AppPreferences.gpt54ReasoningEffort`, or `AppPreferences.gpt55ReasoningEffort`
 - Injects Gemini thinking levels for `gemini-3.1-pro-preview` and `gemini-3-flash-preview`
-- Injects Kimi reasoning for `k2.6`
+- Injects Kimi reasoning for `kimi-k2.6`
 - Rewrites the model name to append a suffix (e.g. `gemini-3.1-pro-preview(high)`) which CLIProxyAPIPlus parses via its `ParseSuffix` logic
 - Reads level from `AppPreferences.gemini31ProThinkingLevel` or `AppPreferences.gemini3FlashThinkingLevel`
 - Reads Kimi effort from `AppPreferences.k26ReasoningEffort`
@@ -125,7 +125,7 @@ Behavior to know:
 | `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy for thinking injection plus Amp request/response rewriting. |
 | `src/Sources/SettingsView.swift` | SwiftUI settings UI for server status, launch-at-login, provider toggles, auth flows, and per-model effort pickers. |
 | `src/Sources/AuthStatus.swift` | `AuthManager`, account parsing, expiry detection, file deletion, and per-account disabled-state updates. |
-| `src/Sources/AppPreferences.swift` | UserDefaults-backed effort preferences for Opus 4.7, Sonnet 4.6, GPT 5.3 Codex, GPT 5.4, Gemini 3.1 Pro, Gemini 3 Flash, and Kimi k2.6, plus fast mode toggles and the usage probe controls (`showUsageInMenuBar`, `usageAutoRefreshSeconds`). |
+| `src/Sources/AppPreferences.swift` | UserDefaults-backed effort preferences for Opus 4.7, Sonnet 4.6, GPT 5.3 Codex, GPT 5.4, Gemini 3.1 Pro, Gemini 3 Flash, and Kimi K2.6, plus fast mode toggles and the usage probe controls (`showUsageInMenuBar`, `usageAutoRefreshSeconds`). |
 | `src/Sources/ClaudeUsageProbe.swift` | Hits `https://api.anthropic.com/api/oauth/usage` with the access token from `~/.cli-proxy-api/claude-*.json`. Handles OAuth refresh against `platform.claude.com/v1/oauth/token` (atomic write back to the auth file) and decodes the flat-keyed response shape (`five_hour`, `seven_day_*`). |
 | `src/Sources/CodexUsageProbe.swift` | Spawns `codex -s read-only -a untrusted app-server` as a child process and issues line-delimited JSON-RPC (`initialize` + `account/rateLimits/read`) to read Codex/ChatGPT rate limit windows. Requires the `codex` CLI to be installed and logged in. |
 | `src/Sources/UsageStore.swift` | `@MainActor` singleton that fan-outs to both probes in parallel, debounces overlapping refreshes (cancels in-flight task before starting a new one), and schedules a repeating timer based on `AppPreferences.usageAutoRefreshSeconds` (skips scheduling when set to 0/Manual). Posts `usageUpdated` notifications for UI consumers. |
