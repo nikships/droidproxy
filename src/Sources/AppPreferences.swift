@@ -19,8 +19,10 @@ enum AppPreferences {
     static let secretKeyKey = "secretKey"
     static let oledThemeKey = "oledTheme"
     static let factoryAdvancedModelsKey = "factoryAdvancedModels"
+    static let backgroundOpacityKey = "backgroundOpacity"
     static let defaultOledTheme = false
     static let defaultFactoryAdvancedModels = false
+    static let defaultBackgroundOpacity = 0.55
     static let defaultOpus47ThinkingEffort = "xhigh"
     static let defaultOpus46ThinkingEffort = "max"
     static let defaultOpus45ThinkingEffort = "high"

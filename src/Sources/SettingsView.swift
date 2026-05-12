@@ -525,6 +525,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.showUsageInMenuBarKey) private var showUsageInMenuBar = AppPreferences.defaultShowUsageInMenuBar
     @AppStorage(AppPreferences.usageAutoRefreshSecondsKey) private var usageAutoRefreshSeconds = AppPreferences.defaultUsageAutoRefreshSeconds
     @AppStorage(AppPreferences.oledThemeKey) private var oledTheme = AppPreferences.defaultOledTheme
+    @AppStorage(AppPreferences.backgroundOpacityKey) private var backgroundOpacity = AppPreferences.defaultBackgroundOpacity
     @AppStorage(AppPreferences.factoryAdvancedModelsKey) private var factoryAdvancedModels = AppPreferences.defaultFactoryAdvancedModels
     @State private var authenticatingService: ServiceType? = nil
     @State private var showingAuthResult = false
@@ -606,30 +607,44 @@ struct SettingsView: View {
                     .padding(.top, 36) // leave room for the transparent titlebar traffic-lights
                     .padding(.bottom, 4)
                     .frame(maxWidth: .infinity)
-                Button {
-                    oledTheme.toggle()
-                    NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
-                } label: {
-                    Image(systemName: oledTheme ? "sun.max.fill" : "moon.fill")
-                        .font(.system(size: 13, weight: .semibold))
-                        .foregroundColor(oledTheme ? Color.yellow.opacity(0.9) : Color.white.opacity(0.75))
-                        .frame(width: 26, height: 26)
-                        .background(
-                            Circle()
-                                .fill(Color.white.opacity(oledTheme ? 0.06 : 0.10))
-                        )
-                        .overlay(
-                            Circle()
-                                .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                        )
+                HStack(spacing: 8) {
+                    if !oledTheme {
+                        HStack(spacing: 4) {
+                            Image(systemName: "circle.lefthalf.filled")
+                                .font(.system(size: 10, weight: .regular))
+                                .foregroundColor(Color.white.opacity(0.40))
+                            Slider(value: $backgroundOpacity, in: 0.25...0.82)
+                                .frame(width: 60)
+                                .controlSize(.mini)
+                                .tint(Color.white.opacity(0.55))
+                        }
+                        .help("Adjust background opacity")
+                    }
+                    Button {
+                        oledTheme.toggle()
+                        NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
+                    } label: {
+                        Image(systemName: oledTheme ? "sun.max.fill" : "moon.fill")
+                            .font(.system(size: 13, weight: .semibold))
+                            .foregroundColor(oledTheme ? Color.yellow.opacity(0.9) : Color.white.opacity(0.75))
+                            .frame(width: 26, height: 26)
+                            .background(
+                                Circle()
+                                    .fill(Color.white.opacity(oledTheme ? 0.06 : 0.10))
+                            )
+                            .overlay(
+                                Circle()
+                                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                            )
+                    }
+                    .buttonStyle(.plain)
+                    .help(oledTheme ? "Switch to Liquid Glass theme" : "Switch to OLED black theme")
+                    .onHover { inside in
+                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                    }
                 }
-                .buttonStyle(.plain)
                 .padding(.top, 12)
                 .padding(.trailing, 12)
-                .help(oledTheme ? "Switch to Liquid Glass theme" : "Switch to OLED black theme")
-                .onHover { inside in
-                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
             }
 
             Form {
@@ -1105,7 +1120,7 @@ struct SettingsView: View {
 
                     ServiceRow(
                         serviceType: .kimi,
-                        iconName: "icon-inactive.png",
+                        iconName: "icon-kimi.svg",
                         accounts: authManager.accounts(for: .kimi),
                         isAuthenticating: authenticatingService == .kimi,
                         helpText: nil,
@@ -1196,7 +1211,7 @@ struct SettingsView: View {
                 VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
                     .ignoresSafeArea()
                 // Layer 2: dark tint so content stays readable over bright desktops.
-                Color.black.opacity(0.55)
+                Color.black.opacity(backgroundOpacity)
                     .ignoresSafeArea()
                 // Layer 3: colorful radial accents that the glass rows refract.
                 RadialGradient(
