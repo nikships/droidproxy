@@ -15,7 +15,7 @@ class CodexUsageProbe {
     private func codexCLIInstalled() -> Bool {
         let task = Process()
         task.launchPath = "/bin/sh"
-        task.arguments = ["-c", "which codex"]
+        task.arguments = ["-c", "PATH=$PATH:/opt/homebrew/bin:/usr/local/bin:$HOME/.local/bin which codex"]
         task.standardOutput = Pipe()
         task.standardError = Pipe()
         do {
