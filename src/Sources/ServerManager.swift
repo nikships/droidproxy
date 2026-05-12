@@ -76,7 +76,8 @@ class ServerManager: ObservableObject {
     static let oauthProviderKeys: [String: String] = [
         "claude": "claude",
         "codex": "codex",
-        "gemini": "gemini-cli"
+        "gemini": "gemini-cli",
+        "kimi": "kimi"
     ]
 
     init() {

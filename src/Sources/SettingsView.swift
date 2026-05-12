@@ -1107,7 +1107,7 @@ struct SettingsView: View {
 
                     ServiceRow(
                         serviceType: .kimi,
-                        iconName: "icon-codex.png",
+                        iconName: "icon-inactive.png",
                         accounts: authManager.accounts(for: .kimi),
                         isAuthenticating: authenticatingService == .kimi,
                         helpText: nil,
