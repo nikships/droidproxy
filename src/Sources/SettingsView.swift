@@ -518,6 +518,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.gpt55FastModeKey) private var gpt55FastMode = AppPreferences.defaultGpt55FastMode
     @AppStorage(AppPreferences.gemini31ProThinkingLevelKey) private var gemini31ProThinkingLevel = AppPreferences.defaultGemini31ProThinkingLevel
     @AppStorage(AppPreferences.gemini3FlashThinkingLevelKey) private var gemini3FlashThinkingLevel = AppPreferences.defaultGemini3FlashThinkingLevel
+    @AppStorage(AppPreferences.k26ReasoningEffortKey) private var k26ReasoningEffort = AppPreferences.defaultK26ReasoningEffort
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.claudeMaxBudgetModeKey) private var claudeMaxBudgetMode = AppPreferences.defaultClaudeMaxBudgetMode
@@ -539,13 +540,16 @@ struct SettingsView: View {
     @State private var claudeModelsExpanded = true
     @State private var codexModelsExpanded = true
     @State private var geminiModelsExpanded = true
+    @State private var kimiModelsExpanded = true
     @State private var opus47EffortExpanded = false
     @State private var opus46EffortExpanded = false
     @State private var opus45EffortExpanded = false
     @State private var sonnet46EffortExpanded = false
+    @State private var k26EffortExpanded = false
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
+    private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
     private let oledWindowBackground = Color.black
     private let oledSectionBackground = Color(red: 0x12/255, green: 0x12/255, blue: 0x12/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
@@ -1100,6 +1104,46 @@ struct SettingsView: View {
                         }
                         .padding(.leading, 28)
                     }
+
+                    ServiceRow(
+                        serviceType: .kimi,
+                        iconName: "icon-codex.png",
+                        accounts: authManager.accounts(for: .kimi),
+                        isAuthenticating: authenticatingService == .kimi,
+                        helpText: nil,
+                        isEnabled: serverManager.isProviderEnabled("kimi"),
+                        customTitle: nil,
+                        onConnect: { connectService(.kimi) },
+                        onDisconnect: { account in disconnectAccount(account) },
+                        onToggleDisabled: { account in toggleAccountDisabled(account) },
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled("kimi", enabled: enabled) },
+                        toggleTint: kimiEffortSelectionColor,
+                        onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
+                    ) { EmptyView() }
+
+                    if serverManager.isProviderEnabled("kimi") {
+                        VStack(alignment: .leading, spacing: 6) {
+                            HStack(spacing: 4) {
+                                Text("Model Settings")
+                                    .font(.caption)
+                                    .foregroundColor(.secondary)
+                                Image(systemName: kimiModelsExpanded ? "chevron.down" : "chevron.right")
+                                    .font(.caption2)
+                                    .foregroundColor(.secondary)
+                                Spacer()
+                            }
+                            .contentShape(Rectangle())
+                            .onTapGesture {
+                                withAnimation(.easeInOut(duration: 0.2)) {
+                                    kimiModelsExpanded.toggle()
+                                }
+                            }
+                            if kimiModelsExpanded {
+                                collapsibleEffortPickerRow("k2.6 reasoning effort", selection: $k26ReasoningEffort, options: ["low", "medium", "high", "xhigh"], tint: kimiEffortSelectionColor, isExpanded: $k26EffortExpanded)
+                            }
+                        }
+                        .padding(.leading, 28)
+                    }
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -1405,6 +1449,7 @@ struct SettingsView: View {
         case .claude: command = .claudeLogin
         case .codex: command = .codexLogin
         case .gemini: command = .geminiLogin
+        case .kimi: command = .kimiLogin
         }
         
         serverManager.runAuthCommand(command) { success, output in
@@ -1433,6 +1478,8 @@ struct SettingsView: View {
             return "🌐 Browser opened for Codex authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .gemini:
             return "🌐 Browser opened for Gemini authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -login"
+        case .kimi:
+            return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         }
     }
     

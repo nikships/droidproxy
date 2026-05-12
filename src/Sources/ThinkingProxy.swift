@@ -16,12 +16,14 @@ import Network
    plus `output_config.effort` from `AppPreferences.sonnet46ThinkingEffort`
  - Requests whose `model` is exactly `gpt-5.3-codex` receive `reasoning: {"effort":"..."}`
    from `AppPreferences.gpt53CodexReasoningEffort`
- - Requests whose `model` is exactly `gpt-5.4` or `gpt-5.5` receive `reasoning: {"effort":"..."}`
-   from `AppPreferences.gpt54ReasoningEffort` or `AppPreferences.gpt55ReasoningEffort`
- - Other models are forwarded unchanged
+- Requests whose `model` is exactly `gpt-5.4` or `gpt-5.5` receive `reasoning: {"effort":"..."}`
+  from `AppPreferences.gpt54ReasoningEffort` or `AppPreferences.gpt55ReasoningEffort`
+- Other models are forwarded unchanged
+- Requests whose `model` is exactly `k2.6` receive `reasoning: {"effort":"..."}`
+  from `AppPreferences.k26ReasoningEffort`
 
- The proxy edits the raw JSON string instead of re-serializing it so cache-sensitive key
- ordering is preserved.
+The proxy edits the raw JSON string instead of re-serializing it so cache-sensitive key
+ordering is preserved.
  */
 class ThinkingProxy {
     private var listener: NWListener?
@@ -327,6 +329,15 @@ class ThinkingProxy {
             return result
         }
 
+        if let effort = kimiReasoningEffort(for: model) {
+            var result = jsonString
+            result = injectJSONField(in: result, afterKey: "model", fieldName: "reasoning",
+                                     fieldValue: "{\"effort\":\"\(effort)\"}")
+            NSLog("[ThinkingProxy] Injected Kimi reasoning for '\(model)' with effort '\(effort)'")
+            ThinkingProxy.fileLog("INJECTED Kimi reasoning: effort=\(effort) for model \(model)")
+            return result
+        }
+
         if let level = geminiThinkingLevel(for: model) {
             var result = jsonString
             result = injectGeminiThinkingLevel(in: result, level: level, generationConfigExists: json["generationConfig"] != nil)
@@ -360,6 +371,15 @@ class ThinkingProxy {
                                               existsInJSON: json["reasoning"] != nil)
             NSLog("[ThinkingProxy] Injected advanced Codex reasoning for '\(requestedModel)' as '\(baseModel)' with effort '\(level)'")
             ThinkingProxy.fileLog("INJECTED advanced Codex reasoning: effort=\(level) for model \(requestedModel) -> \(baseModel)")
+            return result
+
+        case .kimi:
+            var result = rewrittenJSON
+            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "reasoning",
+                                              fieldValue: "{\"effort\":\"\(level)\"}",
+                                              existsInJSON: json["reasoning"] != nil)
+            NSLog("[ThinkingProxy] Injected advanced Kimi reasoning for '\(requestedModel)' as '\(baseModel)' with effort '\(level)'")
+            ThinkingProxy.fileLog("INJECTED advanced Kimi reasoning: effort=\(level) for model \(requestedModel) -> \(baseModel)")
             return result
 
         case .gemini:
@@ -427,6 +447,13 @@ class ThinkingProxy {
         default:
             return nil
         }
+    }
+
+    private func kimiReasoningEffort(for model: String) -> String? {
+        if model == "k2.6" {
+            return AppPreferences.k26ReasoningEffort
+        }
+        return nil
     }
 
     /// Replaces an existing JSON field's value or injects it if missing.

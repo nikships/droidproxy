@@ -268,6 +268,8 @@ class ServerManager: ObservableObject {
             authProcess.arguments = ["--config", configPath, "-codex-login"]
         case .geminiLogin:
             authProcess.arguments = ["--config", configPath, "-login"]
+        case .kimiLogin:
+            authProcess.arguments = ["--config", configPath, "-kimi-login"]
         }
 
         // Create pipes for output
@@ -486,4 +488,5 @@ enum AuthCommand: Equatable {
     case claudeLogin
     case codexLogin
     case geminiLogin
+    case kimiLogin
 }
