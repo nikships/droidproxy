@@ -518,7 +518,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.gpt55FastModeKey) private var gpt55FastMode = AppPreferences.defaultGpt55FastMode
     @AppStorage(AppPreferences.gemini31ProThinkingLevelKey) private var gemini31ProThinkingLevel = AppPreferences.defaultGemini31ProThinkingLevel
     @AppStorage(AppPreferences.gemini3FlashThinkingLevelKey) private var gemini3FlashThinkingLevel = AppPreferences.defaultGemini3FlashThinkingLevel
-    @AppStorage(AppPreferences.k26ReasoningEffortKey) private var k26ReasoningEffort = AppPreferences.defaultK26ReasoningEffort
+    @AppStorage(AppPreferences.k26ReasoningEnabledKey) private var k26ReasoningEnabled = AppPreferences.defaultK26ReasoningEnabled
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.claudeMaxBudgetModeKey) private var claudeMaxBudgetMode = AppPreferences.defaultClaudeMaxBudgetMode
@@ -540,12 +540,10 @@ struct SettingsView: View {
     @State private var claudeModelsExpanded = true
     @State private var codexModelsExpanded = true
     @State private var geminiModelsExpanded = true
-    @State private var kimiModelsExpanded = true
     @State private var opus47EffortExpanded = false
     @State private var opus46EffortExpanded = false
     @State private var opus45EffortExpanded = false
     @State private var sonnet46EffortExpanded = false
-    @State private var kimiK26EffortExpanded = false
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
@@ -1122,25 +1120,16 @@ struct SettingsView: View {
                     ) { EmptyView() }
 
                     if serverManager.isProviderEnabled("kimi") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("Model Settings")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Image(systemName: kimiModelsExpanded ? "chevron.down" : "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    kimiModelsExpanded.toggle()
-                                }
-                            }
-                            if kimiModelsExpanded {
-                                collapsibleEffortPickerRow("Kimi K2.6 reasoning effort", selection: $k26ReasoningEffort, options: ["low", "medium", "high", "max"], tint: kimiEffortSelectionColor, isExpanded: $kimiK26EffortExpanded)
-                            }
+                        HStack {
+                            Text("K2.6 reasoning")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            Spacer()
+                            Toggle("", isOn: $k26ReasoningEnabled)
+                                .toggleStyle(.switch)
+                                .controlSize(.mini)
+                                .tint(kimiEffortSelectionColor)
+                                .labelsHidden()
                         }
                         .padding(.leading, 28)
                     }

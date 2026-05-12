@@ -331,10 +331,11 @@ class ThinkingProxy {
 
         if let effort = kimiReasoningEffort(for: model) {
             var result = jsonString
-            result = injectJSONField(in: result, afterKey: "model", fieldName: "reasoning",
-                                     fieldValue: "{\"effort\":\"\(effort)\"}")
-            NSLog("[ThinkingProxy] Injected Kimi reasoning for '\(model)' with effort '\(effort)'")
-            ThinkingProxy.fileLog("INJECTED Kimi reasoning: effort=\(effort) for model \(model)")
+            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "reasoning_effort",
+                                              fieldValue: "\"\(effort)\"",
+                                              existsInJSON: json["reasoning_effort"] != nil)
+            NSLog("[ThinkingProxy] Injected Kimi reasoning_effort for '\(model)' with effort '\(effort)'")
+            ThinkingProxy.fileLog("INJECTED Kimi reasoning_effort=\(effort) for model \(model)")
             return result
         }
 
@@ -375,11 +376,11 @@ class ThinkingProxy {
 
         case .kimi:
             var result = rewrittenJSON
-            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "reasoning",
-                                              fieldValue: "{\"effort\":\"\(level)\"}",
-                                              existsInJSON: json["reasoning"] != nil)
-            NSLog("[ThinkingProxy] Injected advanced Kimi reasoning for '\(requestedModel)' as '\(baseModel)' with effort '\(level)'")
-            ThinkingProxy.fileLog("INJECTED advanced Kimi reasoning: effort=\(level) for model \(requestedModel) -> \(baseModel)")
+            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "reasoning_effort",
+                                              fieldValue: "\"\(level)\"",
+                                              existsInJSON: json["reasoning_effort"] != nil)
+            NSLog("[ThinkingProxy] Injected advanced Kimi reasoning_effort for '\(requestedModel)' as '\(baseModel)' with effort '\(level)'")
+            ThinkingProxy.fileLog("INJECTED advanced Kimi reasoning_effort=\(level) for model \(requestedModel) -> \(baseModel)")
             return result
 
         case .gemini:
@@ -451,7 +452,7 @@ class ThinkingProxy {
 
     private func kimiReasoningEffort(for model: String) -> String? {
         if model == "kimi-k2.6" {
-            return AppPreferences.k26ReasoningEffort
+            return AppPreferences.k26ReasoningEnabled ? "high" : nil
         }
         return nil
     }

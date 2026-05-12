@@ -44,3 +44,6 @@ context/
 
 # Graphify per-file extraction cache (regenerated each run)
 graphify-out/cache/
+
+# Junie metadata
+.junie/

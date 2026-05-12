@@ -79,6 +79,7 @@ enum DroidProxyModelCatalog {
     private static let claudeAdvancedLevels = [low, medium, high, xhigh, max]
     private static let claudeClassicLevels = [low, medium, high, max]
     private static let codexLevels = [low, medium, high, xhigh]
+    private static let kimiLevels = [high]
     private static let geminiProLevels = [low, medium, high]
     private static let geminiFlashLevels = [minimal, low, medium, high]
 
@@ -196,12 +197,12 @@ enum DroidProxyModelCatalog {
             idSlug: "kimi-k2.6",
             displayName: "Kimi K2.6",
             maxOutputTokens: 262144,
-            provider: "moonshotai",
+            provider: "openai",
             providerKey: "kimi",
             baseURL: "http://localhost:8317/v1",
             kind: .kimi,
             levelLabel: "Reasoning",
-            levels: claudeClassicLevels
+            levels: kimiLevels
         )
     ]
 

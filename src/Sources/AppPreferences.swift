@@ -13,7 +13,7 @@ enum AppPreferences {
     static let gpt55FastModeKey = "gpt55FastMode"
     static let gemini31ProThinkingLevelKey = "gemini31ProThinkingLevel"
     static let gemini3FlashThinkingLevelKey = "gemini3FlashThinkingLevel"
-    static let k26ReasoningEffortKey = "k26ReasoningEffort"
+    static let k26ReasoningEnabledKey = "k26ReasoningEnabled"
     static let claudeMaxBudgetModeKey = "claudeMaxBudgetMode"
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"
@@ -33,7 +33,7 @@ enum AppPreferences {
     static let defaultGpt55FastMode = false
     static let defaultGemini31ProThinkingLevel = "high"
     static let defaultGemini3FlashThinkingLevel = "high"
-    static let defaultK26ReasoningEffort = "high"
+    static let defaultK26ReasoningEnabled = true
     static let defaultClaudeMaxBudgetMode = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
@@ -130,12 +130,12 @@ enum AppPreferences {
         return defaults.string(forKey: gemini3FlashThinkingLevelKey) ?? defaultGemini3FlashThinkingLevel
     }
 
-    static var k26ReasoningEffort: String {
+    static var k26ReasoningEnabled: Bool {
         let defaults = UserDefaults.standard
-        guard defaults.object(forKey: k26ReasoningEffortKey) != nil else {
-            return defaultK26ReasoningEffort
+        guard defaults.object(forKey: k26ReasoningEnabledKey) != nil else {
+            return defaultK26ReasoningEnabled
         }
-        return defaults.string(forKey: k26ReasoningEffortKey) ?? defaultK26ReasoningEffort
+        return defaults.bool(forKey: k26ReasoningEnabledKey)
     }
 
     static var claudeMaxBudgetMode: Bool {
