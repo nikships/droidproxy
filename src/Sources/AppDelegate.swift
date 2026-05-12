@@ -264,9 +264,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     private func applyTheme(to window: NSWindow) {
-        // Both themes keep the window at 0.85 alpha; the SettingsView swaps
-        // the backdrop (colourful gradient vs flat black) on its own.
-        window.alphaValue = 0.85
+        let opacity = AppPreferences.backgroundOpacity
+        if opacity >= 1.0 {
+            // Fully opaque: make the window a solid NSWindow so macOS doesn't
+            // composite the desktop behind it regardless of SwiftUI layers.
+            window.isOpaque = true
+            window.backgroundColor = .black
+            window.alphaValue = 1.0
+        } else {
+            // Translucent: keep non-opaque so VisualEffectBlur can show the
+            // desktop blur. SwiftUI layers control the visible opacity.
+            window.isOpaque = false
+            window.backgroundColor = .clear
+            window.alphaValue = 1.0
+        }
     }
 
     func windowDidClose(_ notification: Notification) {

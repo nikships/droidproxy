@@ -608,18 +608,16 @@ struct SettingsView: View {
                     .padding(.bottom, 4)
                     .frame(maxWidth: .infinity)
                 HStack(spacing: 8) {
-                    if !oledTheme {
-                        HStack(spacing: 4) {
-                            Image(systemName: "circle.lefthalf.filled")
-                                .font(.system(size: 10, weight: .regular))
-                                .foregroundColor(Color.white.opacity(0.40))
-                            Slider(value: $backgroundOpacity, in: 0.25...0.82)
-                                .frame(width: 60)
-                                .controlSize(.mini)
-                                .tint(Color.white.opacity(0.55))
-                        }
-                        .help("Adjust background opacity")
+                    HStack(spacing: 4) {
+                        Image(systemName: "circle.lefthalf.filled")
+                            .font(.system(size: 10, weight: .regular))
+                            .foregroundColor(Color.white.opacity(0.40))
+                        Slider(value: $backgroundOpacity, in: 0.10...1.0)
+                            .frame(width: 60)
+                            .controlSize(.mini)
+                            .tint(Color.white.opacity(0.55))
                     }
+                    .help("Adjust background opacity (100% = fully opaque)")
                     Button {
                         oledTheme.toggle()
                         NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
@@ -1206,50 +1204,34 @@ struct SettingsView: View {
                 if oledTheme {
                     Color.black.ignoresSafeArea()
                 } else {
-                // Layer 1: behind-window blur so the desktop refracts through the
-                // transparent titlebar + translucent rows.
-                VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                    .ignoresSafeArea()
-                // Layer 2: dark tint so content stays readable over bright desktops.
-                Color.black.opacity(backgroundOpacity)
-                    .ignoresSafeArea()
-                // Layer 3: colorful radial accents that the glass rows refract.
-                RadialGradient(
-                    colors: [
-                        Color(red: 0.95, green: 0.45, blue: 0.15).opacity(0.45),
-                        Color.clear
-                    ],
-                    center: .init(x: 0.15, y: 0.1),
-                    startRadius: 10,
-                    endRadius: 420
-                )
-                .ignoresSafeArea()
-                RadialGradient(
-                    colors: [
-                        Color(red: 0.30, green: 0.50, blue: 0.95).opacity(0.35),
-                        Color.clear
-                    ],
-                    center: .init(x: 0.85, y: 0.9),
-                    startRadius: 10,
-                    endRadius: 420
-                )
-                .ignoresSafeArea()
-                RadialGradient(
-                    colors: [
-                        Color(red: 0.90, green: 0.25, blue: 0.35).opacity(0.25),
-                        Color.clear
-                    ],
-                    center: .init(x: 0.9, y: 0.2),
-                    startRadius: 10,
-                    endRadius: 320
-                )
-                .ignoresSafeArea()
-                } // end !oledTheme
+                    if backgroundOpacity < 1.0 {
+                        VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
+                            .ignoresSafeArea()
+                    }
+                    Color.black.opacity(0.55)
+                        .ignoresSafeArea()
+                    RadialGradient(
+                        colors: [Color(red: 0.95, green: 0.45, blue: 0.15).opacity(0.45), Color.clear],
+                        center: .init(x: 0.15, y: 0.1), startRadius: 10, endRadius: 420
+                    ).ignoresSafeArea()
+                    RadialGradient(
+                        colors: [Color(red: 0.30, green: 0.50, blue: 0.95).opacity(0.35), Color.clear],
+                        center: .init(x: 0.85, y: 0.9), startRadius: 10, endRadius: 420
+                    ).ignoresSafeArea()
+                    RadialGradient(
+                        colors: [Color(red: 0.90, green: 0.25, blue: 0.35).opacity(0.25), Color.clear],
+                        center: .init(x: 0.9, y: 0.2), startRadius: 10, endRadius: 320
+                    ).ignoresSafeArea()
+                }
             }
+            .opacity(backgroundOpacity)
         )
         .accentColor(AccountRowView.accent)
         .preferredColorScheme(.dark)
         .frame(width: 480, height: 814)
+        .onChange(of: backgroundOpacity) { _ in
+            NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
+        }
         .onAppear {
             authManager.checkAuthStatus()
             checkLaunchAtLogin()

@@ -140,6 +140,12 @@ enum AppPreferences {
         return defaults.bool(forKey: k26ReasoningEnabledKey)
     }
 
+    static var backgroundOpacity: Double {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: backgroundOpacityKey) != nil else { return defaultBackgroundOpacity }
+        return defaults.double(forKey: backgroundOpacityKey)
+    }
+
     static var claudeMaxBudgetMode: Bool {
         UserDefaults.standard.bool(forKey: claudeMaxBudgetModeKey)
     }
