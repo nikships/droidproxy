@@ -2,7 +2,7 @@ const steps = [
   {
     num: '01',
     name: 'You sign in',
-    desc: 'Click a button in the DroidProxy menu bar. A normal browser login window opens for Claude, ChatGPT, or Gemini — the same one you\'ve already used a hundred times.',
+    desc: 'Click a button in the DroidProxy menu bar. A normal browser login window opens for Claude, ChatGPT, Gemini, or Kimi — the same one you\'ve already used a hundred times.',
     portLabel: 'handled by',
     port: 'DroidProxy',
   },
@@ -16,7 +16,7 @@ const steps = [
   {
     num: '03',
     name: 'Factory Droid uses it',
-    desc: 'Click "Apply" once and DroidProxy adds custom models to your Factory client. Pick one and Droid sends every request to DroidProxy — which forwards to Anthropic, OpenAI, or Google on your subscription.',
+    desc: 'Click "Apply" once and DroidProxy adds custom models to your Factory client. Pick one and Droid sends every request to DroidProxy — which forwards to Anthropic, OpenAI, Google, or Moonshot on your subscription.',
     portLabel: 'billed by',
     port: 'your AI lab',
   },
@@ -31,7 +31,7 @@ export default function HowItWorksSection() {
             <div className="meta">§ 02 — How it works</div>
             <h2 style={{ marginTop: 10 }}>Sign in once. Factory Droid uses it.</h2>
           </div>
-          <p>DroidProxy lives in your menu bar. You sign in to Claude, ChatGPT, or Gemini through it — exactly like signing in to those apps anywhere else. Then it tells Factory Droid "use these subscriptions instead of your own billing."</p>
+          <p>DroidProxy lives in your menu bar. You sign in to Claude, ChatGPT, Gemini, or Kimi through it — exactly like signing in to those apps anywhere else. Then it tells Factory Droid "use these subscriptions instead of your own billing."</p>
         </div>
 
         <div className="flow">
