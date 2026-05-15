@@ -35,9 +35,20 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "anthropic"
     },
     {
+      "model": "gpt-5.2",
+      "id": "custom:droidproxy:gpt-5.2",
+      "index": 2,
+      "baseUrl": "http://localhost:8317/v1",
+      "apiKey": "dummy-not-used",
+      "displayName": "DroidProxy: GPT 5.2",
+      "maxOutputTokens": 128000,
+      "noImageSupport": false,
+      "provider": "openai"
+    },
+    {
       "model": "gpt-5.3-codex",
       "id": "custom:droidproxy:gpt-5.3-codex",
-      "index": 2,
+      "index": 3,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 5.3 Codex",
@@ -48,7 +59,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gpt-5.4",
       "id": "custom:droidproxy:gpt-5.4",
-      "index": 3,
+      "index": 4,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 5.4",
@@ -59,7 +70,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gpt-5.5",
       "id": "custom:droidproxy:gpt-5.5",
-      "index": 4,
+      "index": 5,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 5.5",
@@ -70,7 +81,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gemini-3.1-pro-preview",
       "id": "custom:droidproxy:gemini-3.1-pro",
-      "index": 5,
+      "index": 6,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3.1 Pro",
@@ -81,7 +92,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gemini-3-flash-preview",
       "id": "custom:droidproxy:gemini-3-flash",
-      "index": 6,
+      "index": 7,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3 Flash",
@@ -100,6 +111,7 @@ Use the standard Claude and Codex model aliases in the `model` field. Claude ent
 2. Set the desired effort:
    - Opus 4.7: `low`, `medium`, `high`, `xhigh`, or `max`
    - Sonnet 4.6: `low`, `medium`, `high`, or `max`
+   - GPT 5.2: `low`, `medium`, `high`, or `xhigh`
    - GPT 5.3 Codex: `low`, `medium`, `high`, or `xhigh`
    - GPT 5.4: `low`, `medium`, `high`, or `xhigh`
    - GPT 5.5: `low`, `medium`, `high`, or `xhigh`

@@ -18,8 +18,9 @@ import Network
    `redact-thinking-2026-02-12`, otherwise Claude emits only signed empty thinking blocks.
  - Requests whose `model` is exactly `gpt-5.3-codex` receive `reasoning: {"effort":"..."}`
    from `AppPreferences.gpt53CodexReasoningEffort`
-- Requests whose `model` is exactly `gpt-5.4` or `gpt-5.5` receive `reasoning: {"effort":"..."}`
-  from `AppPreferences.gpt54ReasoningEffort` or `AppPreferences.gpt55ReasoningEffort`
+- Requests whose `model` is exactly `gpt-5.2`, `gpt-5.4`, or `gpt-5.5` receive
+  `reasoning: {"effort":"..."}` from `AppPreferences.gpt52ReasoningEffort`,
+  `AppPreferences.gpt54ReasoningEffort`, or `AppPreferences.gpt55ReasoningEffort`
 - Other models are forwarded unchanged
 - Requests whose `model` is exactly `kimi-k2.6` receive `reasoning: {"effort":"..."}`
   from `AppPreferences.k26ReasoningEffort`
@@ -520,6 +521,8 @@ class ThinkingProxy {
 
     private func codexReasoningEffort(for model: String) -> String? {
         switch model {
+        case "gpt-5.2":
+            return AppPreferences.gpt52ReasoningEffort
         case "gpt-5.3-codex":
             return AppPreferences.gpt53CodexReasoningEffort
         case "gpt-5.4":
@@ -1000,6 +1003,8 @@ class ThinkingProxy {
         }
 
         switch model {
+        case "gpt-5.2":
+            guard AppPreferences.gpt52FastMode else { return nil }
         case "gpt-5.4":
             guard AppPreferences.gpt54FastMode else { return nil }
         case "gpt-5.5":

@@ -33,6 +33,10 @@ enum AppPreferences {
     static let defaultGpt53CodexFastMode = false
     static let defaultGpt54FastMode = false
     static let defaultGpt55FastMode = false
+    static let gpt52ReasoningEffortKey = "gpt52ReasoningEffort"
+    static let gpt52FastModeKey = "gpt52FastMode"
+    static let defaultGpt52ReasoningEffort = "high"
+    static let defaultGpt52FastMode = false
     static let defaultGemini31ProThinkingLevel = "high"
     static let defaultGemini3FlashThinkingLevel = "high"
     static let defaultK26ReasoningEnabled = true
@@ -138,6 +142,18 @@ enum AppPreferences {
             return defaultK26ReasoningEnabled
         }
         return defaults.bool(forKey: k26ReasoningEnabledKey)
+    }
+
+    static var gpt52ReasoningEffort: String {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: gpt52ReasoningEffortKey) != nil else {
+            return defaultGpt52ReasoningEffort
+        }
+        return defaults.string(forKey: gpt52ReasoningEffortKey) ?? defaultGpt52ReasoningEffort
+    }
+
+    static var gpt52FastMode: Bool {
+        UserDefaults.standard.bool(forKey: gpt52FastModeKey)
     }
 
     static var backgroundOpacity: Double {

@@ -1,7 +1,7 @@
 ---
 name: challenger-gpt
 description: Devil's advocate code reviewer that challenges decisions, critiques patterns, and suggests better alternatives. Use when you want a tough second opinion on code, architecture, or design choices.
-model: custom:droidproxy:gpt-5.4
+model: custom:droidproxy:gpt-5.2
 tools: ["Read", "LS", "Grep", "Glob", "WebSearch", "FetchUrl"]
 ---
 
