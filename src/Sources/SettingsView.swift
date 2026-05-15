@@ -999,90 +999,26 @@ struct SettingsView: View {
                                         helpText: "Injects service_tier=priority for GPT 5.5 Responses API requests (Codex fast mode)"
                                     )
                                 } else {
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text("GPT 5.2 reasoning effort")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Spacer()
-                                            Toggle("Fast mode", isOn: $gpt52FastMode)
-                                                .toggleStyle(.checkbox)
-                                                .font(.caption)
-                                                .help("Injects service_tier=priority for GPT 5.2 Responses API requests (Codex fast mode)")
-                                        }
-                                        Picker("", selection: $gpt52ReasoningEffort) {
-                                            ForEach(["low", "medium", "high", "xhigh"], id: \.self) { option in
-                                                Text(option).tag(option)
-                                            }
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .tint(codexEffortSelectionColor)
-                                        .labelsHidden()
-                                    }
-                                    .padding(.vertical, 2)
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text("GPT 5.3 Codex reasoning effort")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Spacer()
-                                            Toggle("Fast mode", isOn: $gpt53CodexFastMode)
-                                                .toggleStyle(.checkbox)
-                                                .font(.caption)
-                                                .help("Injects service_tier=priority for GPT 5.3 Codex Responses API requests (Codex fast mode)")
-                                        }
-                                        Picker("", selection: $gpt53CodexReasoningEffort) {
-                                            ForEach(["low", "medium", "high", "xhigh"], id: \.self) { option in
-                                                Text(option).tag(option)
-                                            }
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .tint(codexEffortSelectionColor)
-                                        .labelsHidden()
-                                    }
-                                    .padding(.vertical, 2)
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text("GPT 5.4 reasoning effort")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Spacer()
-                                            Toggle("Fast mode", isOn: $gpt54FastMode)
-                                                .toggleStyle(.checkbox)
-                                                .font(.caption)
-                                                .help("Injects service_tier=priority for GPT 5.4 Responses API requests (Codex fast mode)")
-                                        }
-                                        Picker("", selection: $gpt54ReasoningEffort) {
-                                            ForEach(["low", "medium", "high", "xhigh"], id: \.self) { option in
-                                                Text(option).tag(option)
-                                            }
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .tint(codexEffortSelectionColor)
-                                        .labelsHidden()
-                                    }
-                                    .padding(.vertical, 2)
-                                    VStack(alignment: .leading, spacing: 6) {
-                                        HStack {
-                                            Text("GPT 5.5 reasoning effort")
-                                                .font(.caption)
-                                                .foregroundColor(.secondary)
-                                            Spacer()
-                                            Toggle("Fast mode", isOn: $gpt55FastMode)
-                                                .toggleStyle(.checkbox)
-                                                .font(.caption)
-                                                .help("Injects service_tier=priority for GPT 5.5 Responses API requests (Codex fast mode)")
-                                        }
-                                        Picker("", selection: $gpt55ReasoningEffort) {
-                                            ForEach(["low", "medium", "high", "xhigh"], id: \.self) { option in
-                                                Text(option).tag(option)
-                                            }
-                                        }
-                                        .pickerStyle(.segmented)
-                                        .tint(codexEffortSelectionColor)
-                                        .labelsHidden()
-                                    }
-                                    .padding(.vertical, 2)
+                                    codexReasoningEffortRow(
+                                        "GPT 5.2",
+                                        effortSelection: $gpt52ReasoningEffort,
+                                        fastMode: $gpt52FastMode
+                                    )
+                                    codexReasoningEffortRow(
+                                        "GPT 5.3 Codex",
+                                        effortSelection: $gpt53CodexReasoningEffort,
+                                        fastMode: $gpt53CodexFastMode
+                                    )
+                                    codexReasoningEffortRow(
+                                        "GPT 5.4",
+                                        effortSelection: $gpt54ReasoningEffort,
+                                        fastMode: $gpt54FastMode
+                                    )
+                                    codexReasoningEffortRow(
+                                        "GPT 5.5",
+                                        effortSelection: $gpt55ReasoningEffort,
+                                        fastMode: $gpt55FastMode
+                                    )
                                 }
                             }
                         }
@@ -1309,6 +1245,35 @@ struct SettingsView: View {
                 .toggleStyle(.checkbox)
                 .font(.caption)
                 .help(helpText)
+        }
+        .padding(.vertical, 2)
+    }
+
+    @ViewBuilder
+    private func codexReasoningEffortRow(
+        _ title: String,
+        effortSelection: Binding<String>,
+        fastMode: Binding<Bool>
+    ) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack {
+                Text("\(title) reasoning effort")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                Spacer()
+                Toggle("Fast mode", isOn: fastMode)
+                    .toggleStyle(.checkbox)
+                    .font(.caption)
+                    .help("Injects service_tier=priority for \(title) Responses API requests (Codex fast mode)")
+            }
+            Picker("", selection: effortSelection) {
+                ForEach(["low", "medium", "high", "xhigh"], id: \.self) { option in
+                    Text(option).tag(option)
+                }
+            }
+            .pickerStyle(.segmented)
+            .tint(codexEffortSelectionColor)
+            .labelsHidden()
         }
         .padding(.vertical, 2)
     }
