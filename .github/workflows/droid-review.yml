@@ -28,4 +28,4 @@ jobs:
         with:
           factory_api_key: ${{ secrets.FACTORY_API_KEY }}
           automatic_review: true
-          review_depth: shallow
+          review_model: gpt-5.2
