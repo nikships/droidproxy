@@ -9,6 +9,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Fixed
+- **Claude thinking display** -- DroidProxy now requests summarized Opus 4.7 thinking and removes the `redact-thinking-2026-02-12` beta for Claude thinking requests so Anthropic streams plaintext `thinking_delta` blocks instead of empty thinking blocks with only signatures.
 - **Codex `auth_unavailable` blackout during long sessions** ([#57](https://github.com/anand-92/droidproxy/issues/57)) -- Bundled `config.yaml` now sets `disable-cooling: true` so a single transient failure on a Codex/Claude/Gemini auth no longer parks every available account behind a cooldown window. Long Factory/Droid sessions on `gpt-5.5`, `gpt-5.4`, etc. no longer fail with `503 auth_unavailable: no auth available (providers=codex,github-copilot)` after working normally for hours.
 - **Encrypted reasoning state mismatch on `/v1/responses`** ([#58](https://github.com/anand-92/droidproxy/issues/58)) -- Bundled `config.yaml` now enables `routing.session-affinity: true` (TTL `2h`). Stateful Codex Responses API turns now stay pinned to the same upstream auth, so encrypted reasoning content created on turn N is no longer replayed through a different account on turn N+1 with `400 The encrypted content ... could not be verified`.
 
