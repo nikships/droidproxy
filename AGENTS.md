@@ -72,8 +72,8 @@ What it does today:
   - Reads level from `AppPreferences.gemini31ProThinkingLevel` or `AppPreferences.gemini3FlashThinkingLevel`
   - Also rewrites `/v1/responses` (and `/api/v1/responses`) to `/v1/chat/completions` for Gemini models since CLIProxyAPIPlus does not support Gemini via the Responses API
 - **Kimi reasoning** for `kimi-k2.6`:
-  - Injects `"reasoning":{"effort":"high"}` when `AppPreferences.k26ReasoningEnabled` is true; passes through unchanged otherwise (k2.6 only has a boolean toggle, not an effort picker)
-- **Service tier (fast mode)** for Responses API paths (`/v1/responses`, `/api/v1/responses`): injects `"service_tier":"priority"` for `gpt-5.2`, `gpt-5.4`, or `gpt-5.5` when `AppPreferences.gpt52FastMode`, `AppPreferences.gpt54FastMode`, or `AppPreferences.gpt55FastMode` is enabled and the client did not already set `service_tier`
+  - Injects a top-level `"reasoning_effort":"high"` when `AppPreferences.k26ReasoningEnabled` is true; passes through unchanged otherwise (k2.6 only has a boolean toggle, not an effort picker)
+- **Service tier (fast mode)** for Responses API paths (`/v1/responses`, `/api/v1/responses`): injects `"service_tier":"priority"` for `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4`, or `gpt-5.5` when `AppPreferences.gpt52FastMode`, `AppPreferences.gpt53CodexFastMode`, `AppPreferences.gpt54FastMode`, or `AppPreferences.gpt55FastMode` is enabled and the client did not already set `service_tier`
 - **Factory advanced variants**: When a request's model matches a `DroidProxyModelCatalog.advancedVariant` (e.g. `claude-opus-4-7(high)`), the proxy strips the level suffix, rewrites the JSON `model`, and routes through the matching Claude/Codex/Gemini/Kimi injection path with the variant's level overriding the AppPreferences default
 - Preserves JSON key order by editing the raw JSON string instead of re-serializing (critical for Anthropic's prompt cache)
 - **Max Budget Mode**: When `AppPreferences.claudeMaxBudgetMode` is enabled, the Sonnet 4.6 / Opus 4.6 adaptive path is replaced with classic extended thinking — `"thinking":{"type":"enabled","budget_tokens":63999}`, `"max_tokens":64000`, `"output_config":{"effort":"max"}`, and forced streaming. Opus 4.7 is unaffected and continues to receive `thinking.type=adaptive` with `output_config.effort` from `AppPreferences.opus47ThinkingEffort`.
@@ -147,7 +147,7 @@ Behavior to know:
 ## Conventions
 
 - Use `NSLog`, not `print` or `os_log`
-- Edits land in `src/Sources/**`; there is no longer a parallel top-level `resources/` mirror
+- Source-of-truth edits land under `src/` (especially `src/Sources/**`, `src/Sources/Resources/`, `src/Info.plist`) and `create-app-bundle.sh` at the repo root; there is no longer a parallel top-level `resources/` mirror
 - Treat `DroidProxy.app`, `CLIProxyMenuBar`, and `com.droidproxy.app` as the active app identity
 - `CLIProxyAPIPlus` is bundled as `src/Sources/Resources/cli-proxy-api-plus`
 - `ThinkingProxy` uses surgical string insertion for JSON edits to preserve cache-sensitive key ordering (do not switch to `JSONSerialization.data` round-trips)
