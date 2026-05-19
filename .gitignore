@@ -47,3 +47,6 @@ graphify-out/cache/
 
 # Junie metadata
 .junie/
+
+# Vix tool data
+.vix/
