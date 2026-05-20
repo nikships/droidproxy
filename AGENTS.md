@@ -67,7 +67,7 @@ What it does today:
 - **Codex reasoning** for exact models `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4`, and `gpt-5.5`:
   - Injects `"reasoning":{"effort":"..."}`
   - Reads effort from `AppPreferences.gpt52ReasoningEffort`, `AppPreferences.gpt53CodexReasoningEffort`, `AppPreferences.gpt54ReasoningEffort`, or `AppPreferences.gpt55ReasoningEffort`
-- **Gemini thinking levels** for `gemini-3.1-pro-preview` and `gemini-3.5-flash-preview`:
+- **Gemini thinking levels** for `gemini-3.1-pro-preview` and `gemini-3.5-flash`:
   - Rewrites the model name to append a suffix (e.g. `gemini-3.1-pro-preview(high)`) which CLIProxyAPIPlus parses via its `ParseSuffix` logic
   - Reads level from `AppPreferences.gemini31ProThinkingLevel` or `AppPreferences.gemini35FlashThinkingLevel`
   - Also rewrites `/v1/responses` (and `/api/v1/responses`) to `/v1/chat/completions` for Gemini models since CLIProxyAPIPlus does not support Gemini via the Responses API

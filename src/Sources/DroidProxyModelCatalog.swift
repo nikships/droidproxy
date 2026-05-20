@@ -193,7 +193,7 @@ enum DroidProxyModelCatalog {
             levels: geminiProLevels
         ),
         DroidProxyModelDefinition(
-            baseModel: "gemini-3.5-flash-preview",
+            baseModel: "gemini-3.5-flash",
             idSlug: "gemini-3.5-flash",
             displayName: "Gemini 3.5 Flash",
             maxOutputTokens: 65536,

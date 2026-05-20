@@ -90,7 +90,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "google"
     },
     {
-      "model": "gemini-3.5-flash-preview",
+      "model": "gemini-3.5-flash",
       "id": "custom:droidproxy:gemini-3.5-flash",
       "index": 7,
       "baseUrl": "http://localhost:8317",
