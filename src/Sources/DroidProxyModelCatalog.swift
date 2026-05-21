@@ -22,50 +22,33 @@ struct DroidProxyModelDefinition: Equatable {
     let providerKey: String
     let baseURL: String
     let kind: DroidProxyModelKind
-    let levelLabel: String
     let levels: [DroidProxyThinkingLevel]
+    let defaultLevelValue: String
 
     var simpleID: String {
         "custom:droidproxy:\(idSlug)"
     }
 
-    func advancedID(for level: DroidProxyThinkingLevel) -> String {
-        "custom:droidproxy:\(idSlug)-\(level.value)"
-    }
-
-    func modelAlias(for level: DroidProxyThinkingLevel) -> String {
-        "\(baseModel)(\(level.value))"
-    }
-
-    var simpleSettingsEntry: [String: Any] {
-        settingsEntry(id: simpleID, model: baseModel, displayName: "DroidProxy: \(displayName)")
-    }
-
-    func advancedSettingsEntry(for level: DroidProxyThinkingLevel) -> [String: Any] {
-        settingsEntry(
-            id: advancedID(for: level),
-            model: modelAlias(for: level),
-            displayName: "DroidProxy: \(displayName) - \(level.displayName) \(levelLabel)"
-        )
-    }
-
-    private func settingsEntry(id: String, model: String, displayName: String) -> [String: Any] {
-        [
-            "model": model,
-            "id": id,
+    /// Settings entry that embeds Factory's native reasoning metadata so Droid's
+    /// per-session reasoning selector picks up the supported levels for this model.
+    var settingsEntry: [String: Any] {
+        var entry: [String: Any] = [
+            "model": baseModel,
+            "id": simpleID,
             "baseUrl": baseURL,
             "apiKey": "dummy-not-used",
-            "displayName": displayName,
+            "displayName": "DroidProxy: \(displayName)",
             "maxOutputTokens": maxOutputTokens,
             "noImageSupport": false,
             "provider": provider
         ]
+        guard levels.count > 1 else { return entry }
+        entry["enableThinking"] = true
+        entry["supportedReasoningEfforts"] = levels.map(\.value)
+        entry["defaultReasoningEffort"] = defaultLevelValue
+        entry["reasoningEffort"] = defaultLevelValue
+        return entry
     }
-}
-
-struct DroidProxyModelVariant {
-    let definition: DroidProxyModelDefinition
-    let level: DroidProxyThinkingLevel
 }
 
 enum DroidProxyModelCatalog {
@@ -93,8 +76,8 @@ enum DroidProxyModelCatalog {
             providerKey: "claude",
             baseURL: "http://localhost:8317",
             kind: .claudeAdaptive,
-            levelLabel: "Effort",
-            levels: claudeAdvancedLevels
+            levels: claudeAdvancedLevels,
+            defaultLevelValue: "xhigh"
         ),
         DroidProxyModelDefinition(
             baseModel: "claude-opus-4-6",
@@ -105,8 +88,8 @@ enum DroidProxyModelCatalog {
             providerKey: "claude",
             baseURL: "http://localhost:8317",
             kind: .claudeAdaptive,
-            levelLabel: "Effort",
-            levels: claudeClassicLevels
+            levels: claudeClassicLevels,
+            defaultLevelValue: "max"
         ),
         DroidProxyModelDefinition(
             baseModel: "claude-opus-4-5-20251101",
@@ -117,8 +100,8 @@ enum DroidProxyModelCatalog {
             providerKey: "claude",
             baseURL: "http://localhost:8317",
             kind: .claudeClassic,
-            levelLabel: "Effort",
-            levels: claudeClassicLevels
+            levels: claudeClassicLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "claude-sonnet-4-6",
@@ -129,8 +112,8 @@ enum DroidProxyModelCatalog {
             providerKey: "claude",
             baseURL: "http://localhost:8317",
             kind: .claudeAdaptive,
-            levelLabel: "Effort",
-            levels: claudeClassicLevels
+            levels: claudeClassicLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "gpt-5.2",
@@ -141,8 +124,8 @@ enum DroidProxyModelCatalog {
             providerKey: "codex",
             baseURL: "http://localhost:8317/v1",
             kind: .codex,
-            levelLabel: "Reasoning",
-            levels: codexLevels
+            levels: codexLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "gpt-5.3-codex",
@@ -153,8 +136,8 @@ enum DroidProxyModelCatalog {
             providerKey: "codex",
             baseURL: "http://localhost:8317/v1",
             kind: .codex,
-            levelLabel: "Reasoning",
-            levels: codexLevels
+            levels: codexLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "gpt-5.4",
@@ -165,8 +148,8 @@ enum DroidProxyModelCatalog {
             providerKey: "codex",
             baseURL: "http://localhost:8317/v1",
             kind: .codex,
-            levelLabel: "Reasoning",
-            levels: codexLevels
+            levels: codexLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "gpt-5.5",
@@ -177,8 +160,8 @@ enum DroidProxyModelCatalog {
             providerKey: "codex",
             baseURL: "http://localhost:8317/v1",
             kind: .codex,
-            levelLabel: "Reasoning",
-            levels: codexLevels
+            levels: codexLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "gemini-3.1-pro-preview",
@@ -189,8 +172,8 @@ enum DroidProxyModelCatalog {
             providerKey: "gemini",
             baseURL: "http://localhost:8317",
             kind: .gemini,
-            levelLabel: "Thinking",
-            levels: geminiProLevels
+            levels: geminiProLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "gemini-3-flash-preview",
@@ -201,8 +184,8 @@ enum DroidProxyModelCatalog {
             providerKey: "gemini",
             baseURL: "http://localhost:8317",
             kind: .gemini,
-            levelLabel: "Thinking",
-            levels: geminiFlashLevels
+            levels: geminiFlashLevels,
+            defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
             baseModel: "kimi-k2.6",
@@ -213,31 +196,22 @@ enum DroidProxyModelCatalog {
             providerKey: "kimi",
             baseURL: "http://localhost:8317/v1",
             kind: .kimi,
-            levelLabel: "Reasoning",
-            levels: kimiLevels
+            levels: kimiLevels,
+            defaultLevelValue: "high"
         )
     ]
 
-    static func settingsModels(advanced: Bool) -> [[String: Any]] {
-        if advanced {
-            return definitions.flatMap { definition in
-                definition.levels.map { definition.advancedSettingsEntry(for: $0) }
-            }
-        }
-        return definitions.map(\.simpleSettingsEntry)
+    static func settingsModels() -> [[String: Any]] {
+        definitions.map(\.settingsEntry)
     }
 
     static var allSettingsIDs: Set<String> {
-        Set(definitions.flatMap { definition in
-            [definition.simpleID] + definition.levels.map { definition.advancedID(for: $0) }
-        })
+        Set(definitions.map(\.simpleID))
     }
 
     static func providerKey(forSettingsModel model: [String: Any]) -> String? {
         if let id = model["id"] as? String,
-           let definition = definitions.first(where: { definition in
-               id == definition.simpleID || definition.levels.contains { definition.advancedID(for: $0) == id }
-           }) {
+           let definition = definitions.first(where: { $0.simpleID == id }) {
             return definition.providerKey
         }
 
@@ -246,30 +220,6 @@ enum DroidProxyModelCatalog {
         if name.hasPrefix("gpt") { return "codex" }
         if name.hasPrefix("gemini") { return "gemini" }
         if name.hasPrefix("kimi-k2.6") { return "kimi" }
-        return nil
-    }
-
-    static func advancedVariant(for model: String) -> DroidProxyModelVariant? {
-        guard model.hasSuffix(")"),
-              let openIndex = model.lastIndex(of: "(") else {
-            return nil
-        }
-
-        let base = String(model[..<openIndex]).trimmingCharacters(in: .whitespacesAndNewlines)
-        let levelStart = model.index(after: openIndex)
-        let levelEnd = model.index(before: model.endIndex)
-        let requestedLevel = String(model[levelStart..<levelEnd])
-            .trimmingCharacters(in: .whitespacesAndNewlines)
-            .lowercased()
-
-        guard !base.isEmpty, !requestedLevel.isEmpty else { return nil }
-
-        for definition in definitions where definition.baseModel == base {
-            if let level = definition.levels.first(where: { $0.value == requestedLevel }) {
-                return DroidProxyModelVariant(definition: definition, level: level)
-            }
-        }
-
         return nil
     }
 }
