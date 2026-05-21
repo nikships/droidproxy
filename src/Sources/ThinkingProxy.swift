@@ -2,31 +2,21 @@ import Foundation
 import Network
 
 /**
- A lightweight HTTP proxy that injects reasoning settings for supported Claude and Codex GPT models.
+ A lightweight HTTP proxy that forwards Claude / Codex / Gemini / Kimi requests to the
+ local CLIProxyAPI backend. Droid CLI controls per-session reasoning effort via Factory
+ custom-model metadata, so this proxy no longer injects reasoning or thinking fields
+ into request bodies. It still:
 
- Current behavior:
- - Requests whose `model` contains `opus-4-7` receive `thinking: {"type":"adaptive","display":"summarized"}`
-   plus `output_config.effort` from `AppPreferences.opus47ThinkingEffort`
- - Requests whose `model` contains `opus-4-6` receive `thinking: {"type":"adaptive"}`
-   plus `output_config.effort` from `AppPreferences.opus46ThinkingEffort`
- - Requests whose `model` contains `opus-4-5` receive classic
-   `thinking: {"type":"enabled","budget_tokens":N}` mapped from
-   `AppPreferences.opus45ThinkingEffort` (Opus 4.5 does not support adaptive thinking).
- - Requests whose `model` contains `sonnet-4-6` receive `thinking: {"type":"adaptive"}`
-   plus `output_config.effort` from `AppPreferences.sonnet46ThinkingEffort`
- - Claude requests with thinking enabled forward an Anthropic-Beta header that omits
-   `redact-thinking-2026-02-12`, otherwise Claude emits only signed empty thinking blocks.
- - Requests whose `model` is exactly `gpt-5.3-codex` receive `reasoning: {"effort":"..."}`
-   from `AppPreferences.gpt53CodexReasoningEffort`
-- Requests whose `model` is exactly `gpt-5.2`, `gpt-5.4`, or `gpt-5.5` receive
-  `reasoning: {"effort":"..."}` from `AppPreferences.gpt52ReasoningEffort`,
-  `AppPreferences.gpt54ReasoningEffort`, or `AppPreferences.gpt55ReasoningEffort`
-- Other models are forwarded unchanged
-- Requests whose `model` is exactly `kimi-k2.6` receive `reasoning: {"effort":"..."}`
-  from `AppPreferences.k26ReasoningEffort`
+ - Rewrites the Anthropic-Beta header to drop `redact-thinking-2026-02-12` when a Claude
+   request enables thinking, so Claude emits visible thinking blocks.
+ - Injects `service_tier: "priority"` for OpenAI Responses API requests on the user-enabled
+   GPT 5.x fast-mode models (these toggles are independent of reasoning effort).
+ - Forwards Amp CLI auth/management paths to ampcode.com and normalizes the response.
+ - Rewrites Gemini `/v1/responses` to `/v1/chat/completions` since the backend does not
+   support Gemini via the Responses API endpoint.
 
-The proxy edits the raw JSON string instead of re-serializing it so cache-sensitive key
-ordering is preserved.
+ JSON edits are surgical (no re-serialization) so Anthropic prompt-cache key ordering is
+ preserved.
  */
 class ThinkingProxy {
     private var listener: NWListener?
@@ -294,11 +284,8 @@ class ThinkingProxy {
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
-            ThinkingProxy.fileLog("ORIGINAL BODY (first 500): \(String(bodyString.prefix(500)))")
-            if let transformed = processThinkingParameter(jsonString: bodyString) {
-                modifiedBody = transformed
-                ThinkingProxy.fileLog("MODIFIED BODY (first 500): \(String(modifiedBody.prefix(500)))")
-                ThinkingProxy.fileLog("THINKING INJECTED: true")
+            if let summary = summarizeReasoningFields(in: bodyString) {
+                ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath) {
                 modifiedBody = result
@@ -382,329 +369,6 @@ class ThinkingProxy {
         value.split(separator: ",").map { String($0) }
     }
 
-    /**
-     Processes the JSON body to add thinking or reasoning parameters for supported models.
-     Uses surgical string operations to preserve original JSON structure and key ordering,
-     which is critical for Anthropic's prompt caching (cache_control fields must be preserved).
-     Returns tuple of (modifiedJSON, needsTransformation)
-     */
-    private func processThinkingParameter(jsonString: String) -> String? {
-        guard let jsonData = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String else {
-            return nil
-        }
-
-        if let variant = DroidProxyModelCatalog.advancedVariant(for: model) {
-            return processAdvancedModelVariant(jsonString: jsonString, json: json, requestedModel: model, variant: variant)
-        }
-
-        if let effort = codexReasoningEffort(for: model) {
-            var result = jsonString
-            result = injectJSONField(in: result, afterKey: "model", fieldName: "reasoning",
-                                     fieldValue: "{\"effort\":\"\(effort)\"}")
-            NSLog("[ThinkingProxy] Injected Codex reasoning for '\(model)' with effort '\(effort)'")
-            ThinkingProxy.fileLog("INJECTED Codex reasoning: effort=\(effort) for model \(model)")
-            return result
-        }
-
-        if let effort = kimiReasoningEffort(for: model) {
-            var result = jsonString
-            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "reasoning_effort",
-                                              fieldValue: "\"\(effort)\"",
-                                              existsInJSON: json["reasoning_effort"] != nil)
-            NSLog("[ThinkingProxy] Injected Kimi reasoning_effort for '\(model)' with effort '\(effort)'")
-            ThinkingProxy.fileLog("INJECTED Kimi reasoning_effort=\(effort) for model \(model)")
-            return result
-        }
-
-        if let level = geminiThinkingLevel(for: model) {
-            var result = jsonString
-            result = injectGeminiThinkingLevel(in: result, level: level, generationConfigExists: json["generationConfig"] != nil)
-            NSLog("[ThinkingProxy] Injected Gemini thinking for '\(model)' with level '\(level)'")
-            ThinkingProxy.fileLog("INJECTED Gemini thinking: level=\(level) for model \(model)")
-            return result
-        }
-
-        // Opus 4.5 uses classic extended thinking (budget_tokens) — it does not support adaptive.
-        if isOpus45Model(model) {
-            return processOpus45ClassicThinking(jsonString: jsonString, json: json, model: model)
-        }
-
-        guard let effort = claudeAdaptiveThinkingEffort(for: model) else {
-            return nil
-        }
-
-        return processClaudeAdaptiveThinking(jsonString: jsonString, json: json, model: model, effort: effort, allowMaxBudgetMode: true)
-    }
-
-    private func processAdvancedModelVariant(jsonString: String, json: [String: Any], requestedModel: String, variant: DroidProxyModelVariant) -> String? {
-        let baseModel = variant.definition.baseModel
-        let level = variant.level.value
-        let rewrittenJSON = rewriteModelValue(in: jsonString, from: requestedModel, to: baseModel)
-
-        switch variant.definition.kind {
-        case .codex:
-            var result = rewrittenJSON
-            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "reasoning",
-                                              fieldValue: "{\"effort\":\"\(level)\"}",
-                                              existsInJSON: json["reasoning"] != nil)
-            NSLog("[ThinkingProxy] Injected advanced Codex reasoning for '\(requestedModel)' as '\(baseModel)' with effort '\(level)'")
-            ThinkingProxy.fileLog("INJECTED advanced Codex reasoning: effort=\(level) for model \(requestedModel) -> \(baseModel)")
-            return result
-
-        case .kimi:
-            var result = rewrittenJSON
-            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "reasoning_effort",
-                                              fieldValue: "\"\(level)\"",
-                                              existsInJSON: json["reasoning_effort"] != nil)
-            NSLog("[ThinkingProxy] Injected advanced Kimi reasoning_effort for '\(requestedModel)' as '\(baseModel)' with effort '\(level)'")
-            ThinkingProxy.fileLog("INJECTED advanced Kimi reasoning_effort=\(level) for model \(requestedModel) -> \(baseModel)")
-            return result
-
-        case .gemini:
-            var result = rewrittenJSON
-            result = injectGeminiThinkingLevel(in: result, level: level, generationConfigExists: json["generationConfig"] != nil)
-            NSLog("[ThinkingProxy] Injected advanced Gemini thinking for '\(requestedModel)' as '\(baseModel)' with level '\(level)'")
-            ThinkingProxy.fileLog("INJECTED advanced Gemini thinking: level=\(level) for model \(requestedModel) -> \(baseModel)")
-            return result
-
-        case .claudeClassic:
-            return processOpus45ClassicThinking(jsonString: rewrittenJSON, json: json, model: baseModel, effort: level)
-
-        case .claudeAdaptive:
-            return processClaudeAdaptiveThinking(jsonString: rewrittenJSON, json: json, model: baseModel, effort: level, allowMaxBudgetMode: false)
-        }
-    }
-
-    private func processClaudeAdaptiveThinking(jsonString: String, json: [String: Any], model: String, effort: String, allowMaxBudgetMode: Bool) -> String {
-        var result = jsonString
-
-        result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "stream",
-                                          fieldValue: "true", existsInJSON: json["stream"] != nil)
-
-        if allowMaxBudgetMode && AppPreferences.claudeMaxBudgetMode &&
-            (model.contains("sonnet-4-6") || model.contains("opus-4-6")) {
-            // Sonnet 4.6 / Opus 4.6 classic extended-thinking override. budget_tokens must be strictly less
-            // than max_tokens (min 1024). Request body changes stay inside the adaptive-thinking
-            // window this path already controls.
-            let maxTokens = 64000
-            let budgetTokens = maxTokens - 1
-            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "max_tokens",
-                                              fieldValue: "\(maxTokens)",
-                                              existsInJSON: json["max_tokens"] != nil)
-            result = replaceOrInjectJSONField(in: result, afterKey: "max_tokens",
-                                              fieldName: "thinking",
-                                              fieldValue: "{\"type\":\"enabled\",\"budget_tokens\":\(budgetTokens)}",
-                                              existsInJSON: json["thinking"] != nil)
-            result = replaceOrInjectJSONField(in: result, afterKey: "thinking", fieldName: "output_config",
-                                              fieldValue: "{\"effort\":\"max\"}",
-                                              existsInJSON: json["output_config"] != nil)
-            NSLog("[ThinkingProxy] Injected classic budget_tokens max mode for '\(model)' budget=\(budgetTokens) max_tokens=\(maxTokens)")
-            ThinkingProxy.fileLog("INJECTED classic budget_tokens max mode: budget_tokens=\(budgetTokens) max_tokens=\(maxTokens) for model \(model)")
-        } else {
-            let thinkingValue = isOpus47Model(model)
-                ? "{\"type\":\"adaptive\",\"display\":\"summarized\"}"
-                : "{\"type\":\"adaptive\"}"
-            result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "thinking",
-                                              fieldValue: thinkingValue,
-                                              existsInJSON: json["thinking"] != nil)
-            result = replaceOrInjectJSONField(in: result, afterKey: "thinking", fieldName: "output_config",
-                                              fieldValue: "{\"effort\":\"\(effort)\"}",
-                                              existsInJSON: json["output_config"] != nil)
-            NSLog("[ThinkingProxy] Injected adaptive thinking for '\(model)' with effort '\(effort)'")
-            ThinkingProxy.fileLog("INJECTED adaptive thinking: effort=\(effort) for model \(model)")
-        }
-
-        return result
-    }
-
-    private func codexReasoningEffort(for model: String) -> String? {
-        switch model {
-        case "gpt-5.2":
-            return AppPreferences.gpt52ReasoningEffort
-        case "gpt-5.3-codex":
-            return AppPreferences.gpt53CodexReasoningEffort
-        case "gpt-5.4":
-            return AppPreferences.gpt54ReasoningEffort
-        case "gpt-5.5":
-            return AppPreferences.gpt55ReasoningEffort
-        default:
-            return nil
-        }
-    }
-
-    private func kimiReasoningEffort(for model: String) -> String? {
-        if model == "kimi-k2.6" {
-            return AppPreferences.k26ReasoningEnabled ? "high" : nil
-        }
-        return nil
-    }
-
-    /// Replaces an existing JSON field's value or injects it if missing.
-    private func replaceOrInjectJSONField(in json: String, afterKey: String, fieldName: String, fieldValue: String, existsInJSON: Bool) -> String {
-        if existsInJSON {
-            return replaceJSONFieldValue(in: json, fieldName: fieldName, newValue: fieldValue)
-        }
-        return injectJSONField(in: json, afterKey: afterKey, fieldName: fieldName, fieldValue: fieldValue)
-    }
-
-    private func injectGeminiThinkingLevel(in json: String, level: String, generationConfigExists: Bool) -> String {
-        let generationConfigValue = "{\"thinkingConfig\":{\"thinking_level\":\"\(level)\"}}"
-        guard generationConfigExists else {
-            return injectJSONField(in: json, afterKey: "model", fieldName: "generationConfig", fieldValue: generationConfigValue)
-        }
-
-        guard let generationConfigLocation = findTopLevelFieldLocation(in: json, key: "generationConfig") else {
-            NSLog("[ThinkingProxy] Warning: Could not find generationConfig for Gemini thinking merge")
-            return json
-        }
-
-        let generationConfig = String(json[generationConfigLocation.valueRange])
-        guard let updatedGenerationConfig = upsertGeminiThinkingLevel(inGenerationConfig: generationConfig, level: level) else {
-            return replaceJSONFieldValue(in: json, fieldName: "generationConfig", newValue: generationConfigValue)
-        }
-
-        var result = json
-        result.replaceSubrange(generationConfigLocation.valueRange, with: updatedGenerationConfig)
-        return result
-    }
-
-    private func upsertGeminiThinkingLevel(inGenerationConfig generationConfig: String, level: String) -> String? {
-        let thinkingConfigValue = "{\"thinking_level\":\"\(level)\"}"
-        guard let thinkingConfigLocation = findTopLevelFieldLocation(in: generationConfig, key: "thinkingConfig") else {
-            return upsertJSONField(inObject: generationConfig, fieldName: "thinkingConfig", fieldValue: thinkingConfigValue)
-        }
-
-        let thinkingConfig = String(generationConfig[thinkingConfigLocation.valueRange])
-        let updatedThinkingConfig = upsertJSONField(inObject: thinkingConfig,
-                                                    fieldName: "thinking_level",
-                                                    fieldValue: "\"\(level)\"") ?? thinkingConfigValue
-
-        var result = generationConfig
-        result.replaceSubrange(thinkingConfigLocation.valueRange, with: updatedThinkingConfig)
-        return result
-    }
-
-    private func upsertJSONField(inObject object: String, fieldName: String, fieldValue: String) -> String? {
-        guard let objectStart = firstNonWhitespaceIndex(in: object, from: object.startIndex),
-              object[objectStart] == "{",
-              let objectEnd = lastNonWhitespaceIndex(in: object),
-              object[objectEnd] == "}" else {
-            return nil
-        }
-
-        if let location = findTopLevelFieldLocation(in: object, key: fieldName) {
-            var result = object
-            result.replaceSubrange(location.valueRange, with: fieldValue)
-            return result
-        }
-
-        var result = object
-        let contentStart = object.index(after: objectStart)
-        let isEmptyObject = firstNonWhitespaceIndex(in: object, from: contentStart) == objectEnd
-        result.insert(contentsOf: "\(isEmptyObject ? "" : ",")\"\(fieldName)\":\(fieldValue)", at: objectEnd)
-        return result
-    }
-
-    /// Replaces the value of an existing top-level JSON field.
-    private func replaceJSONFieldValue(in json: String, fieldName: String, newValue: String) -> String {
-        guard let location = findTopLevelFieldLocation(in: json, key: fieldName) else {
-            NSLog("[ThinkingProxy] Warning: Could not find key '\(fieldName)' for value replacement")
-            return json
-        }
-
-        var result = json
-        result.replaceSubrange(location.valueRange, with: newValue)
-        return result
-    }
-
-    private func claudeAdaptiveThinkingEffort(for model: String) -> String? {
-        guard model.starts(with: "claude-") || model.starts(with: "gemini-claude-") else {
-            return nil
-        }
-
-        if model.contains("opus-4-7") {
-            return AppPreferences.opus47ThinkingEffort
-        }
-        if model.contains("opus-4-6") {
-            return AppPreferences.opus46ThinkingEffort
-        }
-        if model.contains("sonnet-4-6") {
-            return AppPreferences.sonnet46ThinkingEffort
-        }
-        return nil
-    }
-
-    private func isOpus47Model(_ model: String) -> Bool {
-        model.contains("opus-4-7")
-    }
-
-    /// Matches Opus 4.5 (`claude-opus-4-5`, `gemini-claude-opus-4-5`, date-suffixed variants)
-    /// without also matching Opus 4.5x variants like `opus-4-50` or `opus-4-5x`.
-    /// The `opus-4-5` token must be at the end of the string or followed by a `-` delimiter.
-    private func isOpus45Model(_ model: String) -> Bool {
-        guard model.starts(with: "claude-") || model.starts(with: "gemini-claude-") else {
-            return false
-        }
-        guard let range = model.range(of: "opus-4-5") else {
-            return false
-        }
-        let suffix = model[range.upperBound...]
-        return suffix.isEmpty || suffix.hasPrefix("-")
-    }
-
-    /// Opus 4.5 does not accept adaptive thinking. It requires the legacy
-    /// `thinking: {type: "enabled", budget_tokens: N}` shape, where
-    /// `budget_tokens < max_tokens` (min 1024).
-    private func processOpus45ClassicThinking(jsonString: String, json: [String: Any], model: String, effort: String = AppPreferences.opus45ThinkingEffort) -> String? {
-        let (budgetTokens, maxTokens) = opus45ClassicBudget(for: effort)
-
-        var result = jsonString
-
-        result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "stream",
-                                          fieldValue: "true", existsInJSON: json["stream"] != nil)
-        result = replaceOrInjectJSONField(in: result, afterKey: "model", fieldName: "max_tokens",
-                                          fieldValue: "\(maxTokens)",
-                                          existsInJSON: json["max_tokens"] != nil)
-        result = replaceOrInjectJSONField(in: result, afterKey: "max_tokens",
-                                          fieldName: "thinking",
-                                          fieldValue: "{\"type\":\"enabled\",\"budget_tokens\":\(budgetTokens)}",
-                                          existsInJSON: json["thinking"] != nil)
-
-        NSLog("[ThinkingProxy] Injected Opus 4.5 classic thinking for '\(model)' effort=\(effort) budget_tokens=\(budgetTokens) max_tokens=\(maxTokens)")
-        ThinkingProxy.fileLog("INJECTED Opus 4.5 classic thinking: effort=\(effort) budget_tokens=\(budgetTokens) max_tokens=\(maxTokens) for model \(model)")
-        return result
-    }
-
-    /// Maps effort levels to (budget_tokens, max_tokens) pairs for Opus 4.5.
-    /// Opus 4.5 supports `max_tokens` up to 64000 and requires budget_tokens < max_tokens.
-    private func opus45ClassicBudget(for effort: String) -> (Int, Int) {
-        switch effort {
-        case "low":
-            return (4000, 16000)
-        case "medium":
-            return (16000, 32000)
-        case "high":
-            return (32000, 48000)
-        case "max":
-            return (48000, 64000)
-        default:
-            return (32000, 48000)
-        }
-    }
-
-    private func geminiThinkingLevel(for model: String) -> String? {
-        switch model {
-        case "gemini-3.1-pro-preview":
-            return AppPreferences.gemini31ProThinkingLevel
-        case "gemini-3-flash-preview":
-            return AppPreferences.gemini3FlashThinkingLevel
-        default:
-            return nil
-        }
-    }
-
     private static let responsesAPIPaths: Set<String> = [
         "/v1/responses",
         "/api/v1/responses"
@@ -715,6 +379,53 @@ class ThinkingProxy {
         return Self.responsesAPIPaths.contains(normalizedPath)
     }
 
+    /// Extracts just the reasoning/thinking metadata from a request body so the log
+    /// shows what Droid is actually sending without us also dumping the entire prompt.
+    /// Returns nil only when the body can't be parsed.
+    private func summarizeReasoningFields(in bodyString: String) -> String? {
+        guard let data = bodyString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        var parts: [String] = []
+        if let model = json["model"] as? String {
+            parts.append("model=\(model)")
+        }
+        let inspectedKeys = [
+            "reasoning",
+            "reasoning_effort",
+            "thinking",
+            "output_config",
+            "service_tier",
+            "generationConfig"
+        ]
+        for key in inspectedKeys {
+            guard let value = json[key] else { continue }
+            parts.append("\(key)=\(reasoningFieldDescription(value))")
+        }
+        if parts.count == 1 {
+            parts.append("<no reasoning/thinking fields>")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private func reasoningFieldDescription(_ value: Any) -> String {
+        if let dict = value as? [String: Any],
+           let data = try? JSONSerialization.data(withJSONObject: dict),
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        if let arr = value as? [Any],
+           let data = try? JSONSerialization.data(withJSONObject: arr),
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        if let str = value as? String {
+            return "\"\(str)\""
+        }
+        return "\(value)"
+    }
+
     private func isGeminiModel(_ bodyString: String) -> Bool {
         guard let jsonData = bodyString.data(using: .utf8),
               let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
@@ -722,21 +433,6 @@ class ThinkingProxy {
             return false
         }
         return model.hasPrefix("gemini-")
-    }
-
-    private func rewriteModelValue(in json: String, from oldModel: String, to newModel: String) -> String {
-        let escaped = NSRegularExpression.escapedPattern(for: oldModel)
-        let pattern = "(\"model\"\\s*:\\s*\")\(escaped)(\")"
-        guard let regex = try? NSRegularExpression(pattern: pattern),
-              let match = regex.firstMatch(in: json, range: NSRange(json.startIndex..., in: json)),
-              let matchRange = Range(match.range, in: json) else {
-            NSLog("[ThinkingProxy] Warning: Could not find model value '\(oldModel)' for rewrite")
-            return json
-        }
-        var result = json
-        let replacement = "\"model\":\"\(newModel)\""
-        result.replaceSubrange(matchRange, with: replacement)
-        return result
     }
 
     // MARK: - Surgical JSON string helpers
@@ -824,17 +520,6 @@ class ThinkingProxy {
             index = json.index(after: index)
         }
         return index < json.endIndex ? index : nil
-    }
-
-    private func lastNonWhitespaceIndex(in json: String) -> String.Index? {
-        var index = json.endIndex
-        while index > json.startIndex {
-            index = json.index(before: index)
-            if !json[index].isWhitespace {
-                return index
-            }
-        }
-        return nil
     }
 
     private func parseJSONStringToken(in json: String, startingAt startQuote: String.Index) -> (String, String.Index)? {

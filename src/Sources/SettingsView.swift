@@ -80,206 +80,6 @@ extension View {
     }
 }
 
-struct HazardStripesView: View {
-    let stripeColor: Color
-    let backgroundColor: Color
-    private let stripeWidth: CGFloat = 6
-    private let gap: CGFloat = 10
-
-    var body: some View {
-        GeometryReader { geo in
-            let totalWidth = geo.size.width + geo.size.height
-            let count = Int(totalWidth / (stripeWidth + gap)) + 2
-            ZStack {
-                backgroundColor
-                HStack(spacing: gap) {
-                    ForEach(0..<count, id: \.self) { _ in
-                        Rectangle()
-                            .fill(stripeColor)
-                            .frame(width: stripeWidth)
-                    }
-                }
-                .frame(width: totalWidth)
-                .rotationEffect(.degrees(-45))
-            }
-        }
-        .clipped()
-    }
-}
-
-struct MaxBudgetToggleView: View {
-    @Binding var isOn: Bool
-    @State private var isPulsing = false
-    @State private var showFlash = false
-    @State private var isPressed = false
-
-    private let dangerRed = Color(red: 0.9, green: 0.15, blue: 0.1)
-    private let hazardOrange = Color(red: 0.95, green: 0.4, blue: 0.1)
-    private let darkRed = Color(red: 0.5, green: 0.05, blue: 0.02)
-    private let buttonSize: CGFloat = 44
-
-    var body: some View {
-        VStack(spacing: 14) {
-            // Button row: label + big red 3D button
-            HStack(spacing: 12) {
-                VStack(alignment: .leading, spacing: 2) {
-                    Text("MAX BUDGET MODE")
-                        .font(.system(size: 10, weight: .bold, design: .monospaced))
-                        .tracking(0.8)
-                        .foregroundColor(isOn ? dangerRed : .gray.opacity(0.6))
-                    Text("Opus 4.6 + Sonnet 4.6 · max budget_tokens + effort")
-                        .font(.system(size: 9))
-                        .foregroundColor(.gray.opacity(0.5))
-                }
-
-                Spacer()
-
-                // The Big Red Button
-                Button {
-                    withAnimation(.easeInOut(duration: 0.2)) {
-                        isOn.toggle()
-                    }
-                    if isOn {
-                        showFlash = true
-                        DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
-                            withAnimation(.easeOut(duration: 0.15)) {
-                                showFlash = false
-                            }
-                        }
-                        withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                            isPulsing = true
-                        }
-                    } else {
-                        withAnimation(.easeOut(duration: 0.2)) {
-                            isPulsing = false
-                        }
-                    }
-                } label: {
-                    ZStack {
-                        // Base shadow / depth (the "well" the button sits in)
-                        Circle()
-                            .fill(Color.black.opacity(0.6))
-                            .frame(width: buttonSize + 6, height: buttonSize + 6)
-
-                        // Outer ring - metallic bezel
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: [Color.gray.opacity(0.4), Color.gray.opacity(0.15), Color.black.opacity(0.3)],
-                                    center: .center,
-                                    startRadius: buttonSize * 0.35,
-                                    endRadius: buttonSize * 0.5
-                                )
-                            )
-                            .frame(width: buttonSize + 4, height: buttonSize + 4)
-
-                        // Main button face - 3D convex gradient
-                        Circle()
-                            .fill(
-                                RadialGradient(
-                                    colors: isOn
-                                        ? [dangerRed, dangerRed.opacity(0.85), darkRed]
-                                        : [Color(white: 0.35), Color(white: 0.22), Color(white: 0.12)],
-                                    center: .init(x: 0.4, y: 0.35),
-                                    startRadius: 0,
-                                    endRadius: buttonSize * 0.5
-                                )
-                            )
-                            .frame(width: buttonSize, height: buttonSize)
-                            .overlay(
-                                // Top highlight for 3D convexity
-                                Circle()
-                                    .fill(
-                                        LinearGradient(
-                                            colors: [Color.white.opacity(isOn ? 0.25 : 0.15), .clear],
-                                            startPoint: .top,
-                                            endPoint: .center
-                                        )
-                                    )
-                                    .frame(width: buttonSize - 4, height: buttonSize - 4)
-                            )
-
-                        // Power icon on the button
-                        Image(systemName: "power")
-                            .font(.system(size: 16, weight: .bold))
-                            .foregroundColor(isOn ? Color.white : Color.gray.opacity(0.5))
-
-                        // Ignition flash
-                        if showFlash {
-                            Circle()
-                                .fill(Color.white.opacity(0.6))
-                                .frame(width: buttonSize, height: buttonSize)
-                                .transition(.opacity)
-                        }
-                    }
-                    .scaleEffect(isPressed ? 0.92 : 1.0)
-                }
-                .buttonStyle(.plain)
-                .shadow(color: isOn ? dangerRed.opacity(isPulsing ? 0.7 : 0.25) : .clear, radius: isOn ? 12 : 0)
-                .animation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true), value: isPulsing)
-                .onHover { inside in
-                    if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                }
-                .simultaneousGesture(
-                    DragGesture(minimumDistance: 0)
-                        .onChanged { _ in
-                            withAnimation(.easeInOut(duration: 0.1)) { isPressed = true }
-                        }
-                        .onEnded { _ in
-                            withAnimation(.easeOut(duration: 0.15)) { isPressed = false }
-                        }
-                )
-            }
-
-            // Status banner (separate, only when active)
-            if isOn {
-                HStack(spacing: 6) {
-                    Image(systemName: "exclamationmark.triangle.fill")
-                        .font(.system(size: 10, weight: .bold))
-                        .foregroundColor(hazardOrange)
-                        .opacity(isPulsing ? 1.0 : 0.6)
-                    Text("\u{26a1} BURNING THROUGH QUOTA")
-                        .font(.system(size: 9, weight: .bold, design: .monospaced))
-                        .tracking(0.8)
-                        .foregroundColor(dangerRed.opacity(0.9))
-                    Spacer()
-                    Text("ACTIVE")
-                        .font(.system(size: 8, weight: .black, design: .monospaced))
-                        .tracking(1.5)
-                        .foregroundColor(dangerRed)
-                }
-                .padding(.horizontal, 10)
-                .padding(.vertical, 6)
-                .background(
-                    ZStack {
-                        HazardStripesView(
-                            stripeColor: dangerRed.opacity(0.15),
-                            backgroundColor: Color.red.opacity(0.05)
-                        )
-                        RoundedRectangle(cornerRadius: 5)
-                            .fill(Color.black.opacity(0.3))
-                    }
-                )
-                .droidGlassCard(cornerRadius: 5, tint: dangerRed.opacity(0.25))
-                .overlay(
-                    RoundedRectangle(cornerRadius: 5)
-                        .stroke(dangerRed.opacity(0.3), lineWidth: 1)
-                )
-                .transition(.opacity.combined(with: .move(edge: .top)))
-            }
-        }
-        .onAppear {
-            if isOn {
-                withAnimation(.easeInOut(duration: 1.5).repeatForever(autoreverses: true)) {
-                    isPulsing = true
-                }
-            }
-        }
-        .help("Overrides Opus 4.6 and Sonnet 4.6 effort sliders with classic extended thinking (budget_tokens=63999, effort=max). Opus 4.7 keeps its own slider setting — max mode does not affect it. Ignition is cheap, fuel is not.")
-    }
-}
-
-
 /// A single account row with disable toggle and remove button
 struct AccountRowView: View {
     static let accent = Color(red: 0xF2/255, green: 0x7B/255, blue: 0x2F/255)
@@ -506,29 +306,16 @@ struct SettingsView: View {
     @ObservedObject var serverManager: ServerManager
     @StateObject private var authManager = AuthManager()
     @State private var launchAtLogin = false
-    @AppStorage(AppPreferences.opus47ThinkingEffortKey) private var opus47ThinkingEffort = AppPreferences.defaultOpus47ThinkingEffort
-    @AppStorage(AppPreferences.opus46ThinkingEffortKey) private var opus46ThinkingEffort = AppPreferences.defaultOpus46ThinkingEffort
-    @AppStorage(AppPreferences.opus45ThinkingEffortKey) private var opus45ThinkingEffort = AppPreferences.defaultOpus45ThinkingEffort
-    @AppStorage(AppPreferences.sonnet46ThinkingEffortKey) private var sonnet46ThinkingEffort = AppPreferences.defaultSonnet46ThinkingEffort
-    @AppStorage(AppPreferences.gpt52ReasoningEffortKey) private var gpt52ReasoningEffort = AppPreferences.defaultGpt52ReasoningEffort
-    @AppStorage(AppPreferences.gpt53CodexReasoningEffortKey) private var gpt53CodexReasoningEffort = AppPreferences.defaultGpt53CodexReasoningEffort
-    @AppStorage(AppPreferences.gpt54ReasoningEffortKey) private var gpt54ReasoningEffort = AppPreferences.defaultGpt54ReasoningEffort
-    @AppStorage(AppPreferences.gpt55ReasoningEffortKey) private var gpt55ReasoningEffort = AppPreferences.defaultGpt55ReasoningEffort
     @AppStorage(AppPreferences.gpt52FastModeKey) private var gpt52FastMode = AppPreferences.defaultGpt52FastMode
     @AppStorage(AppPreferences.gpt53CodexFastModeKey) private var gpt53CodexFastMode = AppPreferences.defaultGpt53CodexFastMode
     @AppStorage(AppPreferences.gpt54FastModeKey) private var gpt54FastMode = AppPreferences.defaultGpt54FastMode
     @AppStorage(AppPreferences.gpt55FastModeKey) private var gpt55FastMode = AppPreferences.defaultGpt55FastMode
-    @AppStorage(AppPreferences.gemini31ProThinkingLevelKey) private var gemini31ProThinkingLevel = AppPreferences.defaultGemini31ProThinkingLevel
-    @AppStorage(AppPreferences.gemini3FlashThinkingLevelKey) private var gemini3FlashThinkingLevel = AppPreferences.defaultGemini3FlashThinkingLevel
-    @AppStorage(AppPreferences.k26ReasoningEnabledKey) private var k26ReasoningEnabled = AppPreferences.defaultK26ReasoningEnabled
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
-    @AppStorage(AppPreferences.claudeMaxBudgetModeKey) private var claudeMaxBudgetMode = AppPreferences.defaultClaudeMaxBudgetMode
     @AppStorage(AppPreferences.showUsageInMenuBarKey) private var showUsageInMenuBar = AppPreferences.defaultShowUsageInMenuBar
     @AppStorage(AppPreferences.usageAutoRefreshSecondsKey) private var usageAutoRefreshSeconds = AppPreferences.defaultUsageAutoRefreshSeconds
     @AppStorage(AppPreferences.oledThemeKey) private var oledTheme = AppPreferences.defaultOledTheme
     @AppStorage(AppPreferences.backgroundOpacityKey) private var backgroundOpacity = AppPreferences.defaultBackgroundOpacity
-    @AppStorage(AppPreferences.factoryAdvancedModelsKey) private var factoryAdvancedModels = AppPreferences.defaultFactoryAdvancedModels
     @State private var authenticatingService: ServiceType? = nil
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
@@ -539,14 +326,7 @@ struct SettingsView: View {
     @State private var factoryModelsInstalled = false
     @State private var challengerPluginInstalled = false
     @State private var remoteManagementExpanded = false
-    @State private var showingMaxBudgetWarning = false
-    @State private var claudeModelsExpanded = true
-    @State private var codexModelsExpanded = true
-    @State private var geminiModelsExpanded = true
-    @State private var opus47EffortExpanded = false
-    @State private var opus46EffortExpanded = false
-    @State private var opus45EffortExpanded = false
-    @State private var sonnet46EffortExpanded = false
+    @State private var codexFastModeExpanded = true
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
@@ -715,20 +495,10 @@ struct SettingsView: View {
                             .controlSize(.small)
                         }
 
-                        Toggle("Advanced: add one Factory model entry per reasoning/thinking level", isOn: $factoryAdvancedModels)
-                            .toggleStyle(.checkbox)
-                            .font(.caption)
-                            .foregroundColor(.secondary)
-                            .onChange(of: factoryAdvancedModels) { _ in
-                                factoryModelsInstalled = checkFactoryModelsInstalled()
-                                challengerPluginInstalled = checkChallengerPluginInstalled()
-                            }
-
-                        Text(factoryAdvancedModels
-                             ? "Apply writes separate Low/Medium/High/etc. model aliases into ~/.factory/settings.json."
-                             : "Apply writes the default DroidProxy model aliases into ~/.factory/settings.json.")
+                        Text("Apply writes DroidProxy model aliases into ~/.factory/settings.json. Each model exposes its full reasoning level set (low/medium/high/xhigh/max) directly in Factory's per-session selector — pick the level from Droid CLI, not here.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
+                            .fixedSize(horizontal: false, vertical: true)
                         }
 
                     HStack {
@@ -873,75 +643,6 @@ struct SettingsView: View {
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
 
-                    if serverManager.isProviderEnabled("claude") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("Model Settings")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Image(systemName: claudeModelsExpanded ? "chevron.down" : "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    claudeModelsExpanded.toggle()
-                                }
-                            }
-                            if claudeModelsExpanded {
-                                if factoryAdvancedModels {
-                                    advancedFactoryModelsNotice("Claude")
-                                } else {
-                                    MaxBudgetToggleView(isOn: $claudeMaxBudgetMode)
-                                        .onChange(of: claudeMaxBudgetMode) { enabled in
-                                            if enabled {
-                                                showingMaxBudgetWarning = true
-                                                opus46ThinkingEffort = "max"
-                                                sonnet46ThinkingEffort = "max"
-                                            }
-                                        }
-                                    collapsibleEffortPickerRow(
-                                        "Opus 4.7 thinking effort",
-                                        selection: $opus47ThinkingEffort,
-                                        options: ["low", "medium", "high", "xhigh", "max"],
-                                        tint: claudeEffortSelectionColor,
-                                        isExpanded: $opus47EffortExpanded
-                                    )
-                                    collapsibleEffortPickerRow(
-                                        "Opus 4.6 thinking effort",
-                                        selection: $opus46ThinkingEffort,
-                                        options: ["low", "medium", "high", "max"],
-                                        tint: claudeEffortSelectionColor,
-                                        isExpanded: $opus46EffortExpanded,
-                                        overrideBadge: claudeMaxBudgetMode ? "MAX MODE" : nil
-                                    )
-                                    .disabled(claudeMaxBudgetMode)
-                                    .opacity(claudeMaxBudgetMode ? 0.45 : 1.0)
-                                    collapsibleEffortPickerRow(
-                                        "Opus 4.5 thinking effort",
-                                        selection: $opus45ThinkingEffort,
-                                        options: ["low", "medium", "high", "max"],
-                                        tint: claudeEffortSelectionColor,
-                                        isExpanded: $opus45EffortExpanded
-                                    )
-                                    collapsibleEffortPickerRow(
-                                        "Sonnet 4.6 thinking effort",
-                                        selection: $sonnet46ThinkingEffort,
-                                        options: ["low", "medium", "high", "max"],
-                                        tint: claudeEffortSelectionColor,
-                                        isExpanded: $sonnet46EffortExpanded,
-                                        overrideBadge: claudeMaxBudgetMode ? "MAX MODE" : nil
-                                    )
-                                    .disabled(claudeMaxBudgetMode)
-                                    .opacity(claudeMaxBudgetMode ? 0.45 : 1.0)
-                                }
-                            }
-                        }
-                        .padding(.leading, 28)
-                    }
-
                     ServiceRow(
                         serviceType: .codex,
                         iconName: "icon-codex.png",
@@ -961,10 +662,10 @@ struct SettingsView: View {
                     if serverManager.isProviderEnabled("codex") {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
-                                Text("Model Settings")
+                                Text("Fast Mode")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
-                                Image(systemName: codexModelsExpanded ? "chevron.down" : "chevron.right")
+                                Image(systemName: codexFastModeExpanded ? "chevron.down" : "chevron.right")
                                     .font(.caption2)
                                     .foregroundColor(.secondary)
                                 Spacer()
@@ -972,54 +673,30 @@ struct SettingsView: View {
                             .contentShape(Rectangle())
                             .onTapGesture {
                                 withAnimation(.easeInOut(duration: 0.2)) {
-                                    codexModelsExpanded.toggle()
+                                    codexFastModeExpanded.toggle()
                                 }
                             }
-                            if codexModelsExpanded {
-                                if factoryAdvancedModels {
-                                    advancedFactoryModelsNotice("Codex")
-                                    codexFastModeToggleRow(
-                                        "GPT 5.2",
-                                        isOn: $gpt52FastMode,
-                                        helpText: "Injects service_tier=priority for GPT 5.2 Responses API requests (Codex fast mode)"
-                                    )
-                                    codexFastModeToggleRow(
-                                        "GPT 5.3 Codex",
-                                        isOn: $gpt53CodexFastMode,
-                                        helpText: "Injects service_tier=priority for GPT 5.3 Codex Responses API requests (Codex fast mode)"
-                                    )
-                                    codexFastModeToggleRow(
-                                        "GPT 5.4",
-                                        isOn: $gpt54FastMode,
-                                        helpText: "Injects service_tier=priority for GPT 5.4 Responses API requests (Codex fast mode)"
-                                    )
-                                    codexFastModeToggleRow(
-                                        "GPT 5.5",
-                                        isOn: $gpt55FastMode,
-                                        helpText: "Injects service_tier=priority for GPT 5.5 Responses API requests (Codex fast mode)"
-                                    )
-                                } else {
-                                    codexReasoningEffortRow(
-                                        "GPT 5.2",
-                                        effortSelection: $gpt52ReasoningEffort,
-                                        fastMode: $gpt52FastMode
-                                    )
-                                    codexReasoningEffortRow(
-                                        "GPT 5.3 Codex",
-                                        effortSelection: $gpt53CodexReasoningEffort,
-                                        fastMode: $gpt53CodexFastMode
-                                    )
-                                    codexReasoningEffortRow(
-                                        "GPT 5.4",
-                                        effortSelection: $gpt54ReasoningEffort,
-                                        fastMode: $gpt54FastMode
-                                    )
-                                    codexReasoningEffortRow(
-                                        "GPT 5.5",
-                                        effortSelection: $gpt55ReasoningEffort,
-                                        fastMode: $gpt55FastMode
-                                    )
-                                }
+                            if codexFastModeExpanded {
+                                codexFastModeToggleRow(
+                                    "GPT 5.2",
+                                    isOn: $gpt52FastMode,
+                                    helpText: "Injects service_tier=priority for GPT 5.2 Responses API requests (Codex fast mode)"
+                                )
+                                codexFastModeToggleRow(
+                                    "GPT 5.3 Codex",
+                                    isOn: $gpt53CodexFastMode,
+                                    helpText: "Injects service_tier=priority for GPT 5.3 Codex Responses API requests (Codex fast mode)"
+                                )
+                                codexFastModeToggleRow(
+                                    "GPT 5.4",
+                                    isOn: $gpt54FastMode,
+                                    helpText: "Injects service_tier=priority for GPT 5.4 Responses API requests (Codex fast mode)"
+                                )
+                                codexFastModeToggleRow(
+                                    "GPT 5.5",
+                                    isOn: $gpt55FastMode,
+                                    helpText: "Injects service_tier=priority for GPT 5.5 Responses API requests (Codex fast mode)"
+                                )
                             }
                         }
                         .padding(.leading, 28)
@@ -1041,45 +718,6 @@ struct SettingsView: View {
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
 
-                    if serverManager.isProviderEnabled("gemini") {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("Model Settings")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Image(systemName: geminiModelsExpanded ? "chevron.down" : "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    geminiModelsExpanded.toggle()
-                                }
-                            }
-                            if geminiModelsExpanded {
-                                if factoryAdvancedModels {
-                                    advancedFactoryModelsNotice("Gemini")
-                                } else {
-                                    effortPickerRow(
-                                        "Gemini 3.1 Pro thinking level",
-                                        selection: $gemini31ProThinkingLevel,
-                                        options: ["low", "medium", "high"],
-                                        tint: geminiEffortSelectionColor
-                                    )
-                                    effortPickerRow(
-                                        "Gemini 3 Flash thinking level",
-                                        selection: $gemini3FlashThinkingLevel,
-                                        options: ["minimal", "low", "medium", "high"],
-                                        tint: geminiEffortSelectionColor
-                                    )
-                                }
-                            }
-                        }
-                        .padding(.leading, 28)
-                    }
-
                     ServiceRow(
                         serviceType: .kimi,
                         iconName: "icon-kimi.svg",
@@ -1096,20 +734,6 @@ struct SettingsView: View {
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
 
-                    if serverManager.isProviderEnabled("kimi") {
-                        HStack {
-                            Text("K2.6 reasoning")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            Spacer()
-                            Toggle("", isOn: $k26ReasoningEnabled)
-                                .toggleStyle(.switch)
-                                .controlSize(.mini)
-                                .tint(kimiEffortSelectionColor)
-                                .labelsHidden()
-                        }
-                        .padding(.leading, 28)
-                    }
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -1211,28 +835,9 @@ struct SettingsView: View {
         } message: {
             Text(authResultMessage)
         }
-        .alert("⚠️ MAX BUDGET MODE", isPresented: $showingMaxBudgetWarning) {
-            Button("Engage", role: .cancel) { }
-        } message: {
-            Text("Opus 4.6 and Sonnet 4.6 requests will bypass their effort sliders and revert to classic extended thinking with maximum budget_tokens and effort=max. Opus 4.7 keeps its own slider — Max Budget Mode does not apply to it. These requests will burn through your quota fast.")
-        }
     }
 
     // MARK: - Actions
-
-    @ViewBuilder
-    private func advancedFactoryModelsNotice(_ providerName: String) -> some View {
-        HStack(alignment: .top, spacing: 6) {
-            Image(systemName: "slider.horizontal.3")
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Text("Advanced Factory models are on. Re-apply custom models to pick \(providerName) reasoning/thinking levels directly from Factory's model picker.")
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .fixedSize(horizontal: false, vertical: true)
-        }
-        .padding(.vertical, 4)
-    }
 
     @ViewBuilder
     private func codexFastModeToggleRow(_ title: String, isOn: Binding<Bool>, helpText: String) -> some View {
@@ -1249,136 +854,6 @@ struct SettingsView: View {
         .padding(.vertical, 2)
     }
 
-    @ViewBuilder
-    private func codexReasoningEffortRow(
-        _ title: String,
-        effortSelection: Binding<String>,
-        fastMode: Binding<Bool>
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack {
-                Text("\(title) reasoning effort")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                Spacer()
-                Toggle("Fast mode", isOn: fastMode)
-                    .toggleStyle(.checkbox)
-                    .font(.caption)
-                    .help("Injects service_tier=priority for \(title) Responses API requests (Codex fast mode)")
-            }
-            Picker("", selection: effortSelection) {
-                ForEach(["low", "medium", "high", "xhigh"], id: \.self) { option in
-                    Text(option).tag(option)
-                }
-            }
-            .pickerStyle(.segmented)
-            .tint(codexEffortSelectionColor)
-            .labelsHidden()
-        }
-        .padding(.vertical, 2)
-    }
-
-    @ViewBuilder
-    private func effortPickerRow(_ title: String, selection: Binding<String>, options: [String], tint: Color = AccountRowView.accent, overrideBadge: String? = nil) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(title)
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-                if let badge = overrideBadge {
-                    Text(badge)
-                        .font(.system(size: 8, weight: .bold, design: .monospaced))
-                        .tracking(0.8)
-                        .foregroundColor(Color(red: 0.9, green: 0.15, blue: 0.1))
-                        .padding(.horizontal, 5)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 3)
-                                .stroke(Color(red: 0.9, green: 0.15, blue: 0.1).opacity(0.5), lineWidth: 1)
-                        )
-                        .opacity(1.0)
-                }
-                Spacer()
-            }
-            Picker("", selection: selection) {
-                ForEach(options, id: \.self) { option in
-                    Text(option).tag(option)
-                }
-            }
-            .pickerStyle(.segmented)
-            .tint(tint)
-            .labelsHidden()
-        }
-        .padding(.vertical, 2)
-    }
-
-    /// A collapsible variant of `effortPickerRow` that shows only the title + current
-    /// selection badge when collapsed. Tapping the header toggles the picker visibility.
-    @ViewBuilder
-    private func collapsibleEffortPickerRow(
-        _ title: String,
-        selection: Binding<String>,
-        options: [String],
-        tint: Color,
-        isExpanded: Binding<Bool>,
-        overrideBadge: String? = nil
-    ) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            Button {
-                withAnimation(.easeInOut(duration: 0.2)) {
-                    isExpanded.wrappedValue.toggle()
-                }
-            } label: {
-                HStack(spacing: 6) {
-                    Image(systemName: isExpanded.wrappedValue ? "chevron.down" : "chevron.right")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                    Text(title)
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                    if let badge = overrideBadge {
-                        Text(badge)
-                            .font(.system(size: 8, weight: .bold, design: .monospaced))
-                            .tracking(0.8)
-                            .foregroundColor(Color(red: 0.9, green: 0.15, blue: 0.1))
-                            .padding(.horizontal, 5)
-                            .padding(.vertical, 2)
-                            .background(
-                                RoundedRectangle(cornerRadius: 3)
-                                    .stroke(Color(red: 0.9, green: 0.15, blue: 0.1).opacity(0.5), lineWidth: 1)
-                            )
-                    }
-                    Spacer()
-                    Text(selection.wrappedValue)
-                        .font(.system(size: 10, weight: .semibold, design: .monospaced))
-                        .foregroundColor(tint)
-                        .padding(.horizontal, 6)
-                        .padding(.vertical, 2)
-                        .background(
-                            RoundedRectangle(cornerRadius: 4)
-                                .stroke(tint.opacity(0.4), lineWidth: 1)
-                        )
-                }
-                .contentShape(Rectangle())
-            }
-            .buttonStyle(.plain)
-            .accessibilityLabel(title)
-            .accessibilityValue(selection.wrappedValue)
-            .accessibilityHint(isExpanded.wrappedValue ? "Collapse effort picker" : "Expand effort picker")
-
-            if isExpanded.wrappedValue {
-                Picker("", selection: selection) {
-                    ForEach(options, id: \.self) { option in
-                        Text(option).tag(option)
-                    }
-                }
-                .pickerStyle(.segmented)
-                .tint(tint)
-                .labelsHidden()
-            }
-        }
-        .padding(.vertical, 2)
-    }
     
     private func toggleAccountDisabled(_ account: AuthAccount) {
         if authManager.toggleAccountDisabled(account) {
@@ -1509,7 +984,7 @@ struct SettingsView: View {
               let models = json["customModels"] as? [[String: Any]] else {
             return false
         }
-        let enabledModels = DroidProxyModelCatalog.settingsModels(advanced: factoryAdvancedModels).filter { model in
+        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
             guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model) else { return true }
             return serverManager.isProviderEnabled(key)
         }
@@ -1545,7 +1020,7 @@ struct SettingsView: View {
                 || id.hasPrefix("custom:CC:")
         }
 
-        let enabledModels = DroidProxyModelCatalog.settingsModels(advanced: factoryAdvancedModels).filter { model in
+        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
             guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model) else { return true }
             return serverManager.isProviderEnabled(key)
         }
@@ -1566,8 +1041,7 @@ struct SettingsView: View {
             try data.write(to: url, options: .atomic)
             factoryModelsInstalled = true
             authResultSuccess = true
-            let mode = factoryAdvancedModels ? "Advanced DroidProxy model entries" : "DroidProxy models"
-            authResultMessage = "\(mode) added to Factory settings.\n\nRestart Factory (or open a new session) to see them in the model picker."
+            authResultMessage = "DroidProxy models added to Factory settings.\n\nReasoning effort is controlled from Droid CLI per session (low / medium / high / xhigh / max as supported by each model). Restart Factory or open a new session to see them in the model picker."
             showingAuthResult = true
             NSLog("[SettingsView] Factory custom models applied to %@", url.path)
         } catch {
@@ -1748,15 +1222,7 @@ struct SettingsView: View {
     }
 
     private func renderedChallengerPluginContent(_ content: String) -> String {
-        var rendered = content
-        if factoryAdvancedModels {
-            rendered = rendered
-                .replacingOccurrences(of: "model: custom:droidproxy:opus-4-7", with: "model: custom:droidproxy:opus-4-7-xhigh")
-                .replacingOccurrences(of: "model: custom:droidproxy:gpt-5.2", with: "model: custom:droidproxy:gpt-5.2-high")
-                .replacingOccurrences(of: "model: custom:droidproxy:gemini-3.1-pro", with: "model: custom:droidproxy:gemini-3.1-pro-high")
-        }
-
-        return rendered
+        content
             .split(separator: "\n", omittingEmptySubsequences: false)
             .map { line in
                 var s = String(line)
