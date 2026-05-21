@@ -284,7 +284,9 @@ class ThinkingProxy {
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
-            ThinkingProxy.fileLog("ORIGINAL BODY (first 4000): \(String(bodyString.prefix(4000)))")
+            if let summary = summarizeReasoningFields(in: bodyString) {
+                ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
+            }
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath) {
                 modifiedBody = result
             }
@@ -375,6 +377,53 @@ class ThinkingProxy {
     private func isResponsesAPIPath(_ path: String) -> Bool {
         let normalizedPath = path.split(separator: "?").first.map(String.init) ?? path
         return Self.responsesAPIPaths.contains(normalizedPath)
+    }
+
+    /// Extracts just the reasoning/thinking metadata from a request body so the log
+    /// shows what Droid is actually sending without us also dumping the entire prompt.
+    /// Returns nil only when the body can't be parsed.
+    private func summarizeReasoningFields(in bodyString: String) -> String? {
+        guard let data = bodyString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        var parts: [String] = []
+        if let model = json["model"] as? String {
+            parts.append("model=\(model)")
+        }
+        let inspectedKeys = [
+            "reasoning",
+            "reasoning_effort",
+            "thinking",
+            "output_config",
+            "service_tier",
+            "generationConfig"
+        ]
+        for key in inspectedKeys {
+            guard let value = json[key] else { continue }
+            parts.append("\(key)=\(reasoningFieldDescription(value))")
+        }
+        if parts.count == 1 {
+            parts.append("<no reasoning/thinking fields>")
+        }
+        return parts.joined(separator: " ")
+    }
+
+    private func reasoningFieldDescription(_ value: Any) -> String {
+        if let dict = value as? [String: Any],
+           let data = try? JSONSerialization.data(withJSONObject: dict),
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        if let arr = value as? [Any],
+           let data = try? JSONSerialization.data(withJSONObject: arr),
+           let str = String(data: data, encoding: .utf8) {
+            return str
+        }
+        if let str = value as? String {
+            return "\"\(str)\""
+        }
+        return "\(value)"
     }
 
     private func isGeminiModel(_ bodyString: String) -> Bool {
