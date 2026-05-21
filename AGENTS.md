@@ -50,40 +50,26 @@ Typical request flow:
 
 ### Current ThinkingProxy behavior
 
-`ThinkingProxy.swift` no longer implements the old `-thinking-N` suffix parser described in older docs.
+Reasoning effort is owned by **Droid CLI**, not the proxy. Each Factory custom model is registered with native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid's per-session selector exposes every level the model supports, and Droid sends the chosen value in the request body. The proxy does **not** inject `thinking`, `reasoning`, `reasoning_effort`, `output_config`, `budget_tokens`, or `generationConfig.thinkingConfig` for any model — it forwards the request unchanged.
 
-What it does today:
+What it still does today:
 
-- Inspects `POST` JSON requests for supported Claude, Codex GPT, Gemini, and Kimi models
-- **Claude adaptive thinking** for models whose name contains `opus-4-7`, `opus-4-6`, or `sonnet-4-6`:
-  - Injects `"thinking":{"type":"adaptive"}` (Opus 4.7 gets `{"type":"adaptive","display":"summarized"}`)
-  - Injects `"output_config":{"effort":"..."}`
-  - Forces `"stream":true`
-  - Reads effort from `AppPreferences.opus47ThinkingEffort`, `AppPreferences.opus46ThinkingEffort`, or `AppPreferences.sonnet46ThinkingEffort`
-- **Claude classic thinking** for models whose name contains `opus-4-5` (which does not support adaptive thinking):
-  - Injects `"thinking":{"type":"enabled","budget_tokens":N}` plus a matching `"max_tokens"`, mapped from `AppPreferences.opus45ThinkingEffort` (low/medium/high/max → fixed budget/max-token pairs, see `opus45ClassicBudget`)
-  - Forces `"stream":true`
 - **Anthropic-Beta rewriting**: When a Claude request has `thinking.type` of `enabled`/`adaptive`/`auto`, the proxy strips `redact-thinking-2026-02-12` from the `Anthropic-Beta` header and appends the visible-thinking beta list (interleaved-thinking, prompt-caching-scope, fast-mode, etc.). Without this, Claude emits only signed empty thinking blocks.
-- **Codex reasoning** for exact models `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4`, and `gpt-5.5`:
-  - Injects `"reasoning":{"effort":"..."}`
-  - Reads effort from `AppPreferences.gpt52ReasoningEffort`, `AppPreferences.gpt53CodexReasoningEffort`, `AppPreferences.gpt54ReasoningEffort`, or `AppPreferences.gpt55ReasoningEffort`
-- **Gemini thinking levels** for `gemini-3.1-pro-preview` and `gemini-3-flash-preview`:
-  - Rewrites the model name to append a suffix (e.g. `gemini-3.1-pro-preview(high)`) which CLIProxyAPIPlus parses via its `ParseSuffix` logic
-  - Reads level from `AppPreferences.gemini31ProThinkingLevel` or `AppPreferences.gemini3FlashThinkingLevel`
-  - Also rewrites `/v1/responses` (and `/api/v1/responses`) to `/v1/chat/completions` for Gemini models since CLIProxyAPIPlus does not support Gemini via the Responses API
-- **Kimi reasoning** for `kimi-k2.6`:
-  - Injects a top-level `"reasoning_effort":"high"` when `AppPreferences.k26ReasoningEnabled` is true; passes through unchanged otherwise (k2.6 only has a boolean toggle, not an effort picker)
-- **Service tier (fast mode)** for Responses API paths (`/v1/responses`, `/api/v1/responses`): injects `"service_tier":"priority"` for `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4`, or `gpt-5.5` when `AppPreferences.gpt52FastMode`, `AppPreferences.gpt53CodexFastMode`, `AppPreferences.gpt54FastMode`, or `AppPreferences.gpt55FastMode` is enabled and the client did not already set `service_tier`
-- **Factory advanced variants**: When a request's model matches a `DroidProxyModelCatalog.advancedVariant` (e.g. `claude-opus-4-7(high)`), the proxy strips the level suffix, rewrites the JSON `model`, and routes through the matching Claude/Codex/Gemini/Kimi injection path with the variant's level overriding the AppPreferences default
-- Preserves JSON key order by editing the raw JSON string instead of re-serializing (critical for Anthropic's prompt cache)
-- **Max Budget Mode**: When `AppPreferences.claudeMaxBudgetMode` is enabled, the Sonnet 4.6 / Opus 4.6 adaptive path is replaced with classic extended thinking — `"thinking":{"type":"enabled","budget_tokens":63999}`, `"max_tokens":64000`, `"output_config":{"effort":"max"}`, and forced streaming. Opus 4.7 is unaffected and continues to receive `thinking.type=adaptive` with `output_config.effort` from `AppPreferences.opus47ThinkingEffort`.
+- **Service tier (fast mode)** for Responses API paths (`/v1/responses`, `/api/v1/responses`): injects `"service_tier":"priority"` for `gpt-5.2`, `gpt-5.3-codex`, `gpt-5.4`, or `gpt-5.5` when `AppPreferences.gpt52FastMode`, `AppPreferences.gpt53CodexFastMode`, `AppPreferences.gpt54FastMode`, or `AppPreferences.gpt55FastMode` is enabled and the client did not already set `service_tier`. Fast mode is API priority and is independent of reasoning effort.
+- **Gemini path rewrite**: `/v1/responses` (and `/api/v1/responses`) are rewritten to `/v1/chat/completions` for Gemini models since CLIProxyAPIPlus does not support Gemini via the Responses API endpoint.
+- **Amp routing**: see the `Amp routing` section below.
+- **Per-request reasoning log** to `/tmp/droidproxy-debug.log`: each `POST` emits a `REQUEST REASONING:` line that extracts just `reasoning` / `reasoning_effort` / `thinking` / `output_config` / `service_tier` / `generationConfig` from the parsed body so the actual values Droid is sending are visible without dumping the whole prompt. Example: `REQUEST REASONING: model=gpt-5.5 reasoning={"effort":"xhigh","summary":"auto"}`.
+- Preserves JSON key order by editing the raw JSON string instead of re-serializing (critical for Anthropic's prompt cache). The remaining helpers (`injectJSONField`, `findTopLevelFieldLocation`, etc.) exist for `processOpenAIFastMode`.
 
-What it does not do anymore:
+What it no longer does (removed in the Droid-CLI-thinking refactor):
 
-- It does not strip or normalize model suffixes for unsupported models
-- It does not send `thinking.budget_tokens` to Opus 4.6 or 4.7 (those use adaptive thinking only — budget_tokens is rejected). Opus 4.5 and the Max Budget override deliberately *do* use `budget_tokens`.
-- It does not add `anthropic-beta` interleaved-thinking headers manually for adaptive models (adaptive thinking enables interleaving automatically; the Anthropic-Beta rewrite above is about removing `redact-thinking-2026-02-12`)
-- It does not implement the old `-thinking-N` / suffix-based branching documented in stale docs
+- No Claude adaptive thinking injection (Opus 4.7 / 4.6 / Sonnet 4.6 — `thinking` + `output_config`)
+- No Opus 4.5 classic `thinking.budget_tokens` injection
+- No Codex `reasoning.effort` injection
+- No Gemini `generationConfig.thinkingConfig` injection
+- No Kimi `reasoning_effort` injection
+- No `claude-opus-4-7(high)` / `gpt-5.2(xhigh)` etc. “advanced variant” suffix parsing — every level now ships in the single base entry via Droid CLI metadata
+- No Max Budget Mode override
 
 ### Amp routing
 
@@ -128,11 +114,11 @@ Behavior to know:
 | `src/Sources/main.swift` | NSApplication entry point that instantiates `AppDelegate` and calls `NSApplicationMain`. |
 | `src/Sources/AppDelegate.swift` | App lifecycle, menu bar UI, settings window, notifications, Sparkle updater, auth-directory watcher, startup ordering for the two local servers. |
 | `src/Sources/ServerManager.swift` | Starts/stops bundled `cli-proxy-api-plus`, captures logs, merges config, handles provider enable/disable, runs Claude/Codex/Gemini login commands, and kills orphaned backend processes. |
-| `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy for thinking/reasoning injection, Anthropic-Beta header rewriting, Gemini path rewriting, factory-advanced variant routing, and Amp request/response rewriting. |
-| `src/Sources/DroidProxyModelCatalog.swift` | Authoritative catalog of DroidProxy-exposed models (base + advanced variants per reasoning/thinking level). Powers Settings entries when `factoryAdvancedModels` is on and `ThinkingProxy.advancedVariant` lookups. |
-| `src/Sources/SettingsView.swift` | SwiftUI settings UI for server status, launch-at-login, provider toggles, auth flows, per-model effort/level pickers, Kimi reasoning toggle, Max Budget Mode, factory-advanced-models toggle, OLED theme, background opacity, and remote-access settings. |
+| `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy that forwards requests to CLIProxyAPIPlus. Rewrites the Anthropic-Beta header to drop `redact-thinking-2026-02-12` on Claude thinking requests, injects `service_tier=priority` on enabled Codex fast-mode models, rewrites Gemini `/v1/responses` to `/v1/chat/completions`, handles Amp request/response rewriting, and emits a `REQUEST REASONING` log line per request. Does not inject reasoning or thinking fields. |
+| `src/Sources/DroidProxyModelCatalog.swift` | Authoritative catalog of DroidProxy-exposed models. Each `DroidProxyModelDefinition` carries its supported `levels` plus a `defaultLevelValue`, and `settingsEntry` always embeds Factory's native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid CLI's per-session selector can expose the full level set. |
+| `src/Sources/SettingsView.swift` | SwiftUI settings UI for server status, launch-at-login, provider toggles, auth flows, the Codex fast-mode (`service_tier=priority`) subsection, the Factory custom-models Apply button, the Challenger plugin Apply button, OLED theme, background opacity, and remote-access settings. No thinking/reasoning selectors — those live in Droid CLI. |
 | `src/Sources/AuthStatus.swift` | `AuthManager`, account parsing, expiry detection, file deletion, and per-account disabled-state updates. |
-| `src/Sources/AppPreferences.swift` | UserDefaults-backed preferences: effort/level for Opus 4.7/4.6/4.5, Sonnet 4.6, GPT 5.2/5.3-codex/5.4/5.5, Gemini 3.1 Pro, Gemini 3 Flash; Kimi K2.6 enabled toggle; fast-mode toggles for GPT 5.2/5.3-codex/5.4/5.5; `claudeMaxBudgetMode`, `allowRemote`, `secretKey`, `oledTheme`, `factoryAdvancedModels`, `backgroundOpacity`; and the usage probe controls (`showUsageInMenuBar`, `usageAutoRefreshSeconds`). |
+| `src/Sources/AppPreferences.swift` | UserDefaults-backed preferences: fast-mode toggles for GPT 5.2/5.3-codex/5.4/5.5; `allowRemote`, `secretKey`, `oledTheme`, `backgroundOpacity`; and the usage probe controls (`showUsageInMenuBar`, `usageAutoRefreshSeconds`). No thinking-effort keys — reasoning is driven entirely by Droid CLI. |
 | `src/Sources/ClaudeUsageProbe.swift` | Hits `https://api.anthropic.com/api/oauth/usage` with the access token from `~/.cli-proxy-api/claude-*.json`. Handles OAuth refresh against `platform.claude.com/v1/oauth/token` (atomic write back to the auth file) and decodes the flat-keyed response shape (`five_hour`, `seven_day_*`). |
 | `src/Sources/CodexUsageProbe.swift` | Spawns `codex -s read-only -a untrusted app-server` as a child process and issues line-delimited JSON-RPC (`initialize` + `account/rateLimits/read`) to read Codex/ChatGPT rate limit windows. Requires the `codex` CLI to be installed and logged in. |
 | `src/Sources/UsageStore.swift` | `@MainActor` singleton that fan-outs to both probes in parallel, debounces overlapping refreshes (cancels in-flight task before starting a new one), and schedules a repeating timer based on `AppPreferences.usageAutoRefreshSeconds` (skips scheduling when set to 0/Manual). Posts `usageUpdated` notifications for UI consumers. |
