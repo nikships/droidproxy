@@ -165,8 +165,6 @@ struct ServiceRow<ExtraContent: View>: View {
     @State private var accountToRemove: AuthAccount?
     @State private var showingRemoveConfirmation = false
 
-    private var activeCount: Int { accounts.filter { !$0.isExpired }.count }
-    private var expiredCount: Int { accounts.filter { $0.isExpired }.count }
     private let removeColor = Color(red: 0xeb/255, green: 0x0f/255, blue: 0x0f/255)
     
     private var displayTitle: String {
@@ -333,8 +331,6 @@ struct SettingsView: View {
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
     private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
-    private let oledWindowBackground = Color.black
-    private let oledSectionBackground = Color(red: 0x12/255, green: 0x12/255, blue: 0x12/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
     private var oauthUsageDashboard: some View {
