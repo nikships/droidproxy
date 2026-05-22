@@ -5,6 +5,8 @@ enum AppPreferences {
     static let gpt53CodexFastModeKey = "gpt53CodexFastMode"
     static let gpt54FastModeKey = "gpt54FastMode"
     static let gpt55FastModeKey = "gpt55FastMode"
+    static let factoryNativeReasoningKey = "factoryNativeReasoning"
+    static let codexUsageVisibleKey = "codexUsageVisible"
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"
     static let oledThemeKey = "oledTheme"
@@ -16,6 +18,8 @@ enum AppPreferences {
     static let defaultGpt53CodexFastMode = false
     static let defaultGpt54FastMode = false
     static let defaultGpt55FastMode = false
+    static let defaultFactoryNativeReasoning = false
+    static let defaultCodexUsageVisible = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
     static let defaultOledTheme = false
@@ -37,6 +41,10 @@ enum AppPreferences {
 
     static var gpt55FastMode: Bool {
         UserDefaults.standard.bool(forKey: gpt55FastModeKey)
+    }
+
+    static var factoryNativeReasoning: Bool {
+        UserDefaults.standard.bool(forKey: factoryNativeReasoningKey)
     }
 
     static var allowRemote: Bool {

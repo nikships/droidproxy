@@ -305,11 +305,14 @@ struct ServiceRow<ExtraContent: View>: View {
 struct SettingsView: View {
     @ObservedObject var serverManager: ServerManager
     @StateObject private var authManager = AuthManager()
+    @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
     @AppStorage(AppPreferences.gpt52FastModeKey) private var gpt52FastMode = AppPreferences.defaultGpt52FastMode
     @AppStorage(AppPreferences.gpt53CodexFastModeKey) private var gpt53CodexFastMode = AppPreferences.defaultGpt53CodexFastMode
     @AppStorage(AppPreferences.gpt54FastModeKey) private var gpt54FastMode = AppPreferences.defaultGpt54FastMode
     @AppStorage(AppPreferences.gpt55FastModeKey) private var gpt55FastMode = AppPreferences.defaultGpt55FastMode
+    @AppStorage(AppPreferences.factoryNativeReasoningKey) private var factoryNativeReasoning = AppPreferences.defaultFactoryNativeReasoning
+    @AppStorage(AppPreferences.codexUsageVisibleKey) private var codexUsageVisible = AppPreferences.defaultCodexUsageVisible
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.showUsageInMenuBarKey) private var showUsageInMenuBar = AppPreferences.defaultShowUsageInMenuBar
@@ -327,6 +330,7 @@ struct SettingsView: View {
     @State private var challengerPluginInstalled = false
     @State private var remoteManagementExpanded = false
     @State private var codexFastModeExpanded = true
+    @State private var showingNativeFactoryReasoningWarning = false
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
@@ -334,6 +338,90 @@ struct SettingsView: View {
     private let oledWindowBackground = Color.black
     private let oledSectionBackground = Color(red: 0x12/255, green: 0x12/255, blue: 0x12/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
+
+    private var oauthUsageDashboard: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            if oauthUsageTracker.isRefreshing {
+                HStack(spacing: 6) {
+                    ProgressView()
+                        .scaleEffect(0.55)
+                    Text("Refreshing usage")
+                        .font(.caption)
+                        .foregroundColor(.secondary)
+                }
+            } else if oauthUsageTracker.accounts.isEmpty {
+                Text("Connect Codex OAuth accounts to show quota windows.")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            } else {
+                ForEach(oauthUsageTracker.accounts) { account in
+                    oauthUsageAccountRow(account)
+                }
+            }
+        }
+        .padding(.top, 4)
+    }
+
+    private func oauthUsageAccountRow(_ account: OAuthAccountUsage) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            HStack(spacing: 6) {
+                Text(account.provider.displayName)
+                    .font(.caption)
+                    .fontWeight(.semibold)
+                Text(account.email)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                Spacer()
+                if account.isLoading {
+                    ProgressView()
+                        .scaleEffect(0.55)
+                }
+            }
+
+            if let error = account.error {
+                Text(error)
+                    .font(.caption2)
+                    .foregroundColor(.orange)
+            } else {
+                ForEach(account.windows) { window in
+                    usageWindowRow(window)
+                }
+            }
+        }
+        .padding(8)
+        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
+    }
+
+    private func usageWindowRow(_ window: OAuthUsageWindow) -> some View {
+        let remaining = window.remainingPercent
+        return VStack(alignment: .leading, spacing: 3) {
+            HStack {
+                Text(window.title)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+                Spacer()
+                if let remaining {
+                    Text("\(Int(remaining.rounded()))% left")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                }
+            }
+            if let remaining {
+                ProgressView(value: remaining, total: 100)
+                    .tint(remaining < 20 ? .orange : .green)
+            } else {
+                Text("Usage unavailable")
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+            if let resetText = window.resetText {
+                Text(resetText)
+                    .font(.caption2)
+                    .foregroundColor(.secondary)
+            }
+        }
+    }
 
     // Translucent row background that reveals the colourful window backdrop.
     // We deliberately avoid .ultraThinMaterial here — on dark appearance it
@@ -458,6 +546,19 @@ struct SettingsView: View {
                 }
                 .listRowBackground(glassRowBackground)
 
+                if serverManager.isProviderEnabled("codex") || authManager.hasAccounts(for: .codex) {
+                    Section {
+                        Toggle("Codex Usage", isOn: $codexUsageVisible)
+                            .toggleStyle(.switch)
+                            .help("Show Codex OAuth quota usage in Settings.")
+                        if codexUsageVisible {
+                            oauthUsageDashboard
+                                .padding(.leading, 28)
+                        }
+                    }
+                    .listRowBackground(glassRowBackground)
+                }
+
                 Section {
                     Toggle("Launch at login", isOn: $launchAtLogin)
                         .onChange(of: launchAtLogin) { newValue in
@@ -500,6 +601,10 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         }
+
+                    Toggle("Native Factory reasoning", isOn: nativeFactoryReasoningBinding)
+                        .toggleStyle(.switch)
+                        .help("Uses Factory/Droid's native reasoning selector for custom GPT models. Re-apply Factory custom models after changing this. Current Factory/Droid builds expose low, medium, and high for custom models; extra high and fast mode are not exposed through this native custom-model selector yet.")
 
                     HStack {
                         Text("Challenger Plugin")
@@ -677,26 +782,36 @@ struct SettingsView: View {
                                 }
                             }
                             if codexFastModeExpanded {
-                                codexFastModeToggleRow(
-                                    "GPT 5.2",
-                                    isOn: $gpt52FastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.2 Responses API requests (Codex fast mode)"
-                                )
-                                codexFastModeToggleRow(
-                                    "GPT 5.3 Codex",
-                                    isOn: $gpt53CodexFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.3 Codex Responses API requests (Codex fast mode)"
-                                )
-                                codexFastModeToggleRow(
-                                    "GPT 5.4",
-                                    isOn: $gpt54FastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.4 Responses API requests (Codex fast mode)"
-                                )
-                                codexFastModeToggleRow(
-                                    "GPT 5.5",
-                                    isOn: $gpt55FastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.5 Responses API requests (Codex fast mode)"
-                                )
+                                if factoryNativeReasoning {
+                                    Text("Native Factory reasoning is on. Factory controls Codex reasoning per role/session. Current Factory/Droid custom models expose low, medium, and high only; GUI fast mode is paused in this mode.")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+                                Group {
+                                    codexFastModeToggleRow(
+                                        "GPT 5.2",
+                                        isOn: $gpt52FastMode,
+                                        helpText: "Injects service_tier=priority for GPT 5.2 Responses API requests (Codex fast mode)"
+                                    )
+                                    codexFastModeToggleRow(
+                                        "GPT 5.3 Codex",
+                                        isOn: $gpt53CodexFastMode,
+                                        helpText: "Injects service_tier=priority for GPT 5.3 Codex Responses API requests (Codex fast mode)"
+                                    )
+                                    codexFastModeToggleRow(
+                                        "GPT 5.4",
+                                        isOn: $gpt54FastMode,
+                                        helpText: "Injects service_tier=priority for GPT 5.4 Responses API requests (Codex fast mode)"
+                                    )
+                                    codexFastModeToggleRow(
+                                        "GPT 5.5",
+                                        isOn: $gpt55FastMode,
+                                        helpText: "Injects service_tier=priority for GPT 5.5 Responses API requests (Codex fast mode)"
+                                    )
+                                }
+                                .disabled(factoryNativeReasoning)
+                                .opacity(factoryNativeReasoning ? 0.45 : 1.0)
                             }
                         }
                         .padding(.leading, 28)
@@ -826,6 +941,15 @@ struct SettingsView: View {
             startMonitoringAuthDirectory()
             factoryModelsInstalled = checkFactoryModelsInstalled()
             challengerPluginInstalled = checkChallengerPluginInstalled()
+            refreshOAuthUsageIfVisible()
+        }
+        .onChange(of: codexUsageAccountSignature) { _ in
+            refreshOAuthUsageIfVisible()
+        }
+        .onChange(of: codexUsageVisible) { enabled in
+            if enabled {
+                refreshOAuthUsage()
+            }
         }
         .onDisappear {
             stopMonitoringAuthDirectory()
@@ -834,6 +958,14 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(authResultMessage)
+        }
+        .alert("Enable Native Factory reasoning?", isPresented: $showingNativeFactoryReasoningWarning) {
+            Button("Cancel", role: .cancel) { }
+            Button("Enable") {
+                setNativeFactoryReasoning(true)
+            }
+        } message: {
+            Text("Factory/Droid currently exposes low, medium, and high for custom model reasoning. Extra high and fast mode are not available through the native custom-model selector yet. Restart Factory/Droid or open a new CLI session after enabling this.")
         }
     }
 
@@ -867,6 +999,36 @@ struct SettingsView: View {
             authResultMessage = "Failed to update \(account.displayName). Please try again."
             showingAuthResult = true
         }
+    }
+
+    private func refreshOAuthUsage() {
+        oauthUsageTracker.refresh(codexAccounts: authManager.accounts(for: .codex))
+    }
+
+    private func refreshOAuthUsageIfVisible() {
+        guard codexUsageVisible else { return }
+        refreshOAuthUsage()
+    }
+
+    private var nativeFactoryReasoningBinding: Binding<Bool> {
+        Binding(
+            get: { factoryNativeReasoning },
+            set: { enabled in
+                if enabled {
+                    showingNativeFactoryReasoningWarning = true
+                } else {
+                    setNativeFactoryReasoning(false)
+                }
+            }
+        )
+    }
+
+    private var codexUsageAccountSignature: String {
+        authManager.accounts(for: .codex)
+            .filter { !$0.isDisabled && !$0.isExpired }
+            .map(\.id)
+            .sorted()
+            .joined(separator: "|")
     }
     
     private func openAuthFolder() {
@@ -971,6 +1133,30 @@ struct SettingsView: View {
     /// so users don't end up with stale entries next to the current ones.
     private static let legacyDroidProxyModelIds: Set<String> = []
 
+    private static let codexReasoningEfforts = ["low", "medium", "high"]
+    private static let nativeReasoningModelKeys: Set<String> = [
+        "enableThinking",
+        "reasoningEffort",
+        "supportedReasoningEfforts",
+        "defaultReasoningEffort"
+    ]
+
+    private static func factoryModels(nativeReasoning: Bool) -> [[String: Any]] {
+        DroidProxyModelCatalog.settingsModels().map { model in
+            guard nativeReasoning,
+                  DroidProxyModelCatalog.providerKey(forSettingsModel: model) == "codex" else {
+                return model
+            }
+
+            var nativeModel = model
+            nativeModel["enableThinking"] = true
+            nativeModel["reasoningEffort"] = "high"
+            nativeModel["supportedReasoningEfforts"] = codexReasoningEfforts
+            nativeModel["defaultReasoningEffort"] = "medium"
+            return nativeModel
+        }
+    }
+
     private func factorySettingsURL() -> URL {
         FileManager.default.homeDirectoryForCurrentUser
             .appendingPathComponent(".factory")
@@ -984,21 +1170,78 @@ struct SettingsView: View {
               let models = json["customModels"] as? [[String: Any]] else {
             return false
         }
-        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
+        var existingById: [String: [String: Any]] = [:]
+        for model in models {
+            guard let id = model["id"] as? String else { continue }
+            existingById[id] = model
+        }
+        let enabledModels = Self.factoryModels(
+            nativeReasoning: factoryNativeReasoning
+        ).filter { model in
             guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model) else { return true }
             return serverManager.isProviderEnabled(key)
         }
-        let expectedIds = Set(enabledModels.compactMap { $0["id"] as? String })
-        let installedDroidProxyIds = Set(models.compactMap { $0["id"] as? String }.filter { id in
-            DroidProxyModelCatalog.allSettingsIDs.contains(id)
-                || Self.legacyDroidProxyModelIds.contains(id)
-                || id.hasPrefix("custom:droidproxy:")
-                || id.hasPrefix("custom:CC:")
-        })
-        return !expectedIds.isEmpty && installedDroidProxyIds == expectedIds
+
+        guard !enabledModels.isEmpty else { return false }
+        return enabledModels.allSatisfy { expected in
+            guard let id = expected["id"] as? String,
+                  let existing = existingById[id] else {
+                return false
+            }
+            return Self.factoryModel(existing, matchesExpectedModel: expected)
+        }
     }
 
-    private func applyFactoryCustomModels() {
+    private static func factoryModel(_ existing: [String: Any], matchesExpectedModel expected: [String: Any]) -> Bool {
+        for (key, expectedValue) in expected where key != "index" {
+            guard let existingValue = existing[key],
+                  jsonValuesEqual(existingValue, expectedValue) else {
+                return false
+            }
+        }
+
+        for nativeKey in nativeReasoningModelKeys where expected[nativeKey] == nil && existing[nativeKey] != nil {
+            return false
+        }
+
+        return true
+    }
+
+    private static func jsonValuesEqual(_ lhs: Any, _ rhs: Any) -> Bool {
+        switch (lhs, rhs) {
+        case let (left as String, right as String):
+            return left == right
+        case let (left as Bool, right as Bool):
+            return left == right
+        case let (left as Int, right as Int):
+            return left == right
+        case let (left as NSNumber, right as NSNumber):
+            return left == right
+        case let (left as [String], right as [String]):
+            return left == right
+        default:
+            return false
+        }
+    }
+
+    private func setNativeFactoryReasoning(_ enabled: Bool) {
+        let previousValue = factoryNativeReasoning
+        factoryNativeReasoning = enabled
+        let didApply = applyFactoryCustomModels(
+            nativeReasoning: enabled,
+            successMessage: enabled
+                ? "Native Factory reasoning enabled for DroidProxy Codex models.\n\nRestart Factory/Droid or open a new CLI session for the selector change to take effect."
+                : "Native Factory reasoning disabled. DroidProxy Codex models were restored to the normal GUI-controlled reasoning and fast-mode shape.\n\nRestart Factory/Droid or open a new CLI session for the change to take effect."
+        )
+        if !didApply {
+            factoryNativeReasoning = previousValue
+            factoryModelsInstalled = checkFactoryModelsInstalled()
+        }
+    }
+
+    @discardableResult
+    private func applyFactoryCustomModels(nativeReasoning: Bool? = nil, successMessage: String? = nil) -> Bool {
+        let nativeReasoning = nativeReasoning ?? factoryNativeReasoning
         let url = factorySettingsURL()
         let factoryDir = url.deletingLastPathComponent()
 
@@ -1020,7 +1263,9 @@ struct SettingsView: View {
                 || id.hasPrefix("custom:CC:")
         }
 
-        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
+        let enabledModels = Self.factoryModels(
+            nativeReasoning: nativeReasoning
+        ).filter { model in
             guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model) else { return true }
             return serverManager.isProviderEnabled(key)
         }
@@ -1041,14 +1286,20 @@ struct SettingsView: View {
             try data.write(to: url, options: .atomic)
             factoryModelsInstalled = true
             authResultSuccess = true
-            authResultMessage = "DroidProxy models added to Factory settings.\n\nReasoning effort is controlled from Droid CLI per session (low / medium / high / xhigh / max as supported by each model). Restart Factory or open a new session to see them in the model picker."
+            if nativeReasoning {
+                authResultMessage = successMessage ?? "Native Factory reasoning enabled for DroidProxy Codex models.\n\nRestart Factory/Droid or open a new CLI session for the selector change to take effect."
+            } else {
+                authResultMessage = "DroidProxy models added to Factory settings.\n\nReasoning effort is controlled from Droid CLI per session (low / medium / high / xhigh / max as supported by each model). Restart Factory or open a new session to see them in the model picker."
+            }
             showingAuthResult = true
             NSLog("[SettingsView] Factory custom models applied to %@", url.path)
+            return true
         } catch {
             authResultSuccess = false
             authResultMessage = "Failed to update Factory settings: \(error.localizedDescription)"
             showingAuthResult = true
             NSLog("[SettingsView] Failed to apply Factory custom models: %@", error.localizedDescription)
+            return false
         }
     }
 

@@ -10,7 +10,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     weak var settingsWindow: NSWindow?
     var serverManager: ServerManager!
     var thinkingProxy: ThinkingProxy!
-    private let notificationCenter = UNUserNotificationCenter.current()
+    private var notificationCenter: UNUserNotificationCenter?
     private var notificationPermissionGranted = false
     private let updaterController: SPUStandardUpdaterController
     private var authFileMonitor: DispatchSourceFileSystemObject?
@@ -97,8 +97,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     private func configureNotifications() {
-        notificationCenter.delegate = self
-        notificationCenter.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
+        guard Bundle.main.bundleURL.pathExtension == "app" else {
+            NSLog("[Notifications] Skipping notification setup outside an app bundle")
+            return
+        }
+
+        let center = UNUserNotificationCenter.current()
+        notificationCenter = center
+        center.delegate = self
+        center.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
             if let error = error {
                 NSLog("[Notifications] Authorization failed: %@", error.localizedDescription)
             }
@@ -408,6 +415,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     func showNotification(title: String, body: String) {
+        guard let notificationCenter else { return }
+
         let content = UNMutableNotificationContent()
         content.title = title
         content.body = body
