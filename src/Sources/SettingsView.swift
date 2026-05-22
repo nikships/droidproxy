@@ -305,7 +305,6 @@ struct SettingsView: View {
     @StateObject private var authManager = AuthManager()
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
-    @AppStorage(AppPreferences.codexUsageVisibleKey) private var codexUsageVisible = AppPreferences.defaultCodexUsageVisible
     @AppStorage(AppPreferences.gpt52FastModeKey) private var gpt52FastMode = AppPreferences.defaultGpt52FastMode
     @AppStorage(AppPreferences.gpt53CodexFastModeKey) private var gpt53CodexFastMode = AppPreferences.defaultGpt53CodexFastMode
     @AppStorage(AppPreferences.gpt54FastModeKey) private var gpt54FastMode = AppPreferences.defaultGpt54FastMode
@@ -320,6 +319,10 @@ struct SettingsView: View {
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
     @State private var authResultSuccess = false
+    @State private var showingInfoAlert = false
+    @State private var infoAlertMessage = ""
+    @State private var showingInfoAlert = false
+    @State private var infoAlertMessage = ""
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
@@ -334,15 +337,7 @@ struct SettingsView: View {
 
     private var oauthUsageDashboard: some View {
         VStack(alignment: .leading, spacing: 8) {
-            if oauthUsageTracker.isRefreshing {
-                HStack(spacing: 6) {
-                    ProgressView()
-                        .scaleEffect(0.55)
-                    Text("Refreshing usage")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
-                }
-            } else if oauthUsageTracker.accounts.isEmpty {
+            if oauthUsageTracker.accounts.isEmpty {
                 Text("Connect Codex or Claude OAuth accounts to show quota windows.")
                     .font(.caption)
                     .foregroundColor(.secondary)
@@ -542,13 +537,19 @@ struct SettingsView: View {
                 if serverManager.isProviderEnabled(.codex) || authManager.hasAccounts(for: .codex) ||
                    serverManager.isProviderEnabled(.claude) || authManager.hasAccounts(for: .claude) {
                     Section {
-                        Toggle("OAuth Quota Usage", isOn: $codexUsageVisible)
-                            .toggleStyle(.switch)
-                            .help("Show Codex and Claude OAuth quota usage in Settings.")
-                        if codexUsageVisible {
-                            oauthUsageDashboard
-                                .padding(.leading, 28)
+                        HStack {
+                            Text("OAuth Quota Usage")
+                            Spacer()
+                            Button(action: refreshOAuthUsage) {
+                                Image(systemName: "arrow.clockwise")
+                            }
+                            .disabled(oauthUsageTracker.isRefreshing)
+                            .buttonStyle(.plain)
+                            .foregroundColor(.secondary)
+                            .opacity(oauthUsageTracker.isRefreshing ? 0.5 : 1)
+                            .help("Refresh usage quotas")
                         }
+                        oauthUsageDashboard
                     }
                     .listRowBackground(glassRowBackground)
                 }
@@ -598,13 +599,20 @@ struct SettingsView: View {
 
                     HStack {
                         Text("Challenger Plugin")
-                        Button(action: {}) {
+                        Button {
+                            infoAlertMessage = "Installs three devil's advocate code reviewer droids (Opus 4.7, GPT 5.2, Gemini 3.1 Pro) and their slash commands into your Factory config. Use /challenge-opus, /challenge-gpt, or /challenge-gemini in any Droid session for a cross-model second opinion on your code."
+                            showingInfoAlert = true
+                        } label: {
                             Image(systemName: "questionmark.circle")
                                 .foregroundColor(.secondary)
                                 .font(.caption)
                         }
                         .buttonStyle(.plain)
-                        .help("Installs three devil's advocate code reviewer droids (Opus 4.7, GPT 5.2, Gemini 3.1 Pro) and their slash commands into your Factory config. Use /challenge-opus, /challenge-gpt, or /challenge-gemini in any Droid session for a cross-model second opinion on your code.")
+                        .accessibilityLabel("About Challenger Plugin")
+                        .help("About Challenger Plugin")
+                        .onHover { inside in
+                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
                         Spacer()
                         if challengerPluginInstalled {
                             HStack(spacing: 4) {
@@ -921,15 +929,10 @@ struct SettingsView: View {
             startMonitoringAuthDirectory()
             factoryModelsInstalled = checkFactoryModelsInstalled()
             challengerPluginInstalled = checkChallengerPluginInstalled()
-            refreshOAuthUsageIfVisible()
+            refreshOAuthUsage()
         }
         .onChange(of: codexUsageAccountSignature) { _ in
-            refreshOAuthUsageIfVisible()
-        }
-        .onChange(of: codexUsageVisible) { enabled in
-            if enabled {
-                refreshOAuthUsage()
-            }
+            refreshOAuthUsage()
         }
         .onDisappear {
             stopMonitoringAuthDirectory()
@@ -938,6 +941,16 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(authResultMessage)
+        }
+        .alert("About", isPresented: $showingInfoAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(infoAlertMessage)
+        }
+        .alert("About", isPresented: $showingInfoAlert) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(infoAlertMessage)
         }
     }
 
@@ -978,11 +991,6 @@ struct SettingsView: View {
             codexAccounts: authManager.accounts(for: .codex),
             claudeAccounts: authManager.accounts(for: .claude)
         )
-    }
-
-    private func refreshOAuthUsageIfVisible() {
-        guard codexUsageVisible else { return }
-        refreshOAuthUsage()
     }
 
     private var codexUsageAccountSignature: String {

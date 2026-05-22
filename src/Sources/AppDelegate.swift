@@ -172,10 +172,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         codexUsageItem.tag = 201
         menu.addItem(codexUsageItem)
         
-        let refreshUsageItem = NSMenuItem(title: "Refresh Usage", action: #selector(refreshUsage), keyEquivalent: "r")
-        refreshUsageItem.tag = 202
-        menu.addItem(refreshUsageItem)
-        
         let usageSeparator = NSMenuItem.separator()
         usageSeparator.tag = 203
         menu.addItem(usageSeparator)
@@ -420,10 +416,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         }
     }
 
-    @MainActor @objc func refreshUsage() {
-        UsageStore.shared.refresh()
-    }
-    
     @MainActor @objc func handleWake() {
         UsageStore.shared.refresh()
     }
@@ -433,7 +425,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         
         menu.item(withTag: 200)?.isHidden = !showUsage
         menu.item(withTag: 201)?.isHidden = !showUsage
-        menu.item(withTag: 202)?.isHidden = !showUsage
         menu.item(withTag: 203)?.isHidden = !showUsage
         
         if statusItem.button?.title != "" {
