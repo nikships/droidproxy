@@ -13,8 +13,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private let notificationCenter = UNUserNotificationCenter.current()
     private var notificationPermissionGranted = false
     private let updaterController: SPUStandardUpdaterController
-    private var authFileMonitor: DispatchSourceFileSystemObject?
-    private var pendingAuthRefresh: DispatchWorkItem?
+    private var authDirectoryMonitor: AuthDirectoryMonitor?
+    private var themeObserver: NSObjectProtocol?
     
     override init() {
         self.updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
@@ -248,7 +248,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         applyTheme(to: window)
 
         // Listen for theme changes from SettingsView and update alphaValue live.
-        NotificationCenter.default.addObserver(
+        themeObserver = NotificationCenter.default.addObserver(
             forName: .droidProxyThemeChanged,
             object: nil,
             queue: .main
@@ -277,12 +277,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             window.isOpaque = false
             window.backgroundColor = .clear
             window.alphaValue = 1.0
-        }
-    }
-
-    func windowDidClose(_ notification: Notification) {
-        if notification.object as? NSWindow === settingsWindow {
-            settingsWindow = nil
         }
     }
 
@@ -520,9 +514,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self, name: .serverStatusChanged, object: nil)
         NotificationCenter.default.removeObserver(self, name: .authDirectoryChanged, object: nil)
-        pendingAuthRefresh?.cancel()
-        authFileMonitor?.cancel()
-        authFileMonitor = nil
+        if let themeObserver {
+            NotificationCenter.default.removeObserver(themeObserver)
+            self.themeObserver = nil
+        }
+        authDirectoryMonitor?.stop()
+        authDirectoryMonitor = nil
         // Final cleanup - stop server if still running
         if serverManager.isRunning {
             thinkingProxy.stop()
@@ -544,34 +541,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     // MARK: - Auth Directory Monitoring
 
     private func startMonitoringAuthDirectory() {
-        let authDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cli-proxy-api")
-        try? FileManager.default.createDirectory(at: authDir, withIntermediateDirectories: true)
-
-        let fileDescriptor = open(authDir.path, O_EVTONLY)
-        guard fileDescriptor >= 0 else { return }
-
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
-            eventMask: [.write, .delete, .rename],
-            queue: DispatchQueue.main
-        )
-
-        source.setEventHandler { [weak self] in
-            self?.pendingAuthRefresh?.cancel()
-            let workItem = DispatchWorkItem {
-                NSLog("[AppDelegate] Auth directory changed — posting notification")
-                NotificationCenter.default.post(name: .authDirectoryChanged, object: nil)
-            }
-            self?.pendingAuthRefresh = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + 0.5, execute: workItem)
+        authDirectoryMonitor = AuthDirectoryMonitor(debounceInterval: 0.5, logPrefix: "[AppDelegate]") {
+            NotificationCenter.default.post(name: .authDirectoryChanged, object: nil)
         }
-
-        source.setCancelHandler {
-            close(fileDescriptor)
-        }
-
-        source.resume()
-        authFileMonitor = source
+        authDirectoryMonitor?.start()
     }
 
     // MARK: - UNUserNotificationCenterDelegate
@@ -583,4 +556,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
 
 extension Notification.Name {
     static let droidProxyThemeChanged = Notification.Name("DroidProxyThemeChanged")
+}
+
+extension AppDelegate {
+    func windowDidClose(_ notification: Notification) {
+        if notification.object as? NSWindow === settingsWindow {
+            if let themeObserver {
+                NotificationCenter.default.removeObserver(themeObserver)
+                self.themeObserver = nil
+            }
+            settingsWindow = nil
+        }
+    }
 }

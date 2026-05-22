@@ -603,17 +603,5 @@ footer.foot {
 .foot .brand { color: var(--fg); font-size: 14px; }
 .foot .brand small { color: var(--dim); margin-left: 8px; font-family: var(--font-mono); font-size: 11px; }
 
-/* Misc */
-.kbd {
-  font-family: var(--font-mono);
-  font-size: 11px;
-  background: var(--bg-alt);
-  border: 1px solid var(--border-2);
-  border-bottom-width: 2px;
-  border-radius: 5px;
-  padding: 2px 6px;
-  color: var(--fg-2);
-}
-
 /* GitHub icon */
 .gh-ico { width: 14px; height: 14px; }

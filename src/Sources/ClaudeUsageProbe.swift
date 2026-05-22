@@ -1,7 +1,7 @@
 import Foundation
 
 class ClaudeUsageProbe {
-    private let authDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cli-proxy-api")
+    private let authDir = AuthPaths.authDirectory
     
     struct TokenInfo: Codable {
         let access_token: String

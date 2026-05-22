@@ -67,8 +67,6 @@ struct ServiceAccounts {
     var accounts: [AuthAccount] = []
     
     var hasAccounts: Bool { !accounts.isEmpty }
-    var activeCount: Int { accounts.filter { !$0.isExpired }.count }
-    var expiredCount: Int { accounts.filter { $0.isExpired }.count }
 }
 
 class AuthManager: ObservableObject {
@@ -98,7 +96,7 @@ class AuthManager: ObservableObject {
     }
     
     func checkAuthStatus() {
-        let authDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cli-proxy-api")
+        let authDir = AuthPaths.authDirectory
         
         // Build new accounts dictionary
         var newAccounts: [ServiceType: [AuthAccount]] = [:]
