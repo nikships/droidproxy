@@ -73,11 +73,11 @@ class ServerManager: ObservableObject {
     var onLogUpdate: (([String]) -> Void)?
 
     /// OAuth provider keys used in config.yaml oauth-excluded-models
-    static let oauthProviderKeys: [String: String] = [
-        "claude": "claude",
-        "codex": "codex",
-        "gemini": "gemini-cli",
-        "kimi": "kimi"
+    static let oauthProviderKeys: [ServiceType: String] = [
+        .claude: "claude",
+        .codex: "codex",
+        .gemini: "gemini-cli",
+        .kimi: "kimi"
     ]
 
     init() {
@@ -88,14 +88,14 @@ class ServerManager: ObservableObject {
     }
 
     /// Check if a provider is enabled (defaults to true if not set)
-    func isProviderEnabled(_ providerKey: String) -> Bool {
-        return enabledProviders[providerKey] ?? true
+    func isProviderEnabled(_ serviceType: ServiceType) -> Bool {
+        enabledProviders[serviceType.rawValue] ?? true
     }
 
     /// Set provider enabled state and regenerate config (hot reload - no restart needed)
-    func setProviderEnabled(_ providerKey: String, enabled: Bool) {
-        enabledProviders[providerKey] = enabled
-        addLog(enabled ? "✓ Enabled provider: \(providerKey)" : "⚠️ Disabled provider: \(providerKey)")
+    func setProviderEnabled(_ serviceType: ServiceType, enabled: Bool) {
+        enabledProviders[serviceType.rawValue] = enabled
+        addLog(enabled ? "✓ Enabled provider: \(serviceType.rawValue)" : "⚠️ Disabled provider: \(serviceType.rawValue)")
 
         // Regenerate config - CLIProxyAPI hot reloads config.yaml automatically
         _ = getConfigPath()
@@ -338,12 +338,12 @@ class ServerManager: ObservableObject {
                     completion(true, "🌐 Browser opened for authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect when you're authenticated.")
                 } else {
                     // Process died quickly - check for error
-                    let outputData = try? outputPipe.fileHandleForReading.readDataToEndOfFile()
-                    let errorData = try? errorPipe.fileHandleForReading.readDataToEndOfFile()
+                    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
+                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
                     
-                    var output = String(data: outputData ?? Data(), encoding: .utf8) ?? ""
+                    var output = String(data: outputData, encoding: .utf8) ?? ""
                     if output.isEmpty { output = capture.text }
-                    let error = String(data: errorData ?? Data(), encoding: .utf8) ?? ""
+                    let error = String(data: errorData, encoding: .utf8) ?? ""
                     
                     NSLog("[Auth] Process died quickly - output: %@", output.isEmpty ? "(empty)" : String(output.prefix(200)))
                     
@@ -385,7 +385,7 @@ class ServerManager: ObservableObject {
         }
 
         let bundledConfigPath = (resourcePath as NSString).appendingPathComponent("config.yaml")
-        let authDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cli-proxy-api")
+        let authDir = AuthPaths.authDirectory
 
         guard var configContent = try? String(contentsOfFile: bundledConfigPath, encoding: .utf8) else {
             return bundledConfigPath
@@ -405,8 +405,8 @@ class ServerManager: ObservableObject {
 
         // Build list of disabled providers
         var disabledProviders: [String] = []
-        for (serviceKey, oauthKey) in Self.oauthProviderKeys {
-            if !isProviderEnabled(serviceKey) {
+        for (serviceType, oauthKey) in Self.oauthProviderKeys {
+            if !isProviderEnabled(serviceType) {
                 disabledProviders.append(oauthKey)
             }
         }

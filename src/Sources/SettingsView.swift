@@ -320,8 +320,7 @@ struct SettingsView: View {
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
     @State private var authResultSuccess = false
-    @State private var fileMonitor: DispatchSourceFileSystemObject?
-    @State private var pendingRefresh: DispatchWorkItem?
+    @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
     @State private var challengerPluginInstalled = false
@@ -540,8 +539,8 @@ struct SettingsView: View {
                 }
                 .listRowBackground(glassRowBackground)
 
-                if serverManager.isProviderEnabled("codex") || authManager.hasAccounts(for: .codex) ||
-                   serverManager.isProviderEnabled("claude") || authManager.hasAccounts(for: .claude) {
+                if serverManager.isProviderEnabled(.codex) || authManager.hasAccounts(for: .codex) ||
+                   serverManager.isProviderEnabled(.claude) || authManager.hasAccounts(for: .claude) {
                     Section {
                         Toggle("OAuth Quota Usage", isOn: $codexUsageVisible)
                             .toggleStyle(.switch)
@@ -729,12 +728,12 @@ struct SettingsView: View {
                         accounts: authManager.accounts(for: .claude),
                         isAuthenticating: authenticatingService == .claude,
                         helpText: nil,
-                        isEnabled: serverManager.isProviderEnabled("claude"),
+                        isEnabled: serverManager.isProviderEnabled(.claude),
                         customTitle: nil,
                         onConnect: { connectService(.claude) },
                         onDisconnect: { account in disconnectAccount(account) },
                         onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled("claude", enabled: enabled) },
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.claude, enabled: enabled) },
                         toggleTint: claudeEffortSelectionColor,
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
@@ -745,17 +744,17 @@ struct SettingsView: View {
                         accounts: authManager.accounts(for: .codex),
                         isAuthenticating: authenticatingService == .codex,
                         helpText: nil,
-                        isEnabled: serverManager.isProviderEnabled("codex"),
+                        isEnabled: serverManager.isProviderEnabled(.codex),
                         customTitle: nil,
                         onConnect: { connectService(.codex) },
                         onDisconnect: { account in disconnectAccount(account) },
                         onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled("codex", enabled: enabled) },
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.codex, enabled: enabled) },
                         toggleTint: codexEffortSelectionColor,
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
 
-                    if serverManager.isProviderEnabled("codex") {
+                    if serverManager.isProviderEnabled(.codex) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
                                 Text("Fast Mode")
@@ -804,12 +803,12 @@ struct SettingsView: View {
                         accounts: authManager.accounts(for: .gemini),
                         isAuthenticating: authenticatingService == .gemini,
                         helpText: "If you have multiple GCP projects, authentication will use your default project. Set your desired project as default in Google AI Studio before connecting.",
-                        isEnabled: serverManager.isProviderEnabled("gemini"),
+                        isEnabled: serverManager.isProviderEnabled(.gemini),
                         customTitle: nil,
                         onConnect: { connectService(.gemini) },
                         onDisconnect: { account in disconnectAccount(account) },
                         onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled("gemini", enabled: enabled) },
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.gemini, enabled: enabled) },
                         toggleTint: geminiEffortSelectionColor,
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
@@ -820,12 +819,12 @@ struct SettingsView: View {
                         accounts: authManager.accounts(for: .kimi),
                         isAuthenticating: authenticatingService == .kimi,
                         helpText: nil,
-                        isEnabled: serverManager.isProviderEnabled("kimi"),
+                        isEnabled: serverManager.isProviderEnabled(.kimi),
                         customTitle: nil,
                         onConnect: { connectService(.kimi) },
                         onDisconnect: { account in disconnectAccount(account) },
                         onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled("kimi", enabled: enabled) },
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.kimi, enabled: enabled) },
                         toggleTint: kimiEffortSelectionColor,
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
@@ -1001,7 +1000,7 @@ struct SettingsView: View {
     }
     
     private func openAuthFolder() {
-        let authDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cli-proxy-api")
+        let authDir = AuthPaths.authDirectory
         NSWorkspace.shared.open(authDir)
     }
 
@@ -1116,8 +1115,9 @@ struct SettingsView: View {
             return false
         }
         let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
-            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model) else { return true }
-            return serverManager.isProviderEnabled(key)
+            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model),
+                  let serviceType = ServiceType(authFileType: key) else { return true }
+            return serverManager.isProviderEnabled(serviceType)
         }
         let expectedIds = Set(enabledModels.compactMap { $0["id"] as? String })
         let installedDroidProxyIds = Set(models.compactMap { $0["id"] as? String }.filter { id in
@@ -1152,8 +1152,9 @@ struct SettingsView: View {
         }
 
         let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
-            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model) else { return true }
-            return serverManager.isProviderEnabled(key)
+            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model),
+                  let serviceType = ServiceType(authFileType: key) else { return true }
+            return serverManager.isProviderEnabled(serviceType)
         }
         let startIndex = models.count
         for (offset, var model) in enabledModels.enumerated() {
@@ -1390,40 +1391,14 @@ struct SettingsView: View {
     // MARK: - File Monitoring
     
     private func startMonitoringAuthDirectory() {
-        let authDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cli-proxy-api")
-        try? FileManager.default.createDirectory(at: authDir, withIntermediateDirectories: true)
-        
-        let fileDescriptor = open(authDir.path, O_EVTONLY)
-        guard fileDescriptor >= 0 else { return }
-        
-        let source = DispatchSource.makeFileSystemObjectSource(
-            fileDescriptor: fileDescriptor,
-            eventMask: [.write, .delete, .rename],
-            queue: DispatchQueue.main
-        )
-        
-        source.setEventHandler { [self] in
-            // Debounce rapid file changes to prevent UI flashing
-            pendingRefresh?.cancel()
-            let workItem = DispatchWorkItem {
-                NSLog("[FileMonitor] Auth directory changed - refreshing status")
-                authManager.checkAuthStatus()
-            }
-            pendingRefresh = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + Timing.refreshDebounce, execute: workItem)
+        authDirectoryMonitor = AuthDirectoryMonitor(debounceInterval: Timing.refreshDebounce, logPrefix: "[FileMonitor]") {
+            authManager.checkAuthStatus()
         }
-        
-        source.setCancelHandler {
-            close(fileDescriptor)
-        }
-        
-        source.resume()
-        fileMonitor = source
+        authDirectoryMonitor?.start()
     }
     
     private func stopMonitoringAuthDirectory() {
-        pendingRefresh?.cancel()
-        fileMonitor?.cancel()
-        fileMonitor = nil
+        authDirectoryMonitor?.stop()
+        authDirectoryMonitor = nil
     }
 }

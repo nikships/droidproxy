@@ -96,7 +96,7 @@ class AuthManager: ObservableObject {
     }
     
     func checkAuthStatus() {
-        let authDir = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".cli-proxy-api")
+        let authDir = AuthPaths.authDirectory
         
         // Build new accounts dictionary
         var newAccounts: [ServiceType: [AuthAccount]] = [:]

@@ -29,10 +29,13 @@ class ThinkingProxy {
     /// File-based debug logger (writes to /tmp/droidproxy-debug.log)
     private static let logFile: URL = URL(fileURLWithPath: "/tmp/droidproxy-debug.log")
     private static let logQueue = DispatchQueue(label: "io.automaze.droidproxy.file-log")
+    private static let logTimestampFormatter = ISO8601DateFormatter()
+
     static func fileLog(_ message: String) {
-        let timestamp = ISO8601DateFormatter().string(from: Date())
-        let line = "[\(timestamp)] \(message)\n"
+        let date = Date()
         logQueue.async {
+            let timestamp = logTimestampFormatter.string(from: date)
+            let line = "[\(timestamp)] \(message)\n"
             if let data = line.data(using: .utf8) {
                 if let handle = try? FileHandle(forWritingTo: logFile) {
                     handle.seekToEndOfFile()
@@ -869,7 +872,7 @@ class ThinkingProxy {
     /**
      Forwards the request to CLIProxyAPI on port 8318 (pass-through for non-thinking requests)
      */
-    private func forwardRequest(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection, retryWithApiPrefix: Bool = false) {
+    private func forwardRequest(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
         // Create connection to CLIProxyAPI
         guard let port = NWEndpoint.Port(rawValue: targetPort) else {
             NSLog("[ThinkingProxy] Invalid target port: %d", targetPort)
@@ -913,18 +916,10 @@ class ThinkingProxy {
                             targetConnection.cancel()
                             originalConnection.cancel()
                         } else {
-                            // Receive response from CLIProxyAPI (with 404 retry capability)
                             let normalizeAmpProviderResponse = self.shouldNormalizeAmpProviderResponse(for: path)
-                            if retryWithApiPrefix {
-                                self.receiveResponseWith404Retry(from: targetConnection, originalConnection: originalConnection, 
-                                                                 method: method, path: path, version: version, 
-                                                                 headers: headers, body: body,
-                                                                 normalizeAmpProviderResponse: normalizeAmpProviderResponse)
-                            } else {
-                                self.receiveResponse(from: targetConnection,
-                                                     originalConnection: originalConnection,
-                                                     normalizeAmpProviderResponse: normalizeAmpProviderResponse)
-                            }
+                            self.receiveResponse(from: targetConnection,
+                                                 originalConnection: originalConnection,
+                                                 normalizeAmpProviderResponse: normalizeAmpProviderResponse)
                         }
                     }))
                 }
@@ -941,95 +936,6 @@ class ThinkingProxy {
         
         targetConnection.start(queue: .global(qos: .userInitiated))
     }
-    
-    /**
-     Receives response and retries with /api/ prefix on 404
-     */
-    private func receiveResponseWith404Retry(from targetConnection: NWConnection, originalConnection: NWConnection, 
-                                             method: String, path: String, version: String, 
-                                             headers: [(String, String)], body: String,
-                                             normalizeAmpProviderResponse: Bool) {
-        let rewriteState = normalizeAmpProviderResponse ? AmpProviderRewriteState() : nil
-        targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
-            guard let self = self else { return }
-            
-            if let error = error {
-                NSLog("[ThinkingProxy] Receive error: \(error)")
-                targetConnection.cancel()
-                originalConnection.cancel()
-                return
-            }
-            
-            if let data = data, !data.isEmpty {
-                // Check if response is a 404
-                if let responseString = String(data: data, encoding: .utf8) {
-                    // Log first 200 chars to debug
-                    let preview = String(responseString.prefix(200))
-                    NSLog("[ThinkingProxy] Response preview for \(path): \(preview)")
-                    
-                    // Check for 404 in status line OR in body
-                    let is404 = responseString.contains("HTTP/1.1 404") || 
-                               responseString.contains("HTTP/1.0 404") ||
-                               responseString.contains("404 page not found")
-                    
-                    if is404 {
-                        // Check if path doesn't already start with /api/
-                        if !path.starts(with: "/api/") && !path.starts(with: "/v1/") {
-                            NSLog("[ThinkingProxy] Got 404 for \(path), retrying with /api prefix")
-                            targetConnection.cancel()
-                            
-                            // Retry with /api/ prefix
-                            let newPath = "/api" + path
-                            self.forwardRequest(method: method, path: newPath, version: version, headers: headers, 
-                                              body: body, originalConnection: originalConnection, retryWithApiPrefix: false)
-                            return
-                        }
-                    }
-                }
-                
-                // Not a 404 or already has /api/, forward response as-is
-                var outboundData = data
-                if let rewriteState {
-                    outboundData = self.normalizeAmpProviderResponseChunk(data, rewriteState: rewriteState, isComplete: isComplete)
-                }
-
-                if outboundData.isEmpty && !isComplete {
-                    self.streamNextChunk(from: targetConnection, to: originalConnection, rewriteState: rewriteState)
-                    return
-                }
-
-                originalConnection.send(content: outboundData, completion: .contentProcessed({ sendError in
-                    if let sendError = sendError {
-                        NSLog("[ThinkingProxy] Send error: \(sendError)")
-                    }
-                    
-                    if isComplete {
-                        targetConnection.cancel()
-                        originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                            originalConnection.cancel()
-                        }))
-                    } else {
-                        // Continue streaming
-                        self.streamNextChunk(from: targetConnection, to: originalConnection, rewriteState: rewriteState)
-                    }
-                }))
-            } else if isComplete {
-                targetConnection.cancel()
-                if let carryData = self.flushNormalizedResponseCarry(rewriteState), !carryData.isEmpty {
-                    originalConnection.send(content: carryData, completion: .contentProcessed({ _ in
-                        originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                            originalConnection.cancel()
-                        }))
-                    }))
-                } else {
-                    originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                        originalConnection.cancel()
-                    }))
-                }
-            }
-        }
-    }
-    
     /**
      Receives response from CLIProxyAPI
      Starts the streaming loop for response data
