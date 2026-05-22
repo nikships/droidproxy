@@ -348,7 +348,7 @@ struct SettingsView: View {
                         .foregroundColor(.secondary)
                 }
             } else if oauthUsageTracker.accounts.isEmpty {
-                Text("Connect Codex OAuth accounts to show quota windows.")
+                Text("Connect Codex or Claude OAuth accounts to show quota windows.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
@@ -544,11 +544,12 @@ struct SettingsView: View {
                 }
                 .listRowBackground(glassRowBackground)
 
-                if serverManager.isProviderEnabled("codex") || authManager.hasAccounts(for: .codex) {
+                if serverManager.isProviderEnabled("codex") || authManager.hasAccounts(for: .codex) ||
+                   serverManager.isProviderEnabled("claude") || authManager.hasAccounts(for: .claude) {
                     Section {
-                        Toggle("Codex Usage", isOn: $codexUsageVisible)
+                        Toggle("OAuth Quota Usage", isOn: $codexUsageVisible)
                             .toggleStyle(.switch)
-                            .help("Show Codex OAuth quota usage in Settings.")
+                            .help("Show Codex and Claude OAuth quota usage in Settings.")
                         if codexUsageVisible {
                             oauthUsageDashboard
                                 .padding(.leading, 28)
@@ -978,7 +979,10 @@ struct SettingsView: View {
     }
 
     private func refreshOAuthUsage() {
-        oauthUsageTracker.refresh(codexAccounts: authManager.accounts(for: .codex))
+        oauthUsageTracker.refresh(
+            codexAccounts: authManager.accounts(for: .codex),
+            claudeAccounts: authManager.accounts(for: .claude)
+        )
     }
 
     private func refreshOAuthUsageIfVisible() {
@@ -987,11 +991,17 @@ struct SettingsView: View {
     }
 
     private var codexUsageAccountSignature: String {
-        authManager.accounts(for: .codex)
+        let codexSig = authManager.accounts(for: .codex)
             .filter { !$0.isDisabled && !$0.isExpired }
             .map(\.id)
             .sorted()
             .joined(separator: "|")
+        let claudeSig = authManager.accounts(for: .claude)
+            .filter { !$0.isDisabled && !$0.isExpired }
+            .map(\.id)
+            .sorted()
+            .joined(separator: "|")
+        return "\(codexSig)||\(claudeSig)"
     }
     
     private func openAuthFolder() {
