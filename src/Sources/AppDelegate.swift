@@ -33,9 +33,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         // Initialize managers
         serverManager = ServerManager()
         thinkingProxy = ThinkingProxy()
-        
-        // Initialize UsageStore
-        UsageStore.shared.start()
 
         // Warm commonly used icons to avoid first-use disk hits
         preloadIcons()
@@ -50,20 +47,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             self,
             selector: #selector(updateMenuBarStatus),
             name: .serverStatusChanged,
-            object: nil
-        )
-        
-        NotificationCenter.default.addObserver(
-            self,
-            selector: #selector(updateUsageMenu),
-            name: .usageUpdated,
-            object: nil
-        )
-        
-        NSWorkspace.shared.notificationCenter.addObserver(
-            self,
-            selector: #selector(handleWake),
-            name: NSWorkspace.didWakeNotification,
             object: nil
         )
 
@@ -400,16 +383,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             if let error = error {
                 NSLog("[Notifications] Failed to deliver notification '%@': %@", title, error.localizedDescription)
             }
-        }
-    }
-
-    @MainActor @objc func handleWake() {
-        UsageStore.shared.refresh()
-    }
-    
-    @MainActor @objc func updateUsageMenu() {
-        if statusItem.button?.title != "" {
-            statusItem.button?.title = ""
         }
     }
 
