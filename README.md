@@ -59,10 +59,7 @@ src/
 │   ├── TunnelManager.swift     # Network tunnel management
 │   ├── IconCatalog.swift       # Icon loading & caching
 │   ├── NotificationNames.swift # Notification constants
-│   ├── ClaudeUsageProbe.swift  # Claude rate-limit fetcher
-│   ├── CodexUsageProbe.swift   # Codex rate-limit fetcher (via codex app-server)
-│   ├── UsageStore.swift        # Coordinates probes + auto-refresh
-│   ├── UsageModels.swift       # Usage window data types
+│   ├── OAuthUsageTracker.swift # OAuth quota usage windows for SettingsView
 │   └── Resources/
 │       ├── cli-proxy-api-plus  # CLIProxyAPIPlus binary
 │       ├── config.yaml         # Server config
