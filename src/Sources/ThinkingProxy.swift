@@ -287,7 +287,10 @@ class ThinkingProxy {
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
-            if let summary = summarizeReasoningFields(in: bodyString) {
+            if let result = rewriteAntigravityModelAlias(jsonString: modifiedBody) {
+                modifiedBody = result
+            }
+            if let summary = summarizeReasoningFields(in: modifiedBody) {
                 ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath) {
@@ -302,7 +305,7 @@ class ThinkingProxy {
         // natively, so we must NOT rewrite their path — doing so would cause the
         // backend to return chat-completions SSE that Droid CLI can't parse, hanging
         // the stream.
-        if isResponsesAPIPath(rewrittenPath) && isOAuthCodeAssistGeminiModel(bodyString) {
+        if isResponsesAPIPath(rewrittenPath) && isOAuthCodeAssistGeminiModel(modifiedBody) {
             let newPath = rewrittenPath.replacingOccurrences(of: "/responses", with: "/chat/completions")
             NSLog("[ThinkingProxy] Rewriting OAuth-Gemini responses path: \(rewrittenPath) -> \(newPath)")
             ThinkingProxy.fileLog("REWRITE PATH: \(rewrittenPath) -> \(newPath) (OAuth Code Assist Gemini model)")
@@ -375,6 +378,26 @@ class ThinkingProxy {
 
     private func parseAnthropicBetas(_ value: String) -> [String] {
         value.split(separator: ",").map { String($0) }
+    }
+
+    private static let antigravityModelAliases: [String: String] = [
+        "ag-c46s-thinking": "claude-sonnet-4-6",
+        "ag-c46o-thinking": "claude-opus-4-6-thinking"
+    ]
+
+    private func rewriteAntigravityModelAlias(jsonString: String) -> String? {
+        guard let jsonData = jsonString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let model = json["model"] as? String,
+              let backendModel = Self.antigravityModelAliases[model],
+              let location = findTopLevelFieldLocation(in: jsonString, key: "model") else {
+            return nil
+        }
+
+        var result = jsonString
+        result.replaceSubrange(location.valueRange, with: "\"\(backendModel)\"")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Antigravity alias)")
+        return result
     }
 
     private static let responsesAPIPaths: Set<String> = [

@@ -6,6 +6,7 @@ enum DroidProxyModelKind {
     case codex
     case gemini
     case kimi
+    case antigravity
 }
 
 struct DroidProxyThinkingLevel: Equatable {
@@ -29,6 +30,15 @@ struct DroidProxyModelDefinition: Equatable {
         "custom:droidproxy:\(idSlug)"
     }
 
+    private var settingsDisplayName: String {
+        switch kind {
+        case .antigravity:
+            return "Antigravity: \(displayName)"
+        default:
+            return displayName
+        }
+    }
+
     /// Settings entry that embeds Factory's native reasoning metadata so Droid's
     /// per-session reasoning selector picks up the supported levels for this model.
     var settingsEntry: [String: Any] {
@@ -37,7 +47,7 @@ struct DroidProxyModelDefinition: Equatable {
             "id": simpleID,
             "baseUrl": baseURL,
             "apiKey": "dummy-not-used",
-            "displayName": "DroidProxy: \(displayName)",
+            "displayName": "DroidProxy: \(settingsDisplayName)",
             "maxOutputTokens": maxOutputTokens,
             "noImageSupport": false,
             "provider": provider
@@ -63,9 +73,10 @@ enum DroidProxyModelCatalog {
     private static let claudeClassicLevels = [low, medium, high, max]
     private static let codexLevels = [low, medium, high, xhigh]
     private static let kimiLevels = [high]
-    // Antigravity routes reasoning tiers as distinct model IDs and exposes its own
-    // OpenAI-compat chat-completions endpoint, so each entry below is single-effort.
-    private static let geminiAntigravityLevels = [high]
+    private static let antigravityLowLevel = [low]
+    private static let antigravityMediumLevel = [medium]
+    private static let antigravityHighLevel = [high]
+    private static let gemini35FlashAntigravityLevels = [medium, high]
 
     static let definitions: [DroidProxyModelDefinition] = [
         DroidProxyModelDefinition(
@@ -164,20 +175,20 @@ enum DroidProxyModelCatalog {
             levels: codexLevels,
             defaultLevelValue: "high"
         ),
-        // Gemini models routed through the antigravity executor via OpenAI-compatible
-        // chat-completions. provider="openai" + baseURL ending in /v1 makes Factory's
-        // Droid CLI send POST /v1/chat/completions, which the antigravity executor
-        // handles natively using the antigravity-*.json auth file.
+        // Antigravity subscription models routed through the antigravity executor via
+        // OpenAI-compatible chat-completions. provider="openai" + baseURL ending in
+        // /v1 makes Factory's Droid CLI send POST /v1/chat/completions, which the
+        // antigravity executor handles natively using the antigravity auth file.
         DroidProxyModelDefinition(
             baseModel: "gemini-pro-agent",
             idSlug: "gemini-3.1-pro",
-            displayName: "Gemini 3.1 Pro",
+            displayName: "Gemini 3.1 Pro (High)",
             maxOutputTokens: 65536,
             provider: "openai",
             providerKey: "gemini",
             baseURL: "http://localhost:8317/v1",
-            kind: .gemini,
-            levels: geminiAntigravityLevels,
+            kind: .antigravity,
+            levels: antigravityHighLevel,
             defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
@@ -188,9 +199,9 @@ enum DroidProxyModelCatalog {
             provider: "openai",
             providerKey: "gemini",
             baseURL: "http://localhost:8317/v1",
-            kind: .gemini,
-            levels: geminiAntigravityLevels,
-            defaultLevelValue: "high"
+            kind: .antigravity,
+            levels: antigravityLowLevel,
+            defaultLevelValue: "low"
         ),
         DroidProxyModelDefinition(
             baseModel: "gemini-3-flash",
@@ -200,21 +211,33 @@ enum DroidProxyModelCatalog {
             provider: "openai",
             providerKey: "gemini",
             baseURL: "http://localhost:8317/v1",
-            kind: .gemini,
-            levels: geminiAntigravityLevels,
+            kind: .antigravity,
+            levels: antigravityHighLevel,
             defaultLevelValue: "high"
         ),
         DroidProxyModelDefinition(
-            baseModel: "gemini-3.5-flash-low",
+            baseModel: "gemini-3-flash-agent",
             idSlug: "gemini-3.5-flash",
             displayName: "Gemini 3.5 Flash",
             maxOutputTokens: 65536,
             provider: "openai",
             providerKey: "gemini",
             baseURL: "http://localhost:8317/v1",
-            kind: .gemini,
-            levels: geminiAntigravityLevels,
+            kind: .antigravity,
+            levels: gemini35FlashAntigravityLevels,
             defaultLevelValue: "high"
+        ),
+        DroidProxyModelDefinition(
+            baseModel: "gemini-3.5-flash-low",
+            idSlug: "gemini-3.5-flash-low",
+            displayName: "Gemini 3.5 Flash (Low)",
+            maxOutputTokens: 65536,
+            provider: "openai",
+            providerKey: "gemini",
+            baseURL: "http://localhost:8317/v1",
+            kind: .antigravity,
+            levels: antigravityLowLevel,
+            defaultLevelValue: "low"
         ),
         DroidProxyModelDefinition(
             baseModel: "gemini-3.1-flash-lite",
@@ -224,9 +247,45 @@ enum DroidProxyModelCatalog {
             provider: "openai",
             providerKey: "gemini",
             baseURL: "http://localhost:8317/v1",
-            kind: .gemini,
-            levels: geminiAntigravityLevels,
+            kind: .antigravity,
+            levels: antigravityHighLevel,
             defaultLevelValue: "high"
+        ),
+        DroidProxyModelDefinition(
+            baseModel: "ag-c46s-thinking",
+            idSlug: "ag-c46s-thinking",
+            displayName: "Claude Sonnet 4.6 (Thinking)",
+            maxOutputTokens: 64000,
+            provider: "openai",
+            providerKey: "gemini",
+            baseURL: "http://localhost:8317/v1",
+            kind: .antigravity,
+            levels: antigravityHighLevel,
+            defaultLevelValue: "high"
+        ),
+        DroidProxyModelDefinition(
+            baseModel: "ag-c46o-thinking",
+            idSlug: "ag-c46o-thinking",
+            displayName: "Claude Opus 4.6 (Thinking)",
+            maxOutputTokens: 64000,
+            provider: "openai",
+            providerKey: "gemini",
+            baseURL: "http://localhost:8317/v1",
+            kind: .antigravity,
+            levels: antigravityHighLevel,
+            defaultLevelValue: "high"
+        ),
+        DroidProxyModelDefinition(
+            baseModel: "gpt-oss-120b-medium",
+            idSlug: "gpt-oss-120b-medium",
+            displayName: "GPT-OSS 120B (Medium)",
+            maxOutputTokens: 32768,
+            provider: "openai",
+            providerKey: "gemini",
+            baseURL: "http://localhost:8317/v1",
+            kind: .antigravity,
+            levels: antigravityMediumLevel,
+            defaultLevelValue: "medium"
         ),
         DroidProxyModelDefinition(
             baseModel: "kimi-k2.6",
