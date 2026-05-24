@@ -6,6 +6,7 @@ enum DroidProxyModelKind {
     case codex
     case gemini
     case kimi
+    case cursor
 }
 
 struct DroidProxyThinkingLevel: Equatable {
@@ -65,6 +66,7 @@ enum DroidProxyModelCatalog {
     private static let kimiLevels = [high]
     private static let geminiProLevels = [low, medium, high]
     private static let geminiFlashLevels = [minimal, low, medium, high]
+    private static let cursorLevels = [high]
 
     static let definitions: [DroidProxyModelDefinition] = [
         DroidProxyModelDefinition(
@@ -198,6 +200,30 @@ enum DroidProxyModelCatalog {
             kind: .kimi,
             levels: kimiLevels,
             defaultLevelValue: "high"
+        ),
+        DroidProxyModelDefinition(
+            baseModel: "cursor-composer-2.5",
+            idSlug: "cursor-composer-2.5",
+            displayName: "Cursor Composer 2.5",
+            maxOutputTokens: 128000,
+            provider: "cursor",
+            providerKey: "cursor",
+            baseURL: "http://localhost:8317/v1",
+            kind: .cursor,
+            levels: cursorLevels,
+            defaultLevelValue: "high"
+        ),
+        DroidProxyModelDefinition(
+            baseModel: "cursor-small",
+            idSlug: "cursor-small",
+            displayName: "Cursor Small",
+            maxOutputTokens: 64000,
+            provider: "cursor",
+            providerKey: "cursor",
+            baseURL: "http://localhost:8317/v1",
+            kind: .cursor,
+            levels: cursorLevels,
+            defaultLevelValue: "high"
         )
     ]
 
@@ -220,6 +246,7 @@ enum DroidProxyModelCatalog {
         if name.hasPrefix("gpt") { return "codex" }
         if name.hasPrefix("gemini") { return "gemini" }
         if name.hasPrefix("kimi-k2.6") { return "kimi" }
+        if name.hasPrefix("cursor") { return "cursor" }
         return nil
     }
 }

@@ -5,6 +5,7 @@ enum ServiceType: String, CaseIterable {
     case codex
     case gemini
     case kimi
+    case cursor
 
     init?(authFileType: String) {
         switch authFileType.lowercased() {
@@ -16,6 +17,8 @@ enum ServiceType: String, CaseIterable {
             self = .gemini
         case "kimi":
             self = .kimi
+        case "cursor":
+            self = .cursor
         default:
             return nil
         }
@@ -27,6 +30,7 @@ enum ServiceType: String, CaseIterable {
         case .codex: return "Codex"
         case .gemini: return "Gemini"
         case .kimi: return "Kimi"
+        case .cursor: return "Cursor"
         }
     }
 }

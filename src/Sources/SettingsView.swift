@@ -317,6 +317,8 @@ struct SettingsView: View {
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
     @State private var authResultSuccess = false
+    @State private var showingCursorApiKeyAlert = false
+    @State private var cursorApiKey = ""
     @State private var showingInfoAlert = false
     @State private var infoAlertMessage = ""
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
@@ -329,6 +331,7 @@ struct SettingsView: View {
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
     private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
+    private let cursorEffortSelectionColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
     private var oauthUsageDashboard: some View {
@@ -800,6 +803,22 @@ struct SettingsView: View {
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
 
+                    ServiceRow(
+                        serviceType: .cursor,
+                        iconName: "icon-cursor.png",
+                        accounts: authManager.accounts(for: .cursor),
+                        isAuthenticating: authenticatingService == .cursor,
+                        helpText: "Enter your Cursor API Key (from https://cursor-api.standardagents.ai/) to proxy requests directly to Cursor.",
+                        isEnabled: serverManager.isProviderEnabled(.cursor),
+                        customTitle: nil,
+                        onConnect: { connectService(.cursor) },
+                        onDisconnect: { account in disconnectAccount(account) },
+                        onToggleDisabled: { account in toggleAccountDisabled(account) },
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.cursor, enabled: enabled) },
+                        toggleTint: cursorEffortSelectionColor,
+                        onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
+                    ) { EmptyView() }
+
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -910,6 +929,15 @@ struct SettingsView: View {
         } message: {
             Text(infoAlertMessage)
         }
+        .alert("Add Cursor API Key", isPresented: $showingCursorApiKeyAlert) {
+            SecureField("Enter Cursor Key", text: $cursorApiKey)
+            Button("Save") {
+                saveCursorApiKey(cursorApiKey)
+            }
+            Button("Cancel", role: .cancel) { }
+        } message: {
+            Text("Please enter your Cursor API Key. It will be saved under ~/.cli-proxy-api/cursor.json.")
+        }
         .alert("About", isPresented: $showingInfoAlert) {
             Button("OK", role: .cancel) { }
         } message: {
@@ -996,6 +1024,12 @@ struct SettingsView: View {
     }
     
     private func connectService(_ serviceType: ServiceType) {
+        if serviceType == .cursor {
+            cursorApiKey = ""
+            showingCursorApiKeyAlert = true
+            return
+        }
+
         authenticatingService = serviceType
         NSLog("[SettingsView] Starting %@ authentication", serviceType.displayName)
         
@@ -1005,6 +1039,7 @@ struct SettingsView: View {
         case .codex: command = .codexLogin
         case .gemini: command = .geminiLogin
         case .kimi: command = .kimiLogin
+        case .cursor: command = .kimiLogin // Unreachable but required for exhaustiveness
         }
         
         serverManager.runAuthCommand(command) { success, output in
@@ -1035,6 +1070,38 @@ struct SettingsView: View {
             return "🌐 Browser opened for Gemini authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -login"
         case .kimi:
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
+        case .cursor:
+            return "✓ Successfully saved Cursor API Key."
+        }
+    }
+
+    private func saveCursorApiKey(_ apiKey: String) {
+        guard !apiKey.isEmpty else { return }
+        
+        let fileURL = AuthPaths.authDirectory.appendingPathComponent("cursor.json")
+        let json: [String: Any] = [
+            "type": "cursor",
+            "email": "cursor-user",
+            "apiKey": apiKey,
+            "disabled": false
+        ]
+        
+        do {
+            try FileManager.default.createDirectory(at: AuthPaths.authDirectory, withIntermediateDirectories: true)
+            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
+            try data.write(to: fileURL)
+            NSLog("[SettingsView] Saved Cursor API Key to \(fileURL.path)")
+            
+            authManager.checkAuthStatus()
+            
+            self.authResultSuccess = true
+            self.authResultMessage = "✓ Successfully added Cursor API Key."
+            self.showingAuthResult = true
+        } catch {
+            NSLog("[SettingsView] Failed to save Cursor API Key: \(error.localizedDescription)")
+            self.authResultSuccess = false
+            self.authResultMessage = "Failed to save Cursor API Key: \(error.localizedDescription)"
+            self.showingAuthResult = true
         }
     }
     
