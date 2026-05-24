@@ -301,6 +301,11 @@ class ThinkingProxy {
                 ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }
             if isCursorModel(modifiedBody) {
+                guard isCursorEnabled() else {
+                    NSLog("[ThinkingProxy] Warning: Cursor model requested but the provider is disabled in settings.")
+                    sendError(to: connection, statusCode: 400, message: "Cursor provider is disabled in DroidProxy settings.")
+                    return
+                }
                 forwardToCursor(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
                 return
             }
@@ -1081,6 +1086,13 @@ class ThinkingProxy {
             return false
         }
         return model.hasPrefix("cursor-")
+    }
+
+    private func isCursorEnabled() -> Bool {
+        if let saved = UserDefaults.standard.dictionary(forKey: "enabledProviders") as? [String: Bool] {
+            return saved["cursor"] ?? true
+        }
+        return true
     }
 
     private func loadCursorApiKey() -> String? {

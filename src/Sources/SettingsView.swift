@@ -938,11 +938,6 @@ struct SettingsView: View {
         } message: {
             Text("Please enter your Cursor API Key. It will be saved under ~/.cli-proxy-api/cursor.json.")
         }
-        .alert("About", isPresented: $showingInfoAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(infoAlertMessage)
-        }
     }
 
     // MARK: - Actions
@@ -1090,7 +1085,8 @@ struct SettingsView: View {
             try FileManager.default.createDirectory(at: AuthPaths.authDirectory, withIntermediateDirectories: true)
             let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
             try data.write(to: fileURL)
-            NSLog("[SettingsView] Saved Cursor API Key to \(fileURL.path)")
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            NSLog("[SettingsView] Saved Cursor API Key with secure permissions to \(fileURL.path)")
             
             authManager.checkAuthStatus()
             
