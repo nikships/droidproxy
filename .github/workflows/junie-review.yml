@@ -24,4 +24,4 @@ jobs:
           use_single_comment: "true"
           prompt: "code-review"
           junie_version: "latest"
-          model: "gemini-3-flash-preview"
+          model: "gpt-5.2"
