@@ -813,8 +813,6 @@ class ThinkingProxy {
         }
 
         switch model {
-        case "gpt-5.2":
-            guard AppPreferences.gpt52FastMode else { return nil }
         case "gpt-5.4":
             guard AppPreferences.gpt54FastMode else { return nil }
         case "gpt-5.5":

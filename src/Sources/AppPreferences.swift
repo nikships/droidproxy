@@ -1,8 +1,7 @@
 import Foundation
 
 enum AppPreferences {
-    static let gpt52FastModeKey = "gpt52FastMode"
-    static let gpt53CodexFastModeKey = "gpt53CodexFastMode"
+    static let gpt53CodexFastModeKey = "******************"
     static let gpt54FastModeKey = "gpt54FastMode"
     static let gpt55FastModeKey = "gpt55FastMode"
     static let allowRemoteKey = "allowRemote"
@@ -12,7 +11,6 @@ enum AppPreferences {
     static let betaFlagKey = "BETA_FLAG"
     static let verboseLoggingKey = "verboseLogging"
 
-    static let defaultGpt52FastMode = false
     static let defaultGpt53CodexFastMode = false
     static let defaultGpt54FastMode = false
     static let defaultGpt55FastMode = false
@@ -22,10 +20,6 @@ enum AppPreferences {
     static let defaultBackgroundOpacity = 0.55
     static let defaultBetaFlag = false
     static let defaultVerboseLogging = false
-
-    static var gpt52FastMode: Bool {
-        UserDefaults.standard.bool(forKey: gpt52FastModeKey)
-    }
 
     static var gpt53CodexFastMode: Bool {
         UserDefaults.standard.bool(forKey: gpt53CodexFastModeKey)
