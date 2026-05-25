@@ -410,18 +410,26 @@ class ThinkingProxy {
     ]
 
     private func rewriteAntigravityModelAlias(jsonString: String) -> String? {
-        guard let jsonData = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String,
-              let backendModel = Self.antigravityModelAliases[model],
-              let location = findTopLevelFieldLocation(in: jsonString, key: "model") else {
+        guard let modelField = topLevelStringField(in: jsonString, key: "model"),
+              let backendModel = Self.antigravityModelAliases[modelField.value] else {
             return nil
         }
 
         var result = jsonString
-        result.replaceSubrange(location.valueRange, with: "\"\(backendModel)\"")
-        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Antigravity alias)")
+        result.replaceSubrange(modelField.location.valueRange, with: "\"\(backendModel)\"")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(modelField.value) -> \(backendModel) (Antigravity alias)")
         return result
+    }
+
+    private func topLevelStringField(in jsonString: String, key: String) -> (value: String, location: TopLevelFieldLocation)? {
+        guard let location = findTopLevelFieldLocation(in: jsonString, key: key),
+              jsonString[location.valueRange.lowerBound] == "\"",
+              let (value, valueEnd) = parseJSONStringToken(in: jsonString, startingAt: location.valueRange.lowerBound),
+              valueEnd == location.valueRange.upperBound else {
+            return nil
+        }
+
+        return (value, location)
     }
 
     private static let responsesAPIPaths: Set<String> = [
@@ -481,15 +489,6 @@ class ThinkingProxy {
         return "\(value)"
     }
 
-    private func isGeminiModel(_ bodyString: String) -> Bool {
-        guard let jsonData = bodyString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String else {
-            return false
-        }
-        return model.hasPrefix("gemini-")
-    }
-
     /// True only for Gemini models served by the OAuth Code Assist (`gemini-cli`)
     /// executor — these are the `-preview`-suffixed names like
     /// `gemini-3.1-pro-preview` and `gemini-3-flash-preview`. The Code Assist
@@ -497,12 +496,10 @@ class ThinkingProxy {
     /// `/v1/chat/completions` for them. Antigravity-routed Gemini models support
     /// `/v1/responses` natively and must NOT be rewritten.
     private func isOAuthCodeAssistGeminiModel(_ bodyString: String) -> Bool {
-        guard let location = findTopLevelFieldLocation(in: bodyString, key: "model") else {
+        guard let model = topLevelStringField(in: bodyString, key: "model")?.value else {
             return false
         }
-        let modelValue = bodyString[location.valueRange]
-        // findTopLevelFieldLocation returns the raw value including surrounding quotes for strings
-        return modelValue.hasPrefix("\"gemini-") && modelValue.hasSuffix("-preview\"")
+        return model.hasPrefix("gemini-") && model.hasSuffix("-preview")
     }
 
     // MARK: - Surgical JSON string helpers

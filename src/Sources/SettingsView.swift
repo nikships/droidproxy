@@ -1077,7 +1077,7 @@ struct SettingsView: View {
         case .codex:
             return "🌐 Browser opened for Codex authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .antigravity:
-            return "🌐 Browser opened for Antigravity authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
+            return "🌐 Browser opened for Antigravity authentication.\n\nYou must have Google Antigravity installed before adding an Antigravity account.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
         case .kimi:
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .cursor:
@@ -1163,14 +1163,11 @@ struct SettingsView: View {
               let models = json["customModels"] as? [[String: Any]] else {
             return false
         }
-        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
-            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model),
-                  let serviceType = ServiceType(authFileType: key) else { return true }
-            return serverManager.isProviderEnabled(serviceType)
-        }
+        let enabledModels = enabledFactorySettingsModels()
         let expectedIds = Set(enabledModels.compactMap { $0["id"] as? String })
+        let allSettingsIDs = DroidProxyModelCatalog.allSettingsIDs
         let installedDroidProxyIds = Set(models.compactMap { $0["id"] as? String }.filter { id in
-            DroidProxyModelCatalog.allSettingsIDs.contains(id)
+            allSettingsIDs.contains(id)
                 || Self.legacyDroidProxyModelIds.contains(id)
                 || id.hasPrefix("custom:droidproxy:")
                 || id.hasPrefix("custom:CC:")
@@ -1191,20 +1188,17 @@ struct SettingsView: View {
         }
 
         var models = (settings["customModels"] as? [[String: Any]]) ?? []
+        let allSettingsIDs = DroidProxyModelCatalog.allSettingsIDs
 
         models.removeAll { item in
             guard let id = item["id"] as? String else { return false }
-            return DroidProxyModelCatalog.allSettingsIDs.contains(id)
+            return allSettingsIDs.contains(id)
                 || Self.legacyDroidProxyModelIds.contains(id)
                 || id.hasPrefix("custom:droidproxy:")
                 || id.hasPrefix("custom:CC:")
         }
 
-        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
-            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model),
-                  let serviceType = ServiceType(authFileType: key) else { return true }
-            return serverManager.isProviderEnabled(serviceType)
-        }
+        let enabledModels = enabledFactorySettingsModels()
         let startIndex = models.count
         for (offset, var model) in enabledModels.enumerated() {
             model["index"] = startIndex + offset
@@ -1230,6 +1224,13 @@ struct SettingsView: View {
             authResultMessage = "Failed to update Factory settings: \(error.localizedDescription)"
             showingAuthResult = true
             NSLog("[SettingsView] Failed to apply Factory custom models: %@", error.localizedDescription)
+        }
+    }
+
+    private func enabledFactorySettingsModels() -> [[String: Any]] {
+        DroidProxyModelCatalog.settingsModels { providerKey in
+            guard let serviceType = ServiceType(authFileType: providerKey) else { return true }
+            return serverManager.isProviderEnabled(serviceType)
         }
     }
 
