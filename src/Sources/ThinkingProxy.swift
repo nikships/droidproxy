@@ -321,7 +321,7 @@ class ThinkingProxy {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)
             }
-            if let summary = requestFields?.reasoningSummary {
+            if let summary = reasoningSummaryLog(in: modifiedBody, fields: requestFields) {
                 ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }
         }
@@ -433,7 +433,7 @@ class ThinkingProxy {
               jsonString[location.valueRange.lowerBound] == "\"",
               let (value, valueEnd) = parseJSONStringToken(in: jsonString,
                                                            startingAt: location.valueRange.lowerBound,
-                                                           before: objectRange.upperBound),
+                                                           before: location.valueRange.upperBound),
               valueEnd == location.valueRange.upperBound else {
             return nil
         }
@@ -454,13 +454,34 @@ class ThinkingProxy {
     private struct RequestJSONFields {
         let model: String?
         let modelLocation: TopLevelFieldLocation?
-        let hasServiceTier: Bool
         let thinkingType: String?
-        let reasoningSummary: String
+        let thinkingLocation: TopLevelFieldLocation?
+        let serviceTierLocation: TopLevelFieldLocation?
+
+        var hasServiceTier: Bool { serviceTierLocation != nil }
     }
 
-    private static let requestInspectionKeys: Set<String> = [
+    /// Keys needed for actual request routing / header / fast-mode decisions.
+    /// Kept small so the top-level JSON scan can early-exit before traversing
+    /// the (potentially huge) `messages` array on most requests.
+    private static let routingInspectionKeys: Set<String> = [
         "model",
+        "service_tier",
+        "thinking"
+    ]
+
+    /// Additional keys only needed to build the human-readable REQUEST REASONING
+    /// debug log line. Scanned separately (and only when about to log) so a
+    /// missing optional key here never forces routing to consume `messages`.
+    private static let reasoningLogInspectionKeys: Set<String> = [
+        "reasoning",
+        "reasoning_effort",
+        "output_config",
+        "generationConfig"
+    ]
+
+    /// Stable display order for the REQUEST REASONING summary line.
+    private static let reasoningSummaryOrder = [
         "reasoning",
         "reasoning_effort",
         "thinking",
@@ -469,47 +490,66 @@ class ThinkingProxy {
         "generationConfig"
     ]
 
-    private static let reasoningSummaryKeys = [
-        "reasoning",
-        "reasoning_effort",
-        "thinking",
-        "output_config",
-        "service_tier",
-        "generationConfig"
-    ]
+    /// Maximum chars from a single field's raw JSON we include in the
+    /// REQUEST REASONING log line, to avoid emitting megabyte-long lines
+    /// when a client passes a giant `reasoning`/`output_config` object.
+    private static let reasoningSummarySnippetLimit = 512
 
     private func inspectRequestJSONFields(in bodyString: String) -> RequestJSONFields? {
-        guard let locations = findTopLevelFieldLocations(in: bodyString, keys: Self.requestInspectionKeys) else {
+        guard let locations = findTopLevelFieldLocations(in: bodyString, keys: Self.routingInspectionKeys) else {
             return nil
         }
 
         let modelLocation = locations["model"]
         let model = modelLocation.flatMap { topLevelStringValue(in: bodyString, location: $0) }
-        let thinkingType = locations["thinking"].flatMap {
+        let thinkingLocation = locations["thinking"]
+        let thinkingType = thinkingLocation.flatMap {
             objectStringField(in: bodyString, objectRange: $0.valueRange, key: "type")?.value
-        }
-
-        var parts: [String] = []
-        if let model {
-            parts.append("model=\(model)")
-        }
-        for key in Self.reasoningSummaryKeys {
-            guard let field = locations[key] else { continue }
-            parts.append("\(key)=\(String(bodyString[field.valueRange]))")
-        }
-        if parts.count == 1 {
-            parts.append("<no reasoning/thinking fields>")
         }
         return RequestJSONFields(model: model,
                                  modelLocation: modelLocation,
-                                 hasServiceTier: locations["service_tier"] != nil,
                                  thinkingType: thinkingType,
-                                 reasoningSummary: parts.joined(separator: " "))
+                                 thinkingLocation: thinkingLocation,
+                                 serviceTierLocation: locations["service_tier"])
+    }
+
+    /// Builds the REQUEST REASONING log line by doing a second, narrowly-scoped
+    /// scan for the debug-only keys. Returns nil when nothing useful is present
+    /// (so we don't emit empty/noise lines).
+    private func reasoningSummaryLog(in bodyString: String, fields: RequestJSONFields?) -> String? {
+        let logLocations = findTopLevelFieldLocations(in: bodyString, keys: Self.reasoningLogInspectionKeys) ?? [:]
+
+        var parts: [String] = []
+        if let model = fields?.model {
+            parts.append("model=\(model)")
+        }
+
+        for key in Self.reasoningSummaryOrder {
+            let location: TopLevelFieldLocation?
+            switch key {
+            case "thinking": location = fields?.thinkingLocation
+            case "service_tier": location = fields?.serviceTierLocation
+            default: location = logLocations[key]
+            }
+            guard let field = location else { continue }
+            let raw = bodyString[field.valueRange]
+            let snippet = String(raw.prefix(Self.reasoningSummarySnippetLimit))
+                .replacingOccurrences(of: "\r", with: " ")
+                .replacingOccurrences(of: "\n", with: " ")
+            parts.append("\(key)=\(snippet)")
+        }
+
+        // Only the `model=...` part (or nothing) means we have no
+        // reasoning/thinking info worth logging.
+        if parts.count <= 1 { return nil }
+        return parts.joined(separator: " ")
     }
 
     private func topLevelStringValue(in jsonString: String, location: TopLevelFieldLocation) -> String? {
         guard jsonString[location.valueRange.lowerBound] == "\"",
-              let (value, valueEnd) = parseJSONStringToken(in: jsonString, startingAt: location.valueRange.lowerBound),
+              let (value, valueEnd) = parseJSONStringToken(in: jsonString,
+                                                           startingAt: location.valueRange.lowerBound,
+                                                           before: location.valueRange.upperBound),
               valueEnd == location.valueRange.upperBound else {
             return nil
         }
