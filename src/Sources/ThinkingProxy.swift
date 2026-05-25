@@ -301,6 +301,11 @@ class ThinkingProxy {
                 ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }
             if isCursorModel(modifiedBody) {
+                guard BETA_FLAG else {
+                    NSLog("[ThinkingProxy] Warning: Cursor model requested but Beta mode is disabled.")
+                    sendError(to: connection, statusCode: 400, message: "Cursor provider is a beta feature. Please enable Beta mode in DroidProxy settings.")
+                    return
+                }
                 guard isCursorEnabled() else {
                     NSLog("[ThinkingProxy] Warning: Cursor model requested but the provider is disabled in settings.")
                     sendError(to: connection, statusCode: 400, message: "Cursor provider is disabled in DroidProxy settings.")

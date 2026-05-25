@@ -68,164 +68,173 @@ enum DroidProxyModelCatalog {
     private static let geminiFlashLevels = [minimal, low, medium, high]
     private static let cursorLevels = [high]
 
-    static let definitions: [DroidProxyModelDefinition] = [
-        DroidProxyModelDefinition(
-            baseModel: "claude-opus-4-7",
-            idSlug: "opus-4-7",
-            displayName: "Opus 4.7",
-            maxOutputTokens: 128000,
-            provider: "anthropic",
-            providerKey: "claude",
-            baseURL: "http://localhost:8317",
-            kind: .claudeAdaptive,
-            levels: claudeAdvancedLevels,
-            defaultLevelValue: "xhigh"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "claude-opus-4-6",
-            idSlug: "opus-4-6",
-            displayName: "Opus 4.6",
-            maxOutputTokens: 128000,
-            provider: "anthropic",
-            providerKey: "claude",
-            baseURL: "http://localhost:8317",
-            kind: .claudeAdaptive,
-            levels: claudeClassicLevels,
-            defaultLevelValue: "max"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "claude-opus-4-5-20251101",
-            idSlug: "opus-4-5",
-            displayName: "Opus 4.5",
-            maxOutputTokens: 64000,
-            provider: "anthropic",
-            providerKey: "claude",
-            baseURL: "http://localhost:8317",
-            kind: .claudeClassic,
-            levels: claudeClassicLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "claude-sonnet-4-6",
-            idSlug: "sonnet-4-6",
-            displayName: "Sonnet 4.6",
-            maxOutputTokens: 64000,
-            provider: "anthropic",
-            providerKey: "claude",
-            baseURL: "http://localhost:8317",
-            kind: .claudeAdaptive,
-            levels: claudeClassicLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "gpt-5.2",
-            idSlug: "gpt-5.2",
-            displayName: "GPT 5.2",
-            maxOutputTokens: 128000,
-            provider: "openai",
-            providerKey: "codex",
-            baseURL: "http://localhost:8317/v1",
-            kind: .codex,
-            levels: codexLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "gpt-5.3-codex",
-            idSlug: "gpt-5.3-codex",
-            displayName: "GPT 5.3 Codex",
-            maxOutputTokens: 128000,
-            provider: "openai",
-            providerKey: "codex",
-            baseURL: "http://localhost:8317/v1",
-            kind: .codex,
-            levels: codexLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "gpt-5.4",
-            idSlug: "gpt-5.4",
-            displayName: "GPT 5.4",
-            maxOutputTokens: 128000,
-            provider: "openai",
-            providerKey: "codex",
-            baseURL: "http://localhost:8317/v1",
-            kind: .codex,
-            levels: codexLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "gpt-5.5",
-            idSlug: "gpt-5.5",
-            displayName: "GPT 5.5",
-            maxOutputTokens: 128000,
-            provider: "openai",
-            providerKey: "codex",
-            baseURL: "http://localhost:8317/v1",
-            kind: .codex,
-            levels: codexLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "gemini-3.1-pro-preview",
-            idSlug: "gemini-3.1-pro",
-            displayName: "Gemini 3.1 Pro",
-            maxOutputTokens: 65536,
-            provider: "google",
-            providerKey: "gemini",
-            baseURL: "http://localhost:8317",
-            kind: .gemini,
-            levels: geminiProLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "gemini-3-flash-preview",
-            idSlug: "gemini-3-flash",
-            displayName: "Gemini 3 Flash",
-            maxOutputTokens: 65536,
-            provider: "google",
-            providerKey: "gemini",
-            baseURL: "http://localhost:8317",
-            kind: .gemini,
-            levels: geminiFlashLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "kimi-k2.6",
-            idSlug: "kimi-k2.6",
-            displayName: "Kimi K2.6",
-            maxOutputTokens: 262144,
-            provider: "openai",
-            providerKey: "kimi",
-            baseURL: "http://localhost:8317/v1",
-            kind: .kimi,
-            levels: kimiLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "cursor-composer-2.5",
-            idSlug: "cursor-composer-2.5",
-            displayName: "Cursor Composer 2.5",
-            maxOutputTokens: 128000,
-            provider: "openai",
-            providerKey: "cursor",
-            baseURL: "http://localhost:8317/v1",
-            kind: .cursor,
-            levels: cursorLevels,
-            defaultLevelValue: "high"
-        ),
-        DroidProxyModelDefinition(
-            baseModel: "cursor-small",
-            idSlug: "cursor-small",
-            displayName: "Cursor Small",
-            maxOutputTokens: 64000,
-            provider: "openai",
-            providerKey: "cursor",
-            baseURL: "http://localhost:8317/v1",
-            kind: .cursor,
-            levels: cursorLevels,
-            defaultLevelValue: "high"
-        )
-    ]
+    static var definitions: [DroidProxyModelDefinition] {
+        var list = [
+            DroidProxyModelDefinition(
+                baseModel: "claude-opus-4-7",
+                idSlug: "opus-4-7",
+                displayName: "Opus 4.7",
+                maxOutputTokens: 128000,
+                provider: "anthropic",
+                providerKey: "claude",
+                baseURL: "http://localhost:8317",
+                kind: .claudeAdaptive,
+                levels: claudeAdvancedLevels,
+                defaultLevelValue: "xhigh"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "claude-opus-4-6",
+                idSlug: "opus-4-6",
+                displayName: "Opus 4.6",
+                maxOutputTokens: 128000,
+                provider: "anthropic",
+                providerKey: "claude",
+                baseURL: "http://localhost:8317",
+                kind: .claudeAdaptive,
+                levels: claudeClassicLevels,
+                defaultLevelValue: "max"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "claude-opus-4-5-20251101",
+                idSlug: "opus-4-5",
+                displayName: "Opus 4.5",
+                maxOutputTokens: 64000,
+                provider: "anthropic",
+                providerKey: "claude",
+                baseURL: "http://localhost:8317",
+                kind: .claudeClassic,
+                levels: claudeClassicLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "claude-sonnet-4-6",
+                idSlug: "sonnet-4-6",
+                displayName: "Sonnet 4.6",
+                maxOutputTokens: 64000,
+                provider: "anthropic",
+                providerKey: "claude",
+                baseURL: "http://localhost:8317",
+                kind: .claudeAdaptive,
+                levels: claudeClassicLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gpt-5.2",
+                idSlug: "gpt-5.2",
+                displayName: "GPT 5.2",
+                maxOutputTokens: 128000,
+                provider: "openai",
+                providerKey: "codex",
+                baseURL: "http://localhost:8317/v1",
+                kind: .codex,
+                levels: codexLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gpt-5.3-codex",
+                idSlug: "gpt-5.3-codex",
+                displayName: "GPT 5.3 Codex",
+                maxOutputTokens: 128000,
+                provider: "openai",
+                providerKey: "codex",
+                baseURL: "http://localhost:8317/v1",
+                kind: .codex,
+                levels: codexLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gpt-5.4",
+                idSlug: "gpt-5.4",
+                displayName: "GPT 5.4",
+                maxOutputTokens: 128000,
+                provider: "openai",
+                providerKey: "codex",
+                baseURL: "http://localhost:8317/v1",
+                kind: .codex,
+                levels: codexLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gpt-5.5",
+                idSlug: "gpt-5.5",
+                displayName: "GPT 5.5",
+                maxOutputTokens: 128000,
+                provider: "openai",
+                providerKey: "codex",
+                baseURL: "http://localhost:8317/v1",
+                kind: .codex,
+                levels: codexLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gemini-3.1-pro-preview",
+                idSlug: "gemini-3.1-pro",
+                displayName: "Gemini 3.1 Pro",
+                maxOutputTokens: 65536,
+                provider: "google",
+                providerKey: "gemini",
+                baseURL: "http://localhost:8317",
+                kind: .gemini,
+                levels: geminiProLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gemini-3-flash-preview",
+                idSlug: "gemini-3-flash",
+                displayName: "Gemini 3 Flash",
+                maxOutputTokens: 65536,
+                provider: "google",
+                providerKey: "gemini",
+                baseURL: "http://localhost:8317",
+                kind: .gemini,
+                levels: geminiFlashLevels,
+                defaultLevelValue: "high"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "kimi-k2.6",
+                idSlug: "kimi-k2.6",
+                displayName: "Kimi K2.6",
+                maxOutputTokens: 262144,
+                provider: "openai",
+                providerKey: "kimi",
+                baseURL: "http://localhost:8317/v1",
+                kind: .kimi,
+                levels: kimiLevels,
+                defaultLevelValue: "high"
+            )
+        ]
+
+        if BETA_FLAG {
+            list.append(contentsOf: [
+                DroidProxyModelDefinition(
+                    baseModel: "cursor-composer-2.5",
+                    idSlug: "cursor-composer-2.5",
+                    displayName: "Cursor Composer 2.5",
+                    maxOutputTokens: 128000,
+                    provider: "openai",
+                    providerKey: "cursor",
+                    baseURL: "http://localhost:8317/v1",
+                    kind: .cursor,
+                    levels: cursorLevels,
+                    defaultLevelValue: "high"
+                ),
+                DroidProxyModelDefinition(
+                    baseModel: "cursor-small",
+                    idSlug: "cursor-small",
+                    displayName: "Cursor Small",
+                    maxOutputTokens: 64000,
+                    provider: "openai",
+                    providerKey: "cursor",
+                    baseURL: "http://localhost:8317/v1",
+                    kind: .cursor,
+                    levels: cursorLevels,
+                    defaultLevelValue: "high"
+                )
+            ])
+        }
+
+        return list
+    }
 
     static func settingsModels() -> [[String: Any]] {
         definitions.map(\.settingsEntry)
