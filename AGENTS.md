@@ -5,10 +5,16 @@
 The Swift package lives in `src/`. Run all `swift build`, `swift run`, and `swift package` commands from there, not from the repo root.
 
 ```bash
-# Debug build
+# Preferred dev loop: kill any running DroidProxy, rebuild the .app bundle, and
+# launch the freshly signed build. Use this instead of running create-app-bundle.sh
+# + open by hand — it guarantees the old menu-bar process and bundled
+# cli-proxy-api-plus are stopped before the new app starts.
+./dev-relaunch.sh
+
+# Debug build (no .app bundle, no relaunch)
 cd src && swift build
 
-# Run the app (menu bar app — swift run does not work for LSUIElement apps)
+# Run the app manually (menu bar app — swift run does not work for LSUIElement apps)
 # Build the .app bundle first, then open it:
 ./create-app-bundle.sh && open DroidProxy.app
 
@@ -16,6 +22,8 @@ cd src && swift build
 # Picks up CODESIGN_IDENTITY / APP_VERSION / TARGET_ARCH from env when present
 ./create-app-bundle.sh
 ```
+
+`dev-relaunch.sh` is the preferred way to run DroidProxy during development. It calls `create-app-bundle.sh` (which runs `swift build -c release` and assembles the signed `.app`) after killing any running `CLIProxyMenuBar` / `cli-proxy-api-plus` processes, then launches the fresh bundle. Do not use it for releases — those go through `.github/workflows/release.yml`.
 
 `create-app-bundle.sh` currently builds `DroidProxy.app` at the repo root and bundles resources from `src/Sources/Resources/`.
 
