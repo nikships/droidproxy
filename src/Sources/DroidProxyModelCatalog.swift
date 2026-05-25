@@ -6,6 +6,7 @@ enum DroidProxyModelKind {
     case codex
     case gemini
     case kimi
+    case antigravity
     case cursor
 }
 
@@ -30,6 +31,15 @@ struct DroidProxyModelDefinition: Equatable {
         "custom:droidproxy:\(idSlug)"
     }
 
+    private var settingsDisplayName: String {
+        switch kind {
+        case .antigravity:
+            return "Antigravity: \(displayName)"
+        default:
+            return displayName
+        }
+    }
+
     /// Settings entry that embeds Factory's native reasoning metadata so Droid's
     /// per-session reasoning selector picks up the supported levels for this model.
     var settingsEntry: [String: Any] {
@@ -38,16 +48,17 @@ struct DroidProxyModelDefinition: Equatable {
             "id": simpleID,
             "baseUrl": baseURL,
             "apiKey": "dummy-not-used",
-            "displayName": "DroidProxy: \(displayName)",
+            "displayName": "DroidProxy: \(settingsDisplayName)",
             "maxOutputTokens": maxOutputTokens,
             "noImageSupport": false,
             "provider": provider
         ]
-        guard levels.count > 1 else { return entry }
+        guard !levels.isEmpty else { return entry }
         entry["enableThinking"] = true
         entry["supportedReasoningEfforts"] = levels.map(\.value)
-        entry["defaultReasoningEffort"] = defaultLevelValue
-        entry["reasoningEffort"] = defaultLevelValue
+        let defLevel = levels.count == 1 ? levels[0].value : defaultLevelValue
+        entry["defaultReasoningEffort"] = defLevel
+        entry["reasoningEffort"] = defLevel
         return entry
     }
 }
@@ -64,9 +75,35 @@ enum DroidProxyModelCatalog {
     private static let claudeClassicLevels = [low, medium, high, max]
     private static let codexLevels = [low, medium, high, xhigh]
     private static let kimiLevels = [high]
+    private static let antigravityLowLevel = [low]
+    private static let antigravityMediumLevel = [medium]
+    private static let antigravityHighLevel = [high]
+    private static let gemini35FlashAntigravityLevels = [medium, high]
     private static let geminiProLevels = [low, medium, high]
     private static let geminiFlashLevels = [minimal, low, medium, high]
     private static let cursorLevels = [high]
+
+    private static func antigravityModel(
+        baseModel: String,
+        idSlug: String,
+        displayName: String,
+        maxOutputTokens: Int = 65536,
+        levels: [DroidProxyThinkingLevel] = antigravityHighLevel,
+        defaultLevelValue: String = "high"
+    ) -> DroidProxyModelDefinition {
+        DroidProxyModelDefinition(
+            baseModel: baseModel,
+            idSlug: idSlug,
+            displayName: displayName,
+            maxOutputTokens: maxOutputTokens,
+            provider: "openai",
+            providerKey: "antigravity",
+            baseURL: "http://localhost:8317/v1",
+            kind: .antigravity,
+            levels: levels,
+            defaultLevelValue: defaultLevelValue
+        )
+    }
 
     static var definitions: [DroidProxyModelDefinition] {
         var list = [
@@ -166,6 +203,66 @@ enum DroidProxyModelCatalog {
                 levels: codexLevels,
                 defaultLevelValue: "high"
             ),
+            // Antigravity subscription models routed through the antigravity executor via
+            // OpenAI-compatible chat-completions. provider="openai" + baseURL ending in
+            // /v1 makes Factory's Droid CLI send POST /v1/chat/completions, which the
+            // antigravity executor handles natively using the antigravity auth file.
+            antigravityModel(
+                baseModel: "gemini-pro-agent",
+                idSlug: "antigravity-gemini-3.1-pro",
+                displayName: "Gemini 3.1 Pro (High)"
+            ),
+            antigravityModel(
+                baseModel: "gemini-3.1-pro-low",
+                idSlug: "gemini-3.1-pro-low",
+                displayName: "Gemini 3.1 Pro (Low)",
+                levels: antigravityLowLevel,
+                defaultLevelValue: "low"
+            ),
+            antigravityModel(
+                baseModel: "gemini-3-flash",
+                idSlug: "antigravity-gemini-3-flash",
+                displayName: "Gemini 3 Flash"
+            ),
+            antigravityModel(
+                baseModel: "gemini-3-flash-agent",
+                idSlug: "gemini-3.5-flash",
+                displayName: "Gemini 3.5 Flash",
+                levels: gemini35FlashAntigravityLevels,
+                defaultLevelValue: "high"
+            ),
+            antigravityModel(
+                baseModel: "gemini-3.5-flash-low",
+                idSlug: "gemini-3.5-flash-low",
+                displayName: "Gemini 3.5 Flash (Low)",
+                levels: antigravityLowLevel,
+                defaultLevelValue: "low"
+            ),
+            antigravityModel(
+                baseModel: "gemini-3.1-flash-lite",
+                idSlug: "gemini-3.1-flash-lite",
+                displayName: "Gemini 3.1 Flash Lite"
+            ),
+            antigravityModel(
+                baseModel: "ag-c46s-thinking",
+                idSlug: "ag-c46s-thinking",
+                displayName: "Claude Sonnet 4.6 (Thinking)",
+                maxOutputTokens: 64000
+            ),
+            antigravityModel(
+                baseModel: "ag-c46o-thinking",
+                idSlug: "ag-c46o-thinking",
+                displayName: "Claude Opus 4.6 (Thinking)",
+                maxOutputTokens: 64000
+            ),
+            antigravityModel(
+                baseModel: "gpt-oss-120b-medium",
+                idSlug: "gpt-oss-120b-medium",
+                displayName: "GPT-OSS 120B (Medium)",
+                maxOutputTokens: 32768,
+                levels: antigravityMediumLevel,
+                defaultLevelValue: "medium"
+            ),
             DroidProxyModelDefinition(
                 baseModel: "gemini-3.1-pro-preview",
                 idSlug: "gemini-3.1-pro",
@@ -236,26 +333,15 @@ enum DroidProxyModelCatalog {
         return list
     }
 
-    static func settingsModels() -> [[String: Any]] {
-        definitions.map(\.settingsEntry)
+    static func settingsModels(providerIsEnabled: (String) -> Bool = { _ in true }) -> [[String: Any]] {
+        definitions.compactMap { definition in
+            guard providerIsEnabled(definition.providerKey) else { return nil }
+            return definition.settingsEntry
+        }
     }
 
     static var allSettingsIDs: Set<String> {
         Set(definitions.map(\.simpleID))
     }
 
-    static func providerKey(forSettingsModel model: [String: Any]) -> String? {
-        if let id = model["id"] as? String,
-           let definition = definitions.first(where: { $0.simpleID == id }) {
-            return definition.providerKey
-        }
-
-        guard let name = model["model"] as? String else { return nil }
-        if name.hasPrefix("claude") { return "claude" }
-        if name.hasPrefix("gpt") { return "codex" }
-        if name.hasPrefix("gemini") { return "gemini" }
-        if name.hasPrefix("kimi-k2.6") { return "kimi" }
-        if name.hasPrefix("cursor") { return "cursor" }
-        return nil
-    }
 }

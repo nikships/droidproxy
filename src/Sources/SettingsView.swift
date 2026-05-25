@@ -330,7 +330,7 @@ struct SettingsView: View {
     @State private var codexFastModeExpanded = true
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
-    private let geminiEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
+    private let antigravityEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
     private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
     private let cursorEffortSelectionColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
@@ -785,18 +785,18 @@ struct SettingsView: View {
                     }
 
                     ServiceRow(
-                        serviceType: .gemini,
+                        serviceType: .antigravity,
                         iconName: "icon-gemini.png",
-                        accounts: authManager.accounts(for: .gemini),
-                        isAuthenticating: authenticatingService == .gemini,
-                        helpText: "If you have multiple GCP projects, authentication will use your default project. Set your desired project as default in Google AI Studio before connecting.",
-                        isEnabled: serverManager.isProviderEnabled(.gemini),
+                        accounts: authManager.accounts(for: .antigravity),
+                        isAuthenticating: authenticatingService == .antigravity,
+                        helpText: "Uses your Antigravity subscription for the Antigravity-backed Gemini, Claude, and GPT-OSS models.",
+                        isEnabled: serverManager.isProviderEnabled(.antigravity),
                         customTitle: nil,
-                        onConnect: { connectService(.gemini) },
+                        onConnect: { connectService(.antigravity) },
                         onDisconnect: { account in disconnectAccount(account) },
                         onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.gemini, enabled: enabled) },
-                        toggleTint: geminiEffortSelectionColor,
+                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.antigravity, enabled: enabled) },
+                        toggleTint: antigravityEffortSelectionColor,
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
 
@@ -1047,7 +1047,7 @@ struct SettingsView: View {
         switch serviceType {
         case .claude: command = .claudeLogin
         case .codex: command = .codexLogin
-        case .gemini: command = .geminiLogin
+        case .antigravity: command = .antigravityLogin
         case .kimi: command = .kimiLogin
         case .cursor: command = .kimiLogin // Unreachable but required for exhaustiveness
         }
@@ -1076,8 +1076,8 @@ struct SettingsView: View {
             return "🌐 Browser opened for Claude Code authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .codex:
             return "🌐 Browser opened for Codex authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
-        case .gemini:
-            return "🌐 Browser opened for Gemini authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -login"
+        case .antigravity:
+            return "🌐 Browser opened for Antigravity authentication.\n\nYou must have Google Antigravity installed before adding an Antigravity account.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
         case .kimi:
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .cursor:
@@ -1163,14 +1163,11 @@ struct SettingsView: View {
               let models = json["customModels"] as? [[String: Any]] else {
             return false
         }
-        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
-            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model),
-                  let serviceType = ServiceType(authFileType: key) else { return true }
-            return serverManager.isProviderEnabled(serviceType)
-        }
+        let enabledModels = enabledFactorySettingsModels()
         let expectedIds = Set(enabledModels.compactMap { $0["id"] as? String })
+        let allSettingsIDs = DroidProxyModelCatalog.allSettingsIDs
         let installedDroidProxyIds = Set(models.compactMap { $0["id"] as? String }.filter { id in
-            DroidProxyModelCatalog.allSettingsIDs.contains(id)
+            allSettingsIDs.contains(id)
                 || Self.legacyDroidProxyModelIds.contains(id)
                 || id.hasPrefix("custom:droidproxy:")
                 || id.hasPrefix("custom:CC:")
@@ -1191,20 +1188,17 @@ struct SettingsView: View {
         }
 
         var models = (settings["customModels"] as? [[String: Any]]) ?? []
+        let allSettingsIDs = DroidProxyModelCatalog.allSettingsIDs
 
         models.removeAll { item in
             guard let id = item["id"] as? String else { return false }
-            return DroidProxyModelCatalog.allSettingsIDs.contains(id)
+            return allSettingsIDs.contains(id)
                 || Self.legacyDroidProxyModelIds.contains(id)
                 || id.hasPrefix("custom:droidproxy:")
                 || id.hasPrefix("custom:CC:")
         }
 
-        let enabledModels = DroidProxyModelCatalog.settingsModels().filter { model in
-            guard let key = DroidProxyModelCatalog.providerKey(forSettingsModel: model),
-                  let serviceType = ServiceType(authFileType: key) else { return true }
-            return serverManager.isProviderEnabled(serviceType)
-        }
+        let enabledModels = enabledFactorySettingsModels()
         let startIndex = models.count
         for (offset, var model) in enabledModels.enumerated() {
             model["index"] = startIndex + offset
@@ -1230,6 +1224,13 @@ struct SettingsView: View {
             authResultMessage = "Failed to update Factory settings: \(error.localizedDescription)"
             showingAuthResult = true
             NSLog("[SettingsView] Failed to apply Factory custom models: %@", error.localizedDescription)
+        }
+    }
+
+    private func enabledFactorySettingsModels() -> [[String: Any]] {
+        DroidProxyModelCatalog.settingsModels { providerKey in
+            guard let serviceType = ServiceType(authFileType: providerKey) else { return true }
+            return serverManager.isProviderEnabled(serviceType)
         }
     }
 

@@ -297,8 +297,8 @@ class ThinkingProxy {
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
-            if let summary = summarizeReasoningFields(in: bodyString) {
-                ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
+            if let result = rewriteAntigravityModelAlias(jsonString: modifiedBody) {
+                modifiedBody = result
             }
             if isCursorModel(modifiedBody) {
                 guard BETA_FLAG else {
@@ -317,14 +317,22 @@ class ThinkingProxy {
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath) {
                 modifiedBody = result
             }
+            if let summary = summarizeReasoningFields(in: modifiedBody) {
+                ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
+            }
         }
 
-        // Rewrite /v1/responses to /v1/chat/completions for Gemini models since
-        // CLIProxyAPIPlus does not support Gemini via the Responses API endpoint.
-        if isResponsesAPIPath(rewrittenPath) && isGeminiModel(bodyString) {
+        // Rewrite /v1/responses to /v1/chat/completions only for OAuth Code Assist
+        // Gemini models (the `-preview` suffixed ones served by the gemini-cli executor),
+        // which do not support the Responses API endpoint. Antigravity-routed Gemini
+        // models (e.g. `gemini-3-flash`, `gemini-pro-agent`) DO support /v1/responses
+        // natively, so we must NOT rewrite their path — doing so would cause the
+        // backend to return chat-completions SSE that Droid CLI can't parse, hanging
+        // the stream.
+        if isResponsesAPIPath(rewrittenPath) && isOAuthCodeAssistGeminiModel(modifiedBody) {
             let newPath = rewrittenPath.replacingOccurrences(of: "/responses", with: "/chat/completions")
-            NSLog("[ThinkingProxy] Rewriting Gemini responses path: \(rewrittenPath) -> \(newPath)")
-            ThinkingProxy.fileLog("REWRITE PATH: \(rewrittenPath) -> \(newPath) (Gemini model)")
+            NSLog("[ThinkingProxy] Rewriting OAuth-Gemini responses path: \(rewrittenPath) -> \(newPath)")
+            ThinkingProxy.fileLog("REWRITE PATH: \(rewrittenPath) -> \(newPath) (OAuth Code Assist Gemini model)")
             rewrittenPath = newPath
         }
 
@@ -396,6 +404,34 @@ class ThinkingProxy {
         value.split(separator: ",").map { String($0) }
     }
 
+    private static let antigravityModelAliases: [String: String] = [
+        "ag-c46s-thinking": "claude-sonnet-4-6",
+        "ag-c46o-thinking": "claude-opus-4-6-thinking"
+    ]
+
+    private func rewriteAntigravityModelAlias(jsonString: String) -> String? {
+        guard let modelField = topLevelStringField(in: jsonString, key: "model"),
+              let backendModel = Self.antigravityModelAliases[modelField.value] else {
+            return nil
+        }
+
+        var result = jsonString
+        result.replaceSubrange(modelField.location.valueRange, with: "\"\(backendModel)\"")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(modelField.value) -> \(backendModel) (Antigravity alias)")
+        return result
+    }
+
+    private func topLevelStringField(in jsonString: String, key: String) -> (value: String, location: TopLevelFieldLocation)? {
+        guard let location = findTopLevelFieldLocation(in: jsonString, key: key),
+              jsonString[location.valueRange.lowerBound] == "\"",
+              let (value, valueEnd) = parseJSONStringToken(in: jsonString, startingAt: location.valueRange.lowerBound),
+              valueEnd == location.valueRange.upperBound else {
+            return nil
+        }
+
+        return (value, location)
+    }
+
     private static let responsesAPIPaths: Set<String> = [
         "/v1/responses",
         "/api/v1/responses"
@@ -453,13 +489,17 @@ class ThinkingProxy {
         return "\(value)"
     }
 
-    private func isGeminiModel(_ bodyString: String) -> Bool {
-        guard let jsonData = bodyString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String else {
+    /// True only for Gemini models served by the OAuth Code Assist (`gemini-cli`)
+    /// executor — these are the `-preview`-suffixed names like
+    /// `gemini-3.1-pro-preview` and `gemini-3-flash-preview`. The Code Assist
+    /// executor does not implement the Responses API, so we rewrite the path to
+    /// `/v1/chat/completions` for them. Antigravity-routed Gemini models support
+    /// `/v1/responses` natively and must NOT be rewritten.
+    private func isOAuthCodeAssistGeminiModel(_ bodyString: String) -> Bool {
+        guard let model = topLevelStringField(in: bodyString, key: "model")?.value else {
             return false
         }
-        return model.hasPrefix("gemini-")
+        return model.hasPrefix("gemini-") && model.hasSuffix("-preview")
     }
 
     // MARK: - Surgical JSON string helpers
