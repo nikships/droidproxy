@@ -15,8 +15,8 @@ import Network
  - Rewrites Gemini `/v1/responses` to `/v1/chat/completions` since the backend does not
    support Gemini via the Responses API endpoint.
 
- JSON edits are surgical (no re-serialization) so Anthropic prompt-cache key ordering is
- preserved.
+ JSON edits and hot-path inspections are surgical (no full JSON re-serialization) so
+ Anthropic prompt-cache key ordering is preserved and large prompts avoid parse overhead.
  */
 class ThinkingProxy {
     private var listener: NWListener?
@@ -294,13 +294,16 @@ class ThinkingProxy {
         
         // Try to parse and modify JSON body for POST requests
         var modifiedBody = bodyString
+        var requestFields: RequestJSONFields?
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
-            if let result = rewriteAntigravityModelAlias(jsonString: modifiedBody) {
+            requestFields = inspectRequestJSONFields(in: modifiedBody)
+            if let result = rewriteAntigravityModelAlias(jsonString: modifiedBody, fields: requestFields) {
                 modifiedBody = result
+                requestFields = inspectRequestJSONFields(in: modifiedBody)
             }
-            if isCursorModel(modifiedBody) {
+            if isCursorModel(requestFields) {
                 guard BETA_FLAG else {
                     NSLog("[ThinkingProxy] Warning: Cursor model requested but Beta mode is disabled.")
                     sendError(to: connection, statusCode: 400, message: "Cursor provider is a beta feature. Please enable Beta mode in DroidProxy settings.")
@@ -314,10 +317,11 @@ class ThinkingProxy {
                 forwardToCursor(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
                 return
             }
-            if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath) {
+            if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath, fields: requestFields) {
                 modifiedBody = result
+                requestFields = inspectRequestJSONFields(in: modifiedBody)
             }
-            if let summary = summarizeReasoningFields(in: modifiedBody) {
+            if let summary = requestFields?.reasoningSummary {
                 ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }
         }
@@ -329,19 +333,22 @@ class ThinkingProxy {
         // natively, so we must NOT rewrite their path — doing so would cause the
         // backend to return chat-completions SSE that Droid CLI can't parse, hanging
         // the stream.
-        if isResponsesAPIPath(rewrittenPath) && isOAuthCodeAssistGeminiModel(modifiedBody) {
+        if requestFields == nil && !modifiedBody.isEmpty {
+            requestFields = inspectRequestJSONFields(in: modifiedBody)
+        }
+        if isResponsesAPIPath(rewrittenPath) && isOAuthCodeAssistGeminiModel(requestFields) {
             let newPath = rewrittenPath.replacingOccurrences(of: "/responses", with: "/chat/completions")
             NSLog("[ThinkingProxy] Rewriting OAuth-Gemini responses path: \(rewrittenPath) -> \(newPath)")
             ThinkingProxy.fileLog("REWRITE PATH: \(rewrittenPath) -> \(newPath) (OAuth Code Assist Gemini model)")
             rewrittenPath = newPath
         }
 
-        let forwardHeaders = headersForForwarding(headers, bodyString: modifiedBody)
+        let forwardHeaders = headersForForwarding(headers, requestFields: requestFields)
         forwardRequest(method: method, path: rewrittenPath, version: httpVersion, headers: forwardHeaders, body: modifiedBody, originalConnection: connection)
     }
 
-    private func headersForForwarding(_ headers: [(String, String)], bodyString: String) -> [(String, String)] {
-        guard shouldRequestVisibleClaudeThinking(bodyString: bodyString) else {
+    private func headersForForwarding(_ headers: [(String, String)], requestFields: RequestJSONFields?) -> [(String, String)] {
+        guard shouldRequestVisibleClaudeThinking(requestFields) else {
             return headers
         }
 
@@ -349,13 +356,10 @@ class ThinkingProxy {
         return headersWithVisibleClaudeThinkingBetas(headers)
     }
 
-    private func shouldRequestVisibleClaudeThinking(bodyString: String) -> Bool {
-        guard let jsonData = bodyString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String,
+    private func shouldRequestVisibleClaudeThinking(_ requestFields: RequestJSONFields?) -> Bool {
+        guard let model = requestFields?.model,
               isClaudeModel(model),
-              let thinking = json["thinking"] as? [String: Any],
-              let thinkingType = thinking["type"] as? String else {
+              let thinkingType = requestFields?.thinkingType else {
             return false
         }
 
@@ -409,22 +413,27 @@ class ThinkingProxy {
         "ag-c46o-thinking": "claude-opus-4-6-thinking"
     ]
 
-    private func rewriteAntigravityModelAlias(jsonString: String) -> String? {
-        guard let modelField = topLevelStringField(in: jsonString, key: "model"),
-              let backendModel = Self.antigravityModelAliases[modelField.value] else {
+    private func rewriteAntigravityModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
+        guard let model = fields?.model,
+              let modelLocation = fields?.modelLocation,
+              let backendModel = Self.antigravityModelAliases[model] else {
             return nil
         }
 
         var result = jsonString
-        result.replaceSubrange(modelField.location.valueRange, with: "\"\(backendModel)\"")
-        ThinkingProxy.fileLog("REWRITE MODEL: \(modelField.value) -> \(backendModel) (Antigravity alias)")
+        result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Antigravity alias)")
         return result
     }
 
-    private func topLevelStringField(in jsonString: String, key: String) -> (value: String, location: TopLevelFieldLocation)? {
-        guard let location = findTopLevelFieldLocation(in: jsonString, key: key),
+    private func objectStringField(in jsonString: String,
+                                   objectRange: Range<String.Index>,
+                                   key: String) -> (value: String, location: TopLevelFieldLocation)? {
+        guard let location = findObjectFieldLocation(in: jsonString, key: key, objectRange: objectRange),
               jsonString[location.valueRange.lowerBound] == "\"",
-              let (value, valueEnd) = parseJSONStringToken(in: jsonString, startingAt: location.valueRange.lowerBound),
+              let (value, valueEnd) = parseJSONStringToken(in: jsonString,
+                                                           startingAt: location.valueRange.lowerBound,
+                                                           before: objectRange.upperBound),
               valueEnd == location.valueRange.upperBound else {
             return nil
         }
@@ -442,51 +451,70 @@ class ThinkingProxy {
         return Self.responsesAPIPaths.contains(normalizedPath)
     }
 
-    /// Extracts just the reasoning/thinking metadata from a request body so the log
-    /// shows what Droid is actually sending without us also dumping the entire prompt.
-    /// Returns nil only when the body can't be parsed.
-    private func summarizeReasoningFields(in bodyString: String) -> String? {
-        guard let data = bodyString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+    private struct RequestJSONFields {
+        let model: String?
+        let modelLocation: TopLevelFieldLocation?
+        let hasServiceTier: Bool
+        let thinkingType: String?
+        let reasoningSummary: String
+    }
+
+    private static let requestInspectionKeys: Set<String> = [
+        "model",
+        "reasoning",
+        "reasoning_effort",
+        "thinking",
+        "output_config",
+        "service_tier",
+        "generationConfig"
+    ]
+
+    private static let reasoningSummaryKeys = [
+        "reasoning",
+        "reasoning_effort",
+        "thinking",
+        "output_config",
+        "service_tier",
+        "generationConfig"
+    ]
+
+    private func inspectRequestJSONFields(in bodyString: String) -> RequestJSONFields? {
+        guard let locations = findTopLevelFieldLocations(in: bodyString, keys: Self.requestInspectionKeys) else {
             return nil
         }
+
+        let modelLocation = locations["model"]
+        let model = modelLocation.flatMap { topLevelStringValue(in: bodyString, location: $0) }
+        let thinkingType = locations["thinking"].flatMap {
+            objectStringField(in: bodyString, objectRange: $0.valueRange, key: "type")?.value
+        }
+
         var parts: [String] = []
-        if let model = json["model"] as? String {
+        if let model {
             parts.append("model=\(model)")
         }
-        let inspectedKeys = [
-            "reasoning",
-            "reasoning_effort",
-            "thinking",
-            "output_config",
-            "service_tier",
-            "generationConfig"
-        ]
-        for key in inspectedKeys {
-            guard let value = json[key] else { continue }
-            parts.append("\(key)=\(reasoningFieldDescription(value))")
+        for key in Self.reasoningSummaryKeys {
+            guard let field = locations[key] else { continue }
+            parts.append("\(key)=\(String(bodyString[field.valueRange]))")
         }
         if parts.count == 1 {
             parts.append("<no reasoning/thinking fields>")
         }
-        return parts.joined(separator: " ")
+        return RequestJSONFields(model: model,
+                                 modelLocation: modelLocation,
+                                 hasServiceTier: locations["service_tier"] != nil,
+                                 thinkingType: thinkingType,
+                                 reasoningSummary: parts.joined(separator: " "))
     }
 
-    private func reasoningFieldDescription(_ value: Any) -> String {
-        if let dict = value as? [String: Any],
-           let data = try? JSONSerialization.data(withJSONObject: dict),
-           let str = String(data: data, encoding: .utf8) {
-            return str
+    private func topLevelStringValue(in jsonString: String, location: TopLevelFieldLocation) -> String? {
+        guard jsonString[location.valueRange.lowerBound] == "\"",
+              let (value, valueEnd) = parseJSONStringToken(in: jsonString, startingAt: location.valueRange.lowerBound),
+              valueEnd == location.valueRange.upperBound else {
+            return nil
         }
-        if let arr = value as? [Any],
-           let data = try? JSONSerialization.data(withJSONObject: arr),
-           let str = String(data: data, encoding: .utf8) {
-            return str
-        }
-        if let str = value as? String {
-            return "\"\(str)\""
-        }
-        return "\(value)"
+
+        return value
     }
 
     /// True only for Gemini models served by the OAuth Code Assist (`gemini-cli`)
@@ -495,8 +523,8 @@ class ThinkingProxy {
     /// executor does not implement the Responses API, so we rewrite the path to
     /// `/v1/chat/completions` for them. Antigravity-routed Gemini models support
     /// `/v1/responses` natively and must NOT be rewritten.
-    private func isOAuthCodeAssistGeminiModel(_ bodyString: String) -> Bool {
-        guard let model = topLevelStringField(in: bodyString, key: "model")?.value else {
+    private func isOAuthCodeAssistGeminiModel(_ requestFields: RequestJSONFields?) -> Bool {
+        guard let model = requestFields?.model else {
             return false
         }
         return model.hasPrefix("gemini-") && model.hasSuffix("-preview")
@@ -508,64 +536,88 @@ class ThinkingProxy {
     // JSONSerialization.data() reorders keys alphabetically, which breaks Anthropic's
     // prompt cache matching.
 
-    /// Injects a new JSON field after a given key's value in the JSON string.
-    /// Only matches keys at the top-level request object so nested assistant content
-    /// blocks remain unchanged.
-    private func injectJSONField(in json: String, afterKey: String, fieldName: String, fieldValue: String) -> String {
-        guard let location = findTopLevelFieldLocation(in: json, key: afterKey) else {
-            NSLog("[ThinkingProxy] Warning: Could not find key '\(afterKey)' for field injection")
-            return json
-        }
-
-        var result = json
-        result.insert(contentsOf: ",\"\(fieldName)\":\(fieldValue)", at: location.pairRange.upperBound)
-        return result
-    }
-
     private struct TopLevelFieldLocation {
         let pairRange: Range<String.Index>
         let valueRange: Range<String.Index>
     }
 
+    private func findTopLevelFieldLocations(in json: String, keys targetKeys: Set<String>) -> [String: TopLevelFieldLocation]? {
+        findObjectFieldLocations(in: json, keys: targetKeys, objectRange: json.startIndex..<json.endIndex)
+    }
+
     private func findTopLevelFieldLocation(in json: String, key targetKey: String) -> TopLevelFieldLocation? {
-        guard var index = firstNonWhitespaceIndex(in: json, from: json.startIndex),
+        findTopLevelFieldLocations(in: json, keys: [targetKey])?[targetKey]
+    }
+
+    private func findObjectFieldLocation(in json: String,
+                                         key targetKey: String,
+                                         objectRange: Range<String.Index>) -> TopLevelFieldLocation? {
+        findObjectFieldLocations(in: json, keys: [targetKey], objectRange: objectRange)?[targetKey]
+    }
+
+    private func findObjectFieldLocations(in json: String,
+                                          keys targetKeys: Set<String>,
+                                          objectRange: Range<String.Index>) -> [String: TopLevelFieldLocation]? {
+        guard var index = firstNonWhitespaceIndex(in: json,
+                                                  from: objectRange.lowerBound,
+                                                  before: objectRange.upperBound),
               json[index] == "{" else {
             return nil
         }
 
+        if targetKeys.isEmpty {
+            return [:]
+        }
+
+        var locations: [String: TopLevelFieldLocation] = [:]
         index = json.index(after: index)
 
         while true {
-            guard let keyStart = firstNonWhitespaceIndex(in: json, from: index) else {
+            guard let keyStart = firstNonWhitespaceIndex(in: json,
+                                                         from: index,
+                                                         before: objectRange.upperBound) else {
                 return nil
             }
 
             let token = json[keyStart]
             if token == "}" {
-                return nil
+                return locations
             }
             guard token == "\"" else {
                 return nil
             }
 
-            guard let (key, keyEnd) = parseJSONStringToken(in: json, startingAt: keyStart),
-                  let colonIndex = firstNonWhitespaceIndex(in: json, from: keyEnd),
+            guard let (key, keyEnd) = parseJSONStringToken(in: json,
+                                                           startingAt: keyStart,
+                                                           before: objectRange.upperBound),
+                  let colonIndex = firstNonWhitespaceIndex(in: json,
+                                                           from: keyEnd,
+                                                           before: objectRange.upperBound),
                   json[colonIndex] == ":" else {
                 return nil
             }
 
             let afterColon = json.index(after: colonIndex)
-            guard let valueStart = firstNonWhitespaceIndex(in: json, from: afterColon),
-                  let valueEnd = consumeJSONValue(in: json, startingAt: valueStart) else {
+            guard let valueStart = firstNonWhitespaceIndex(in: json,
+                                                           from: afterColon,
+                                                           before: objectRange.upperBound),
+                  let valueEnd = consumeJSONValue(in: json,
+                                                  startingAt: valueStart,
+                                                  before: objectRange.upperBound) else {
                 return nil
             }
 
-            if key == targetKey {
-                return TopLevelFieldLocation(pairRange: keyStart..<valueEnd,
-                                             valueRange: valueStart..<valueEnd)
+            if targetKeys.contains(key), locations[key] == nil {
+                locations[key] = TopLevelFieldLocation(pairRange: keyStart..<valueEnd,
+                                                       valueRange: valueStart..<valueEnd)
+                if locations.count == targetKeys.count {
+                    return locations
+                }
             }
 
-            guard let delimiterIndex = firstNonWhitespaceIndex(in: json, from: valueEnd) else {
+            guard let delimiterIndex = firstNonWhitespaceIndex(in: json,
+                                                               from: valueEnd,
+                                                               before: objectRange.upperBound) else {
                 return nil
             }
 
@@ -575,21 +627,33 @@ class ThinkingProxy {
                 continue
             }
             if delimiter == "}" {
-                return nil
+                return locations
             }
             return nil
         }
     }
 
     private func firstNonWhitespaceIndex(in json: String, from start: String.Index) -> String.Index? {
+        firstNonWhitespaceIndex(in: json, from: start, before: json.endIndex)
+    }
+
+    private func firstNonWhitespaceIndex(in json: String,
+                                         from start: String.Index,
+                                         before end: String.Index) -> String.Index? {
         var index = start
-        while index < json.endIndex, json[index].isWhitespace {
+        while index < end, json[index].isWhitespace {
             index = json.index(after: index)
         }
-        return index < json.endIndex ? index : nil
+        return index < end ? index : nil
     }
 
     private func parseJSONStringToken(in json: String, startingAt startQuote: String.Index) -> (String, String.Index)? {
+        parseJSONStringToken(in: json, startingAt: startQuote, before: json.endIndex)
+    }
+
+    private func parseJSONStringToken(in json: String,
+                                      startingAt startQuote: String.Index,
+                                      before end: String.Index) -> (String, String.Index)? {
         guard json[startQuote] == "\"" else {
             return nil
         }
@@ -597,7 +661,7 @@ class ThinkingProxy {
         var index = json.index(after: startQuote)
         var escaped = false
 
-        while index < json.endIndex {
+        while index < end {
             let char = json[index]
             if escaped {
                 escaped = false
@@ -614,21 +678,27 @@ class ThinkingProxy {
     }
 
     private func consumeJSONValue(in json: String, startingAt start: String.Index) -> String.Index? {
-        guard start < json.endIndex else {
+        consumeJSONValue(in: json, startingAt: start, before: json.endIndex)
+    }
+
+    private func consumeJSONValue(in json: String,
+                                  startingAt start: String.Index,
+                                  before end: String.Index) -> String.Index? {
+        guard start < end else {
             return nil
         }
 
         let first = json[start]
         if first == "\"" {
-            return parseJSONStringToken(in: json, startingAt: start)?.1
+            return parseJSONStringToken(in: json, startingAt: start, before: end)?.1
         }
 
         if first == "{" || first == "[" {
-            return consumeCompositeJSONValue(in: json, startingAt: start)
+            return consumeCompositeJSONValue(in: json, startingAt: start, before: end)
         }
 
         var index = start
-        while index < json.endIndex {
+        while index < end {
             let char = json[index]
             if char == "," || char == "}" || char == "]" || char.isWhitespace {
                 break
@@ -640,12 +710,18 @@ class ThinkingProxy {
     }
 
     private func consumeCompositeJSONValue(in json: String, startingAt start: String.Index) -> String.Index? {
+        consumeCompositeJSONValue(in: json, startingAt: start, before: json.endIndex)
+    }
+
+    private func consumeCompositeJSONValue(in json: String,
+                                           startingAt start: String.Index,
+                                           before end: String.Index) -> String.Index? {
         var index = start
         var depth = 0
         var inString = false
         var escaped = false
 
-        while index < json.endIndex {
+        while index < end {
             let char = json[index]
 
             if inString {
@@ -744,13 +820,11 @@ class ThinkingProxy {
         return Data(carry.utf8)
     }
 
-    private func processOpenAIFastMode(jsonString: String, path: String) -> String? {
+    private func processOpenAIFastMode(jsonString: String, path: String, fields: RequestJSONFields?) -> String? {
         let normalizedPath = path.split(separator: "?").first.map(String.init) ?? path
         guard Self.fastTierEligibleResponsePaths.contains(normalizedPath) else { return nil }
 
-        guard let jsonData = jsonString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String else {
+        guard let fields, let model = fields.model, let modelLocation = fields.modelLocation else {
             return nil
         }
 
@@ -767,10 +841,10 @@ class ThinkingProxy {
             return nil
         }
 
-        guard json["service_tier"] == nil else { return nil }
+        guard !fields.hasServiceTier else { return nil }
 
-        let result = injectJSONField(in: jsonString, afterKey: "model", fieldName: "service_tier",
-                                     fieldValue: "\"priority\"")
+        var result = jsonString
+        result.insert(contentsOf: ",\"service_tier\":\"priority\"", at: modelLocation.pairRange.upperBound)
         NSLog("[ThinkingProxy] Injected service_tier=priority for model '\(model)' on path \(path)")
         ThinkingProxy.fileLog("INJECTED service_tier=priority for model \(model)")
         return result
@@ -1124,10 +1198,8 @@ class ThinkingProxy {
 
     // MARK: - Cursor API Proxying
     
-    private func isCursorModel(_ bodyString: String) -> Bool {
-        guard let jsonData = bodyString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String else {
+    private func isCursorModel(_ requestFields: RequestJSONFields?) -> Bool {
+        guard let model = requestFields?.model else {
             return false
         }
         return model.hasPrefix("cursor-")
