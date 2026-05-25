@@ -294,11 +294,10 @@ class ThinkingProxy {
         
         // Try to parse and modify JSON body for POST requests
         var modifiedBody = bodyString
-        var requestFields: RequestJSONFields?
+        var requestFields: RequestJSONFields? = bodyString.isEmpty ? nil : inspectRequestJSONFields(in: bodyString)
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
-            requestFields = inspectRequestJSONFields(in: modifiedBody)
             if let result = rewriteAntigravityModelAlias(jsonString: modifiedBody, fields: requestFields) {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)
@@ -333,9 +332,6 @@ class ThinkingProxy {
         // natively, so we must NOT rewrite their path — doing so would cause the
         // backend to return chat-completions SSE that Droid CLI can't parse, hanging
         // the stream.
-        if requestFields == nil && !modifiedBody.isEmpty {
-            requestFields = inspectRequestJSONFields(in: modifiedBody)
-        }
         if isResponsesAPIPath(rewrittenPath) && isOAuthCodeAssistGeminiModel(requestFields) {
             let newPath = rewrittenPath.replacingOccurrences(of: "/responses", with: "/chat/completions")
             NSLog("[ThinkingProxy] Rewriting OAuth-Gemini responses path: \(rewrittenPath) -> \(newPath)")
@@ -517,7 +513,9 @@ class ThinkingProxy {
     /// scan for the debug-only keys. Returns nil when nothing useful is present
     /// (so we don't emit empty/noise lines).
     private func reasoningSummaryLog(in bodyString: String, fields: RequestJSONFields?) -> String? {
-        let logLocations = findTopLevelFieldLocations(in: bodyString, keys: Self.reasoningLogInspectionKeys) ?? [:]
+        var locations = findTopLevelFieldLocations(in: bodyString, keys: Self.reasoningLogInspectionKeys) ?? [:]
+        locations["thinking"] = fields?.thinkingLocation
+        locations["service_tier"] = fields?.serviceTierLocation
 
         var parts: [String] = []
         if let model = fields?.model {
@@ -525,13 +523,7 @@ class ThinkingProxy {
         }
 
         for key in Self.reasoningSummaryOrder {
-            let location: TopLevelFieldLocation?
-            switch key {
-            case "thinking": location = fields?.thinkingLocation
-            case "service_tier": location = fields?.serviceTierLocation
-            default: location = logLocations[key]
-            }
-            guard let field = location else { continue }
+            guard let field = locations[key] else { continue }
             let raw = bodyString[field.valueRange]
             let snippet = String(raw.prefix(Self.reasoningSummarySnippetLimit))
                 .replacingOccurrences(of: "\r", with: " ")
@@ -677,10 +669,6 @@ class ThinkingProxy {
             index = json.index(after: index)
         }
         return index < end ? index : nil
-    }
-
-    private func parseJSONStringToken(in json: String, startingAt startQuote: String.Index) -> (String, String.Index)? {
-        parseJSONStringToken(in: json, startingAt: startQuote, before: json.endIndex)
     }
 
     private func parseJSONStringToken(in json: String,
