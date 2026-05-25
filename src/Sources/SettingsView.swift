@@ -466,17 +466,15 @@ struct SettingsView: View {
                     .padding(.bottom, 4)
                     .frame(maxWidth: .infinity)
                 HStack {
-                    HStack(spacing: 6) {
-                        Toggle("Beta", isOn: $betaFlag)
-                            .toggleStyle(.switch)
-                            .controlSize(.mini)
-                            .font(.caption)
-                    }
-                    .foregroundColor(Color.white.opacity(0.75))
-                    .help("Enable beta-gated features")
-                    .onHover { inside in
-                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                    }
+                    Toggle("Beta", isOn: $betaFlag)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .font(.caption)
+                        .foregroundColor(Color.white.opacity(0.75))
+                        .help("Enable beta-gated features")
+                        .onHover { inside in
+                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
                     Spacer()
                     HStack(spacing: 8) {
                         HStack(spacing: 4) {
