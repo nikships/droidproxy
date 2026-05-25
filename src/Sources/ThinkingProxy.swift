@@ -171,24 +171,34 @@ class ThinkingProxy {
             var newAccumulatedData = accumulatedData
             newAccumulatedData.append(data)
             
-            // Check if we have a complete HTTP request
-            if let requestString = String(data: newAccumulatedData, encoding: .utf8),
-               let headerEndRange = requestString.range(of: "\r\n\r\n") {
-                
-                // Extract Content-Length if present
-                let headerEndIndex = requestString.distance(from: requestString.startIndex, to: headerEndRange.upperBound)
-                let headerPart = String(requestString.prefix(headerEndIndex))
-                
-                if let contentLengthLine = headerPart.components(separatedBy: "\r\n").first(where: { $0.lowercased().starts(with: "content-length:") }) {
-                    let contentLengthStr = contentLengthLine.components(separatedBy: ":")[1].trimmingCharacters(in: .whitespaces)
-                    if let contentLength = Int(contentLengthStr) {
-                        let bodyStartIndex = headerEndIndex
-                        let currentBodyLength = newAccumulatedData.count - bodyStartIndex
-                        
-                        // If we haven't received the full body yet, schedule next iteration
-                        if currentBodyLength < contentLength {
-                            self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
-                            return
+            // Find the end of headers (\r\n\r\n) using quick binary match to avoid O(N^2) UTF-8 string decodes on every chunk
+            let headerEndPattern = Data([13, 10, 13, 10]) // "\r\n\r\n"
+            if let headerEndRange = newAccumulatedData.range(of: headerEndPattern) {
+                // Parse headers only, keeping the massive body as raw binary data
+                let headerData = Data(newAccumulatedData[..<headerEndRange.upperBound])
+                if let headerString = String(data: headerData, encoding: .utf8) {
+                    
+                    // Look for Content-Length
+                    let lines = headerString.components(separatedBy: "\r\n")
+                    if let contentLengthLine = lines.first(where: { $0.lowercased().starts(with: "content-length:") }) {
+                        let parts = contentLengthLine.components(separatedBy: ":")
+                        if parts.count >= 2 {
+                            let contentLengthStr = parts[1].trimmingCharacters(in: .whitespaces)
+                            if let contentLength = Int(contentLengthStr) {
+                                let bodyStartIndex = headerEndRange.upperBound
+                                let currentBodyLength = newAccumulatedData.count - bodyStartIndex
+                                
+                                // If we haven't received the full body yet, schedule next iteration
+                                if currentBodyLength < contentLength {
+                                    if isComplete {
+                                        // End of stream but content length was not met; process the partial bytes we have
+                                        self.processRequest(data: newAccumulatedData, connection: connection)
+                                    } else {
+                                        self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
+                                    }
+                                    return
+                                }
+                            }
                         }
                     }
                 }
@@ -199,7 +209,7 @@ class ThinkingProxy {
                 // Haven't found header end yet, schedule next iteration
                 self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
             } else {
-                // Complete but malformed, process what we have
+                // Complete but malformed (no headers end found), process what we have
                 self.processRequest(data: newAccumulatedData, connection: connection)
             }
         }
@@ -290,11 +300,25 @@ class ThinkingProxy {
             if let result = rewriteAntigravityModelAlias(jsonString: modifiedBody) {
                 modifiedBody = result
             }
-            if let summary = summarizeReasoningFields(in: modifiedBody) {
-                ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
+            if isCursorModel(modifiedBody) {
+                guard BETA_FLAG else {
+                    NSLog("[ThinkingProxy] Warning: Cursor model requested but Beta mode is disabled.")
+                    sendError(to: connection, statusCode: 400, message: "Cursor provider is a beta feature. Please enable Beta mode in DroidProxy settings.")
+                    return
+                }
+                guard isCursorEnabled() else {
+                    NSLog("[ThinkingProxy] Warning: Cursor model requested but the provider is disabled in settings.")
+                    sendError(to: connection, statusCode: 400, message: "Cursor provider is disabled in DroidProxy settings.")
+                    return
+                }
+                forwardToCursor(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
+                return
             }
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath) {
                 modifiedBody = result
+            }
+            if let summary = summarizeReasoningFields(in: modifiedBody) {
+                ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }
         }
 
@@ -473,12 +497,12 @@ class ThinkingProxy {
     /// `/v1/chat/completions` for them. Antigravity-routed Gemini models support
     /// `/v1/responses` natively and must NOT be rewritten.
     private func isOAuthCodeAssistGeminiModel(_ bodyString: String) -> Bool {
-        guard let jsonData = bodyString.data(using: .utf8),
-              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
-              let model = json["model"] as? String else {
+        guard let location = findTopLevelFieldLocation(in: bodyString, key: "model") else {
             return false
         }
-        return model.hasPrefix("gemini-") && model.hasSuffix("-preview")
+        let modelValue = bodyString[location.valueRange]
+        // findTopLevelFieldLocation returns the raw value including surrounding quotes for strings
+        return modelValue.hasPrefix("\"gemini-") && modelValue.hasSuffix("-preview\"")
     }
 
     // MARK: - Surgical JSON string helpers
@@ -1099,5 +1123,133 @@ class ThinkingProxy {
         connection.send(content: headerData, completion: .contentProcessed({ _ in
             connection.cancel()
         }))
+    }
+
+    // MARK: - Cursor API Proxying
+    
+    private func isCursorModel(_ bodyString: String) -> Bool {
+        guard let jsonData = bodyString.data(using: .utf8),
+              let json = try? JSONSerialization.jsonObject(with: jsonData) as? [String: Any],
+              let model = json["model"] as? String else {
+            return false
+        }
+        return model.hasPrefix("cursor-")
+    }
+
+    private func isCursorEnabled() -> Bool {
+        if let saved = UserDefaults.standard.dictionary(forKey: "enabledProviders") as? [String: Bool] {
+            return saved["cursor"] ?? true
+        }
+        return true
+    }
+
+    private func loadCursorApiKey() -> String? {
+        let authDir = AuthPaths.authDirectory
+        guard let files = try? FileManager.default.contentsOfDirectory(at: authDir, includingPropertiesForKeys: nil) else {
+            return nil
+        }
+        for file in files where file.pathExtension == "json" {
+            guard let data = try? Data(contentsOf: file),
+                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+                  let type = json["type"] as? String,
+                  type.lowercased() == "cursor",
+                  let apiKey = json["apiKey"] as? String,
+                  !(json["disabled"] as? Bool ?? false) else {
+                continue
+            }
+            return apiKey
+        }
+        return nil
+    }
+
+    private func forwardToCursor(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
+        guard let apiKey = loadCursorApiKey() else {
+            NSLog("[ThinkingProxy] Error: No active Cursor API key found")
+            sendError(to: originalConnection, statusCode: 401, message: "No active Cursor API key found. Please add a Cursor key in DroidProxy settings.")
+            return
+        }
+        
+        let tlsOptions = NWProtocolTLS.Options()
+        let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
+        
+        let endpoint = NWEndpoint.hostPort(host: "cursor-api.standardagents.ai", port: 443)
+        let targetConnection = NWConnection(to: endpoint, using: parameters)
+        
+        targetConnection.stateUpdateHandler = { [weak self] state in
+            guard let self = self else { return }
+            switch state {
+            case .ready:
+                var forwardedRequest = "\(method) \(path) \(version)\r\n"
+                let excludedHeaders: Set<String> = ["host", "content-length", "connection", "transfer-encoding", "authorization"]
+                for (name, value) in headers {
+                    if !excludedHeaders.contains(name.lowercased()) {
+                        forwardedRequest += "\(name): \(value)\r\n"
+                    }
+                }
+                
+                forwardedRequest += "Host: cursor-api.standardagents.ai\r\n"
+                forwardedRequest += "Authorization: Bearer \(apiKey)\r\n"
+                forwardedRequest += "Connection: close\r\n"
+                forwardedRequest += "Content-Length: \(body.utf8.count)\r\n\r\n"
+                forwardedRequest += body
+                
+                if let requestData = forwardedRequest.data(using: .utf8) {
+                    targetConnection.send(content: requestData, completion: .contentProcessed({ error in
+                        if let error = error {
+                            NSLog("[ThinkingProxy] Send error to cursor-api.standardagents.ai: \(error)")
+                            targetConnection.cancel()
+                            originalConnection.cancel()
+                        } else {
+                            self.receiveCursorResponse(from: targetConnection, originalConnection: originalConnection)
+                        }
+                    }))
+                }
+                
+            case .failed(let error):
+                NSLog("[ThinkingProxy] Connection to cursor-api.standardagents.ai failed: \(error)")
+                self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Could not connect to cursor-api.standardagents.ai")
+                targetConnection.cancel()
+                
+            default:
+                break
+            }
+        }
+        
+        targetConnection.start(queue: .global(qos: .userInitiated))
+    }
+
+    private func receiveCursorResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
+        targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+            guard let self = self else { return }
+            
+            if let error = error {
+                NSLog("[ThinkingProxy] Receive Cursor response error: \(error)")
+                targetConnection.cancel()
+                originalConnection.cancel()
+                return
+            }
+            
+            if let data = data, !data.isEmpty {
+                originalConnection.send(content: data, completion: .contentProcessed({ sendError in
+                    if let sendError = sendError {
+                        NSLog("[ThinkingProxy] Send Cursor response error: \(sendError)")
+                    }
+                    
+                    if isComplete {
+                        targetConnection.cancel()
+                        originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
+                            originalConnection.cancel()
+                        }))
+                    } else {
+                        self.receiveCursorResponse(from: targetConnection, originalConnection: originalConnection)
+                    }
+                }))
+            } else if isComplete {
+                targetConnection.cancel()
+                originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
+                    originalConnection.cancel()
+                }))
+            }
+        }
     }
 }

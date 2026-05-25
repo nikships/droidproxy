@@ -71,6 +71,22 @@ const models = [
     max: '262,144',
     provider: 'Moonshot AI',
   },
+  {
+    icon: '/assets/icon-cursor.png',
+    name: 'Cursor Composer 2.5',
+    id: 'cursor-composer-2.5',
+    levels: ['high'],
+    max: '128,000',
+    provider: 'StandardAgents',
+  },
+  {
+    icon: '/assets/icon-cursor.png',
+    name: 'Cursor Small',
+    id: 'cursor-small',
+    levels: ['high'],
+    max: '64,000',
+    provider: 'StandardAgents',
+  },
 ]
 
 export default function ModelsSection() {

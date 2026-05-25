@@ -313,10 +313,13 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.oledThemeKey) private var oledTheme = AppPreferences.defaultOledTheme
     @AppStorage(AppPreferences.backgroundOpacityKey) private var backgroundOpacity = AppPreferences.defaultBackgroundOpacity
+    @AppStorage(AppPreferences.betaFlagKey) private var betaFlag = AppPreferences.defaultBetaFlag
     @State private var authenticatingService: ServiceType? = nil
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
     @State private var authResultSuccess = false
+    @State private var showingCursorApiKeyAlert = false
+    @State private var cursorApiKey = ""
     @State private var showingInfoAlert = false
     @State private var infoAlertMessage = ""
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
@@ -329,6 +332,7 @@ struct SettingsView: View {
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let antigravityEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
     private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
+    private let cursorEffortSelectionColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
     private var oauthUsageDashboard: some View {
@@ -456,47 +460,59 @@ struct SettingsView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            ZStack(alignment: .topTrailing) {
+            ZStack(alignment: .top) {
                 LogoView()
                     .padding(.top, 36) // leave room for the transparent titlebar traffic-lights
                     .padding(.bottom, 4)
                     .frame(maxWidth: .infinity)
-                HStack(spacing: 8) {
-                    HStack(spacing: 4) {
-                        Image(systemName: "circle.lefthalf.filled")
-                            .font(.system(size: 10, weight: .regular))
-                            .foregroundColor(Color.white.opacity(0.40))
-                        Slider(value: $backgroundOpacity, in: 0.10...1.0)
-                            .frame(width: 60)
-                            .controlSize(.mini)
-                            .tint(Color.white.opacity(0.55))
-                    }
-                    .help("Adjust background opacity (100% = fully opaque)")
-                    Button {
-                        oledTheme.toggle()
-                        NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
-                    } label: {
-                        Image(systemName: oledTheme ? "sun.max.fill" : "moon.fill")
-                            .font(.system(size: 13, weight: .semibold))
-                            .foregroundColor(oledTheme ? Color.yellow.opacity(0.9) : Color.white.opacity(0.75))
-                            .frame(width: 26, height: 26)
-                            .background(
-                                Circle()
-                                    .fill(Color.white.opacity(oledTheme ? 0.06 : 0.10))
-                            )
-                            .overlay(
-                                Circle()
-                                    .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                            )
-                    }
-                    .buttonStyle(.plain)
-                    .help(oledTheme ? "Switch to Liquid Glass theme" : "Switch to OLED black theme")
-                    .onHover { inside in
-                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                HStack {
+                    Toggle("Beta", isOn: $betaFlag)
+                        .toggleStyle(.switch)
+                        .controlSize(.mini)
+                        .font(.caption)
+                        .foregroundColor(Color.white.opacity(0.75))
+                        .help("Enable beta-gated features")
+                        .onHover { inside in
+                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
+                    Spacer()
+                    HStack(spacing: 8) {
+                        HStack(spacing: 4) {
+                            Image(systemName: "circle.lefthalf.filled")
+                                .font(.system(size: 10, weight: .regular))
+                                .foregroundColor(Color.white.opacity(0.40))
+                            Slider(value: $backgroundOpacity, in: 0.10...1.0)
+                                .frame(width: 60)
+                                .controlSize(.mini)
+                                .tint(Color.white.opacity(0.55))
+                        }
+                        .help("Adjust background opacity (100% = fully opaque)")
+                        Button {
+                            oledTheme.toggle()
+                            NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
+                        } label: {
+                            Image(systemName: oledTheme ? "sun.max.fill" : "moon.fill")
+                                .font(.system(size: 13, weight: .semibold))
+                                .foregroundColor(oledTheme ? Color.yellow.opacity(0.9) : Color.white.opacity(0.75))
+                                .frame(width: 26, height: 26)
+                                .background(
+                                    Circle()
+                                        .fill(Color.white.opacity(oledTheme ? 0.06 : 0.10))
+                                )
+                                .overlay(
+                                    Circle()
+                                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
+                                )
+                        }
+                        .buttonStyle(.plain)
+                        .help(oledTheme ? "Switch to Liquid Glass theme" : "Switch to OLED black theme")
+                        .onHover { inside in
+                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
+                        }
                     }
                 }
                 .padding(.top, 12)
-                .padding(.trailing, 12)
+                .padding(.horizontal, 12)
             }
 
             Form {
@@ -800,6 +816,24 @@ struct SettingsView: View {
                         onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
                     ) { EmptyView() }
 
+                    if betaFlag {
+                        ServiceRow(
+                            serviceType: .cursor,
+                            iconName: "icon-cursor.png",
+                            accounts: authManager.accounts(for: .cursor),
+                            isAuthenticating: authenticatingService == .cursor,
+                            helpText: "Enter your Cursor API Key (from https://cursor-api.standardagents.ai/) to proxy requests directly to Cursor.",
+                            isEnabled: serverManager.isProviderEnabled(.cursor),
+                            customTitle: nil,
+                            onConnect: { connectService(.cursor) },
+                            onDisconnect: { account in disconnectAccount(account) },
+                            onToggleDisabled: { account in toggleAccountDisabled(account) },
+                            onToggleEnabled: { enabled in serverManager.setProviderEnabled(.cursor, enabled: enabled) },
+                            toggleTint: cursorEffortSelectionColor,
+                            onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
+                        ) { EmptyView() }
+                    }
+
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -910,10 +944,14 @@ struct SettingsView: View {
         } message: {
             Text(infoAlertMessage)
         }
-        .alert("About", isPresented: $showingInfoAlert) {
-            Button("OK", role: .cancel) { }
+        .alert("Add Cursor API Key", isPresented: $showingCursorApiKeyAlert) {
+            SecureField("Enter Cursor Key", text: $cursorApiKey)
+            Button("Save") {
+                saveCursorApiKey(cursorApiKey)
+            }
+            Button("Cancel", role: .cancel) { }
         } message: {
-            Text(infoAlertMessage)
+            Text("Please enter your Cursor API Key. It will be saved under ~/.cli-proxy-api/cursor.json.")
         }
     }
 
@@ -996,6 +1034,12 @@ struct SettingsView: View {
     }
     
     private func connectService(_ serviceType: ServiceType) {
+        if serviceType == .cursor {
+            cursorApiKey = ""
+            showingCursorApiKeyAlert = true
+            return
+        }
+
         authenticatingService = serviceType
         NSLog("[SettingsView] Starting %@ authentication", serviceType.displayName)
         
@@ -1005,6 +1049,7 @@ struct SettingsView: View {
         case .codex: command = .codexLogin
         case .antigravity: command = .antigravityLogin
         case .kimi: command = .kimiLogin
+        case .cursor: command = .kimiLogin // Unreachable but required for exhaustiveness
         }
         
         serverManager.runAuthCommand(command) { success, output in
@@ -1035,6 +1080,39 @@ struct SettingsView: View {
             return "🌐 Browser opened for Antigravity authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
         case .kimi:
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
+        case .cursor:
+            return "✓ Successfully saved Cursor API Key."
+        }
+    }
+
+    private func saveCursorApiKey(_ apiKey: String) {
+        guard !apiKey.isEmpty else { return }
+        
+        let fileURL = AuthPaths.authDirectory.appendingPathComponent("cursor.json")
+        let json: [String: Any] = [
+            "type": "cursor",
+            "email": "cursor-user",
+            "apiKey": apiKey,
+            "disabled": false
+        ]
+        
+        do {
+            try FileManager.default.createDirectory(at: AuthPaths.authDirectory, withIntermediateDirectories: true)
+            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
+            try data.write(to: fileURL)
+            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            NSLog("[SettingsView] Saved Cursor API Key with secure permissions to \(fileURL.path)")
+            
+            authManager.checkAuthStatus()
+            
+            self.authResultSuccess = true
+            self.authResultMessage = "✓ Successfully added Cursor API Key."
+            self.showingAuthResult = true
+        } catch {
+            NSLog("[SettingsView] Failed to save Cursor API Key: \(error.localizedDescription)")
+            self.authResultSuccess = false
+            self.authResultMessage = "Failed to save Cursor API Key: \(error.localizedDescription)"
+            self.showingAuthResult = true
         }
     }
     
