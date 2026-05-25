@@ -56,8 +56,9 @@ struct DroidProxyModelDefinition: Equatable {
         guard !levels.isEmpty else { return entry }
         entry["enableThinking"] = true
         entry["supportedReasoningEfforts"] = levels.map(\.value)
-        entry["defaultReasoningEffort"] = defaultLevelValue
-        entry["reasoningEffort"] = defaultLevelValue
+        let defLevel = levels.count == 1 ? levels[0].value : defaultLevelValue
+        entry["defaultReasoningEffort"] = defLevel
+        entry["reasoningEffort"] = defLevel
         return entry
     }
 }
