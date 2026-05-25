@@ -545,10 +545,6 @@ class ThinkingProxy {
         findObjectFieldLocations(in: json, keys: targetKeys, objectRange: json.startIndex..<json.endIndex)
     }
 
-    private func findTopLevelFieldLocation(in json: String, key targetKey: String) -> TopLevelFieldLocation? {
-        findTopLevelFieldLocations(in: json, keys: [targetKey])?[targetKey]
-    }
-
     private func findObjectFieldLocation(in json: String,
                                          key targetKey: String,
                                          objectRange: Range<String.Index>) -> TopLevelFieldLocation? {
@@ -633,10 +629,6 @@ class ThinkingProxy {
         }
     }
 
-    private func firstNonWhitespaceIndex(in json: String, from start: String.Index) -> String.Index? {
-        firstNonWhitespaceIndex(in: json, from: start, before: json.endIndex)
-    }
-
     private func firstNonWhitespaceIndex(in json: String,
                                          from start: String.Index,
                                          before end: String.Index) -> String.Index? {
@@ -677,10 +669,6 @@ class ThinkingProxy {
         return nil
     }
 
-    private func consumeJSONValue(in json: String, startingAt start: String.Index) -> String.Index? {
-        consumeJSONValue(in: json, startingAt: start, before: json.endIndex)
-    }
-
     private func consumeJSONValue(in json: String,
                                   startingAt start: String.Index,
                                   before end: String.Index) -> String.Index? {
@@ -707,10 +695,6 @@ class ThinkingProxy {
         }
 
         return index > start ? index : nil
-    }
-
-    private func consumeCompositeJSONValue(in json: String, startingAt start: String.Index) -> String.Index? {
-        consumeCompositeJSONValue(in: json, startingAt: start, before: json.endIndex)
     }
 
     private func consumeCompositeJSONValue(in json: String,
