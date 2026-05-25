@@ -24,4 +24,4 @@ jobs:
           use_single_comment: "true"
           prompt: "code-review"
           junie_version: "latest"
-          model: "gpt-5.2"
+          model: "gpt-5.2-2025-12-11"
