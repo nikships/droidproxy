@@ -171,24 +171,34 @@ class ThinkingProxy {
             var newAccumulatedData = accumulatedData
             newAccumulatedData.append(data)
             
-            // Check if we have a complete HTTP request
-            if let requestString = String(data: newAccumulatedData, encoding: .utf8),
-               let headerEndRange = requestString.range(of: "\r\n\r\n") {
-                
-                // Extract Content-Length if present
-                let headerEndIndex = requestString.distance(from: requestString.startIndex, to: headerEndRange.upperBound)
-                let headerPart = String(requestString.prefix(headerEndIndex))
-                
-                if let contentLengthLine = headerPart.components(separatedBy: "\r\n").first(where: { $0.lowercased().starts(with: "content-length:") }) {
-                    let contentLengthStr = contentLengthLine.components(separatedBy: ":")[1].trimmingCharacters(in: .whitespaces)
-                    if let contentLength = Int(contentLengthStr) {
-                        let bodyStartIndex = headerEndIndex
-                        let currentBodyLength = newAccumulatedData.count - bodyStartIndex
-                        
-                        // If we haven't received the full body yet, schedule next iteration
-                        if currentBodyLength < contentLength {
-                            self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
-                            return
+            // Find the end of headers (\r\n\r\n) using quick binary match to avoid O(N^2) UTF-8 string decodes on every chunk
+            let headerEndPattern = Data([13, 10, 13, 10]) // "\r\n\r\n"
+            if let headerEndRange = newAccumulatedData.range(of: headerEndPattern) {
+                // Parse headers only, keeping the massive body as raw binary data
+                let headerData = Data(newAccumulatedData[..<headerEndRange.upperBound])
+                if let headerString = String(data: headerData, encoding: .utf8) {
+                    
+                    // Look for Content-Length
+                    let lines = headerString.components(separatedBy: "\r\n")
+                    if let contentLengthLine = lines.first(where: { $0.lowercased().starts(with: "content-length:") }) {
+                        let parts = contentLengthLine.components(separatedBy: ":")
+                        if parts.count >= 2 {
+                            let contentLengthStr = parts[1].trimmingCharacters(in: .whitespaces)
+                            if let contentLength = Int(contentLengthStr) {
+                                let bodyStartIndex = headerEndRange.upperBound
+                                let currentBodyLength = newAccumulatedData.count - bodyStartIndex
+                                
+                                // If we haven't received the full body yet, schedule next iteration
+                                if currentBodyLength < contentLength {
+                                    if isComplete {
+                                        // End of stream but content length was not met; process the partial bytes we have
+                                        self.processRequest(data: newAccumulatedData, connection: connection)
+                                    } else {
+                                        self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
+                                    }
+                                    return
+                                }
+                            }
                         }
                     }
                 }
@@ -199,7 +209,7 @@ class ThinkingProxy {
                 // Haven't found header end yet, schedule next iteration
                 self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
             } else {
-                // Complete but malformed, process what we have
+                // Complete but malformed (no headers end found), process what we have
                 self.processRequest(data: newAccumulatedData, connection: connection)
             }
         }
