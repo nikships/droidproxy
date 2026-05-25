@@ -10,6 +10,7 @@ enum AppPreferences {
     static let oledThemeKey = "oledTheme"
     static let backgroundOpacityKey = "backgroundOpacity"
     static let betaFlagKey = "BETA_FLAG"
+    static let verboseLoggingKey = "verboseLogging"
 
     static let defaultGpt52FastMode = false
     static let defaultGpt53CodexFastMode = false
@@ -20,6 +21,7 @@ enum AppPreferences {
     static let defaultOledTheme = false
     static let defaultBackgroundOpacity = 0.55
     static let defaultBetaFlag = false
+    static let defaultVerboseLogging = false
 
     static var gpt52FastMode: Bool {
         UserDefaults.standard.bool(forKey: gpt52FastModeKey)
@@ -62,6 +64,10 @@ enum AppPreferences {
         set {
             UserDefaults.standard.set(newValue, forKey: betaFlagKey)
         }
+    }
+
+    static var verboseLogging: Bool {
+        UserDefaults.standard.bool(forKey: verboseLoggingKey)
     }
 }
 

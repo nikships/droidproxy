@@ -391,6 +391,17 @@ class ServerManager: ObservableObject {
             with: "  secret-key: \"\(secretKey)\""
         )
 
+        // Inject verbose-logging preference (controls both debug verbosity and file logging)
+        let verboseLogging = AppPreferences.verboseLogging
+        configContent = configContent.replacingOccurrences(
+            of: "debug: false",
+            with: "debug: \(verboseLogging)"
+        )
+        configContent = configContent.replacingOccurrences(
+            of: "logging-to-file: false",
+            with: "logging-to-file: \(verboseLogging)"
+        )
+
         // Build list of disabled providers
         var disabledProviders: [String] = []
         for (serviceType, oauthKey) in Self.oauthProviderKeys {

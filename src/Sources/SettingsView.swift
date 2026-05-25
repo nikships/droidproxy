@@ -314,6 +314,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.oledThemeKey) private var oledTheme = AppPreferences.defaultOledTheme
     @AppStorage(AppPreferences.backgroundOpacityKey) private var backgroundOpacity = AppPreferences.defaultBackgroundOpacity
     @AppStorage(AppPreferences.betaFlagKey) private var betaFlag = AppPreferences.defaultBetaFlag
+    @AppStorage(AppPreferences.verboseLoggingKey) private var verboseLogging = AppPreferences.defaultVerboseLogging
     @State private var authenticatingService: ServiceType? = nil
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
@@ -708,6 +709,26 @@ struct SettingsView: View {
                 }
                 .listRowBackground(glassRowBackground)
 
+                Section("Logging") {
+                    Toggle("Verbose logging", isOn: $verboseLogging)
+                        .onChange(of: verboseLogging) { _ in
+                            _ = serverManager.getConfigPath()
+                        }
+                        .help("Writes verbose backend request/response logs to ~/.cli-proxy-api/logs/. CLIProxyAPIPlus hot-reloads, so no restart is required.")
+
+                    HStack {
+                        Text("Logs folder")
+                        Spacer()
+                        Button("Open Logs") {
+                            openLogsFolder()
+                        }
+                        .droidGlassProminent()
+                        .controlSize(.small)
+                        .help("Opens ~/.cli-proxy-api/logs/ in Finder. Double-click any log to view it in your default text editor.")
+                    }
+                }
+                .listRowBackground(glassRowBackground)
+
                 Section("Services") {
                     ServiceRow(
                         serviceType: .claude,
@@ -1011,6 +1032,12 @@ struct SettingsView: View {
     private func openAuthFolder() {
         let authDir = AuthPaths.authDirectory
         NSWorkspace.shared.open(authDir)
+    }
+
+    private func openLogsFolder() {
+        let logsDir = AuthPaths.authDirectory.appendingPathComponent("logs")
+        try? FileManager.default.createDirectory(at: logsDir, withIntermediateDirectories: true)
+        NSWorkspace.shared.open(logsDir)
     }
 
     private func toggleLaunchAtLogin(_ enabled: Bool) {
