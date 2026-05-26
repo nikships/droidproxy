@@ -320,8 +320,6 @@ struct SettingsView: View {
     @State private var authResultSuccess = false
     @State private var showingCursorApiKeyAlert = false
     @State private var cursorApiKey = ""
-    @State private var showingInfoAlert = false
-    @State private var infoAlertMessage = ""
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
@@ -917,11 +915,6 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(authResultMessage)
-        }
-        .alert("About", isPresented: $showingInfoAlert) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(infoAlertMessage)
         }
         .alert("Add Cursor API Key", isPresented: $showingCursorApiKeyAlert) {
             SecureField("Enter Cursor Key", text: $cursorApiKey)
