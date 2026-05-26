@@ -40,8 +40,9 @@ struct DroidProxyModelDefinition: Equatable {
         }
     }
 
-    /// Settings entry that embeds Factory's native reasoning metadata so Droid's
-    /// per-session reasoning selector picks up the supported levels for this model.
+    /// Settings entry for Factory's custom model schema. Droid 0.133 accepts a
+    /// single default `reasoningEffort` here; it derives selectable levels from
+    /// known base model IDs when it can.
     var settingsEntry: [String: Any] {
         var entry: [String: Any] = [
             "model": baseModel,
@@ -55,9 +56,7 @@ struct DroidProxyModelDefinition: Equatable {
         ]
         guard !levels.isEmpty else { return entry }
         entry["enableThinking"] = true
-        entry["supportedReasoningEfforts"] = levels.map(\.value)
         let defLevel = levels.count == 1 ? levels[0].value : defaultLevelValue
-        entry["defaultReasoningEffort"] = defLevel
         entry["reasoningEffort"] = defLevel
         return entry
     }
@@ -262,30 +261,6 @@ enum DroidProxyModelCatalog {
                 maxOutputTokens: 32768,
                 levels: antigravityMediumLevel,
                 defaultLevelValue: "medium"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "gemini-3.1-pro-preview",
-                idSlug: "gemini-3.1-pro",
-                displayName: "Gemini 3.1 Pro",
-                maxOutputTokens: 65536,
-                provider: "google",
-                providerKey: "gemini",
-                baseURL: "http://localhost:8317",
-                kind: .gemini,
-                levels: geminiProLevels,
-                defaultLevelValue: "high"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "gemini-3-flash-preview",
-                idSlug: "gemini-3-flash",
-                displayName: "Gemini 3 Flash",
-                maxOutputTokens: 65536,
-                provider: "google",
-                providerKey: "gemini",
-                baseURL: "http://localhost:8317",
-                kind: .gemini,
-                levels: geminiFlashLevels,
-                defaultLevelValue: "high"
             ),
             DroidProxyModelDefinition(
                 baseModel: "kimi-k2.6",

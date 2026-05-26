@@ -603,7 +603,7 @@ struct SettingsView: View {
                             .controlSize(.small)
                         }
 
-                        Text("Apply writes DroidProxy model aliases into ~/.factory/settings.json. Each model exposes its full reasoning level set (low/medium/high/xhigh/max) directly in Factory's per-session selector — pick the level from Droid CLI, not here.")
+                        Text("Apply writes DroidProxy model aliases into ~/.factory/settings.json and makes a timestamped backup first. Reasoning effort is selected from Droid CLI when the model exposes multiple levels.")
                             .font(.caption2)
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1229,6 +1229,8 @@ struct SettingsView: View {
         settings["customModels"] = models
 
         do {
+            backupFactorySettingsIfPresent(url)
+
             var data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
             if var jsonString = String(data: data, encoding: .utf8) {
                 jsonString = jsonString.replacingOccurrences(of: "\\/", with: "/")
@@ -1237,7 +1239,7 @@ struct SettingsView: View {
             try data.write(to: url, options: .atomic)
             factoryModelsInstalled = true
             authResultSuccess = true
-            authResultMessage = "DroidProxy models added to Factory settings.\n\nReasoning effort is controlled from Droid CLI per session (low / medium / high / xhigh / max as supported by each model). Restart Factory or open a new session to see them in the model picker."
+            authResultMessage = "DroidProxy models added to Factory settings.\n\nA timestamped backup was saved next to settings.json before writing. Reasoning effort is controlled from Droid CLI per session when the selected model exposes multiple levels. Restart Factory or open a new session to see them in the model picker."
             showingAuthResult = true
             NSLog("[SettingsView] Factory custom models applied to %@", url.path)
         } catch {
@@ -1245,6 +1247,25 @@ struct SettingsView: View {
             authResultMessage = "Failed to update Factory settings: \(error.localizedDescription)"
             showingAuthResult = true
             NSLog("[SettingsView] Failed to apply Factory custom models: %@", error.localizedDescription)
+        }
+    }
+
+    private func backupFactorySettingsIfPresent(_ url: URL) {
+        guard FileManager.default.fileExists(atPath: url.path) else { return }
+
+        let formatter = DateFormatter()
+        formatter.dateFormat = "yyyyMMdd-HHmmss"
+        formatter.locale = Locale(identifier: "en_US_POSIX")
+        formatter.timeZone = TimeZone.current
+
+        let backupURL = url.deletingLastPathComponent()
+            .appendingPathComponent("settings.json.droidproxy-\(formatter.string(from: Date())).bak")
+
+        do {
+            try FileManager.default.copyItem(at: url, to: backupURL)
+            NSLog("[SettingsView] Backed up Factory settings to %@", backupURL.path)
+        } catch {
+            NSLog("[SettingsView] Failed to back up Factory settings before applying custom models: %@", error.localizedDescription)
         }
     }
 
