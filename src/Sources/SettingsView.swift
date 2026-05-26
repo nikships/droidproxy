@@ -325,7 +325,6 @@ struct SettingsView: View {
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
-    @State private var challengerPluginInstalled = false
     @State private var remoteManagementExpanded = false
     @State private var codexFastModeExpanded = true
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
@@ -608,40 +607,6 @@ struct SettingsView: View {
                             .foregroundColor(.secondary)
                             .fixedSize(horizontal: false, vertical: true)
                         }
-
-                    HStack {
-                        Text("Challenger Plugin")
-                        Button {
-                            infoAlertMessage = "Installs three devil's advocate code reviewer droids (Opus 4.7, GPT 5.2, Gemini 3.1 Pro) and their slash commands into your Factory config. Use /challenge-opus, /challenge-gpt, or /challenge-gemini in any Droid session for a cross-model second opinion on your code."
-                            showingInfoAlert = true
-                        } label: {
-                            Image(systemName: "questionmark.circle")
-                                .foregroundColor(.secondary)
-                                .font(.caption)
-                        }
-                        .buttonStyle(.plain)
-                        .accessibilityLabel("About Challenger Plugin")
-                        .help("About Challenger Plugin")
-                        .onHover { inside in
-                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                        }
-                        Spacer()
-                        if challengerPluginInstalled {
-                            HStack(spacing: 4) {
-                                Image(systemName: "checkmark.circle.fill")
-                                    .foregroundColor(.green)
-                                    .font(.caption)
-                                Text("Applied")
-                                    .font(.caption)
-                                    .foregroundColor(.green)
-                            }
-                        }
-                        Button(challengerPluginInstalled ? "Re-apply" : "Apply") {
-                            applyChallengerPlugin()
-                        }
-                        .droidGlassProminent()
-                        .controlSize(.small)
-                    }
                 }
                 .listRowBackground(glassRowBackground)
 
@@ -940,7 +905,6 @@ struct SettingsView: View {
             checkLaunchAtLogin()
             startMonitoringAuthDirectory()
             factoryModelsInstalled = checkFactoryModelsInstalled()
-            challengerPluginInstalled = checkChallengerPluginInstalled()
             refreshOAuthUsage()
         }
         .onChange(of: codexUsageAccountSignature) { _ in
@@ -1273,210 +1237,6 @@ struct SettingsView: View {
         DroidProxyModelCatalog.settingsModels { providerKey in
             guard let serviceType = ServiceType(authFileType: providerKey) else { return true }
             return serverManager.isProviderEnabled(serviceType)
-        }
-    }
-
-    // MARK: - Challenger Plugin
-
-    private static let challengerPluginFiles: [(directory: String, filename: String, content: String)] = [
-        ("droids", "challenger-opus.md", """
-        ---
-        name: challenger-opus
-        description: Devil's advocate code reviewer that challenges decisions, critiques patterns, and suggests better alternatives. Use when you want a tough second opinion on code, architecture, or design choices.
-        model: custom:droidproxy:opus-4-7
-        tools: ["Read", "LS", "Grep", "Glob", "WebSearch", "FetchUrl"]
-        ---
-
-        You are a senior engineer playing devil's advocate. Your job is to challenge every code decision presented to you and push for better alternatives. You are constructive but relentless.
-
-        When reviewing code or decisions:
-
-        1. **Question the "why"** - Don't accept decisions at face value. Ask why this approach was chosen over alternatives.
-        2. **Find the tradeoffs** - Every decision has costs. Surface the ones the author may not have considered.
-        3. **Suggest concrete alternatives** - Don't just criticize; propose better approaches with reasoning.
-        4. **Stress-test edge cases** - Think about failure modes, scale, concurrency, and maintainability.
-        5. **Challenge patterns** - If a pattern is used, question whether it's the right abstraction or if it adds unnecessary complexity.
-        6. **Check for over-engineering** - Call out when something is more complex than it needs to be.
-        7. **Check for under-engineering** - Call out when shortcuts will cause pain later.
-
-        If needed, use web search to back up your arguments with industry best practices, known pitfalls, or better patterns from well-regarded projects.
-
-        Respond with:
-
-        **Verdict:** <one-line overall assessment>
-
-        **Challenges:**
-        - <decision challenged>: <why it's questionable> \u{2192} <suggested alternative>
-
-        **Edge Cases / Risks:**
-        - <scenario that could break or degrade>
-
-        **What's Actually Good:**
-        - <acknowledge solid decisions so feedback is balanced>
-        """),
-        ("droids", "challenger-gpt.md", """
-        ---
-        name: challenger-gpt
-        description: Devil's advocate code reviewer that challenges decisions, critiques patterns, and suggests better alternatives. Use when you want a tough second opinion on code, architecture, or design choices.
-        model: custom:droidproxy:gpt-5.2
-        tools: ["Read", "LS", "Grep", "Glob", "WebSearch", "FetchUrl"]
-        ---
-
-        You are a senior engineer playing devil's advocate. Your job is to challenge every code decision presented to you and push for better alternatives. You are constructive but relentless.
-
-        When reviewing code or decisions:
-
-        1. **Question the "why"** - Don't accept decisions at face value. Ask why this approach was chosen over alternatives.
-        2. **Find the tradeoffs** - Every decision has costs. Surface the ones the author may not have considered.
-        3. **Suggest concrete alternatives** - Don't just criticize; propose better approaches with reasoning.
-        4. **Stress-test edge cases** - Think about failure modes, scale, concurrency, and maintainability.
-        5. **Challenge patterns** - If a pattern is used, question whether it's the right abstraction or if it adds unnecessary complexity.
-        6. **Check for over-engineering** - Call out when something is more complex than it needs to be.
-        7. **Check for under-engineering** - Call out when shortcuts will cause pain later.
-
-        If needed, use web search to back up your arguments with industry best practices, known pitfalls, or better patterns from well-regarded projects.
-
-        Respond with:
-
-        **Verdict:** <one-line overall assessment>
-
-        **Challenges:**
-        - <decision challenged>: <why it's questionable> \u{2192} <suggested alternative>
-
-        **Edge Cases / Risks:**
-        - <scenario that could break or degrade>
-
-        **What's Actually Good:**
-        - <acknowledge solid decisions so feedback is balanced>
-        """),
-        ("droids", "challenger-gemini.md", """
-        ---
-        name: challenger-gemini
-        description: Devil's advocate code reviewer that challenges decisions, critiques patterns, and suggests better alternatives. Use when you want a tough second opinion on code, architecture, or design choices.
-        model: custom:droidproxy:gemini-3.1-pro
-        tools: ["Read", "LS", "Grep", "Glob", "WebSearch", "FetchUrl"]
-        ---
-
-        You are a senior engineer playing devil's advocate. Your job is to challenge every code decision presented to you and push for better alternatives. You are constructive but relentless.
-
-        When reviewing code or decisions:
-
-        1. **Question the "why"** - Don't accept decisions at face value. Ask why this approach was chosen over alternatives.
-        2. **Find the tradeoffs** - Every decision has costs. Surface the ones the author may not have considered.
-        3. **Suggest concrete alternatives** - Don't just criticize; propose better approaches with reasoning.
-        4. **Stress-test edge cases** - Think about failure modes, scale, concurrency, and maintainability.
-        5. **Challenge patterns** - If a pattern is used, question whether it's the right abstraction or if it adds unnecessary complexity.
-        6. **Check for over-engineering** - Call out when something is more complex than it needs to be.
-        7. **Check for under-engineering** - Call out when shortcuts will cause pain later.
-
-        If needed, use web search to back up your arguments with industry best practices, known pitfalls, or better patterns from well-regarded projects.
-
-        Respond with:
-
-        **Verdict:** <one-line overall assessment>
-
-        **Challenges:**
-        - <decision challenged>: <why it's questionable> \u{2192} <suggested alternative>
-
-        **Edge Cases / Risks:**
-        - <scenario that could break or degrade>
-
-        **What's Actually Good:**
-        - <acknowledge solid decisions so feedback is balanced>
-        """),
-        ("commands", "challenge-opus.md", """
-        ---
-        description: Summon the Challenger droid (Opus) to review code, decisions, and design
-        ---
-
-        Launch the challenger-opus droid to review the current code changes, decisions, or design being discussed in this conversation.
-
-        Steps:
-        1. Gather context: run `git diff` (or use the recent conversation context) to understand what's being reviewed.
-        2. Use the Task tool to launch the subagent:
-           - `challenger-opus`
-        3. Pass it the relevant code, design decisions, or architecture being discussed.
-        4. Once it responds, present a summary of findings and actionable items.
-
-        Keep the summary concise and actionable. Focus on real issues, not nitpicks.
-        """),
-        ("commands", "challenge-gpt.md", """
-        ---
-        description: Summon the Challenger droid (GPT) to review code, decisions, and design
-        ---
-
-        Launch the challenger-gpt droid to review the current code changes, decisions, or design being discussed in this conversation.
-
-        Steps:
-        1. Gather context: run `git diff` (or use the recent conversation context) to understand what's being reviewed.
-        2. Use the Task tool to launch the subagent:
-           - `challenger-gpt`
-        3. Pass it the relevant code, design decisions, or architecture being discussed.
-        4. Once it responds, present a summary of findings and actionable items.
-
-        Keep the summary concise and actionable. Focus on real issues, not nitpicks.
-        """),
-        ("commands", "challenge-gemini.md", """
-        ---
-        description: Summon the Challenger droid (Gemini) to review code, decisions, and design
-        ---
-
-        Launch the challenger-gemini droid to review the current code changes, decisions, or design being discussed in this conversation.
-
-        Steps:
-        1. Gather context: run `git diff` (or use the recent conversation context) to understand what's being reviewed.
-        2. Use the Task tool to launch the subagent:
-           - `challenger-gemini`
-        3. Pass it the relevant code, design decisions, or architecture being discussed.
-        4. Once it responds, present a summary of findings and actionable items.
-
-        Keep the summary concise and actionable. Focus on real issues, not nitpicks.
-        """)
-    ]
-
-    private func checkChallengerPluginInstalled() -> Bool {
-        let home = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".factory")
-        return Self.challengerPluginFiles.allSatisfy { entry in
-            let url = home.appendingPathComponent(entry.directory).appendingPathComponent(entry.filename)
-            guard let existing = try? String(contentsOf: url, encoding: .utf8) else {
-                return false
-            }
-            return existing == renderedChallengerPluginContent(entry.content)
-        }
-    }
-
-    private func renderedChallengerPluginContent(_ content: String) -> String {
-        content
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .map { line in
-                var s = String(line)
-                while s.hasPrefix("        ") { s = String(s.dropFirst(8)) }
-                return s
-            }
-            .joined(separator: "\n")
-    }
-
-    private func applyChallengerPlugin() {
-        let home = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".factory")
-        let fm = FileManager.default
-
-        do {
-            for entry in Self.challengerPluginFiles {
-                let dir = home.appendingPathComponent(entry.directory)
-                try fm.createDirectory(at: dir, withIntermediateDirectories: true)
-                let fileURL = dir.appendingPathComponent(entry.filename)
-                try renderedChallengerPluginContent(entry.content).write(to: fileURL, atomically: true, encoding: .utf8)
-            }
-            challengerPluginInstalled = true
-            authResultSuccess = true
-            authResultMessage = "Challenger droids and slash commands installed.\n\nUse /challenge-opus, /challenge-gpt, or /challenge-gemini in any Droid session."
-            showingAuthResult = true
-            NSLog("[SettingsView] Challenger plugin installed to ~/.factory")
-        } catch {
-            authResultSuccess = false
-            authResultMessage = "Failed to install Challenger plugin: \(error.localizedDescription)"
-            showingAuthResult = true
-            NSLog("[SettingsView] Failed to install Challenger plugin: %@", error.localizedDescription)
         }
     }
 
