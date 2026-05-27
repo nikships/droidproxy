@@ -56,27 +56,16 @@ final class OAuthUsageTracker: ObservableObject {
         }
 
         isRefreshing = true
-        
-        var initialAccounts: [OAuthAccountUsage] = []
-        for account in enabledCodex {
-            initialAccounts.append(OAuthAccountUsage(id: account.id, provider: .codex, email: account.displayName, isLoading: true))
-        }
-        for account in enabledClaude {
-            initialAccounts.append(OAuthAccountUsage(id: account.id, provider: .claude, email: account.displayName, isLoading: true))
-        }
-        accounts = initialAccounts
+        accounts = enabledCodex.map { Self.loadingPlaceholder(for: $0, provider: .codex) }
+            + enabledClaude.map { Self.loadingPlaceholder(for: $0, provider: .claude) }
 
         refreshTask = Task { [enabledCodex, enabledClaude] in
             let results = await withTaskGroup(of: OAuthAccountUsage.self) { group in
                 for account in enabledCodex {
-                    group.addTask {
-                        await Self.fetchCodexUsage(for: account)
-                    }
+                    group.addTask { await Self.fetchCodexUsage(for: account) }
                 }
                 for account in enabledClaude {
-                    group.addTask {
-                        await Self.fetchClaudeUsage(for: account)
-                    }
+                    group.addTask { await Self.fetchClaudeUsage(for: account) }
                 }
 
                 var values: [OAuthAccountUsage] = []
@@ -95,6 +84,10 @@ final class OAuthUsageTracker: ObservableObject {
             self.accounts = results
             self.isRefreshing = false
         }
+    }
+
+    nonisolated private static func loadingPlaceholder(for account: AuthAccount, provider: ServiceType) -> OAuthAccountUsage {
+        OAuthAccountUsage(id: account.id, provider: provider, email: account.displayName, isLoading: true)
     }
 
     nonisolated private static func fetchCodexUsage(for account: AuthAccount) async -> OAuthAccountUsage {
@@ -127,46 +120,42 @@ final class OAuthUsageTracker: ObservableObject {
             return failedAccount(account, "Missing access token")
         }
 
-        var currentToken = token
-        
-        // Determine expiration
-        let isExpired: Bool
-        if let expiredStr = auth["expired"],
-           let expiredDate = parseISO8601Date(expiredStr) {
-            isExpired = expiredDate <= Date()
-        } else {
-            isExpired = false
-        }
+        let isExpired = auth["expired"]
+            .flatMap(parseISO8601Date)
+            .map { $0 <= Date() } ?? false
 
+        let usableToken: String
         if isExpired {
             do {
-                currentToken = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth)
+                usableToken = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth)
             } catch {
                 return failedAccount(account, "Token refresh failed: \(error.localizedDescription)")
             }
+        } else {
+            usableToken = token
         }
 
-        return await executeClaudeUsageRequest(account: account, token: currentToken)
+        return await executeClaudeUsageRequest(account: account, token: usableToken)
     }
 
     nonisolated private static func refreshClaudeTokens(fileURL: URL, auth: [String: String]) async throws -> String {
         guard let refreshToken = auth["refresh_token"] else {
             throw NSError(domain: "ClaudeUsage", code: 2, userInfo: [NSLocalizedDescriptionKey: "No refresh token available"])
         }
-        
+
         var request = URLRequest(url: URL(string: "https://platform.claude.com/v1/oauth/token")!)
         request.httpMethod = "POST"
         request.setValue("application/x-www-form-urlencoded", forHTTPHeaderField: "Content-Type")
-        
+
         let encodedToken = refreshToken.addingPercentEncoding(withAllowedCharacters: OAuthUsageParsing.formURLEncodedAllowedCharacters) ?? ""
         let body = "client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&grant_type=refresh_token&refresh_token=\(encodedToken)"
         request.httpBody = body.data(using: .utf8)
-        
+
         let (data, response) = try await URLSession.shared.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw NSError(domain: "ClaudeUsage", code: 3, userInfo: [NSLocalizedDescriptionKey: "Token refresh failed"])
         }
-        
+
         guard let newTokens = try JSONSerialization.jsonObject(with: data) as? [String: Any],
               let newAccess = newTokens["access_token"] as? String,
               let newRefresh = newTokens["refresh_token"] as? String else {
@@ -194,70 +183,68 @@ final class OAuthUsageTracker: ObservableObject {
         guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else {
             return failedAccount(account, "Invalid usage endpoint")
         }
-        
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: makeClaudeUsageRequest(url: url, token: token))
+            guard let http = response as? HTTPURLResponse else {
+                return failedAccount(account, "No HTTP response")
+            }
+
+            if http.statusCode == 401 || http.statusCode == 403 {
+                return await retryClaudeUsageAfterRefresh(account: account, url: url)
+            }
+
+            guard (200..<300).contains(http.statusCode) else {
+                return failedAccount(account, "Claude usage API returned \(http.statusCode)")
+            }
+
+            let windows = parseClaudeWindows(data)
+            guard !windows.isEmpty else {
+                return failedAccount(account, "Usage response did not include quota windows")
+            }
+
+            return successAccount(account, windows: windows)
+        } catch {
+            return failedAccount(account, error.localizedDescription)
+        }
+    }
+
+    nonisolated private static func retryClaudeUsageAfterRefresh(account: AuthAccount, url: URL) async -> OAuthAccountUsage {
+        do {
+            guard let auth = authValues(from: account.filePath) else {
+                return failedAccount(account, "Failed to read credentials for retry")
+            }
+            let newToken = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth)
+            let (data, response) = try await URLSession.shared.data(for: makeClaudeUsageRequest(url: url, token: newToken))
+            guard let http = response as? HTTPURLResponse else {
+                return failedAccount(account, "No HTTP response on retry")
+            }
+            guard http.statusCode == 200 else {
+                return failedAccount(account, "Claude usage returned \(http.statusCode) after refresh retry")
+            }
+            return successAccount(account, windows: parseClaudeWindows(data))
+        } catch {
+            return failedAccount(account, "Retry token refresh failed: \(error.localizedDescription)")
+        }
+    }
+
+    nonisolated private static func makeClaudeUsageRequest(url: URL, token: String) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = OAuthUsageParsing.requestTimeout
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
         request.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
+        return request
+    }
 
-        do {
-            let (data, response) = try await URLSession.shared.data(for: request)
-            guard let http = response as? HTTPURLResponse else {
-                return failedAccount(account, "No HTTP response")
-            }
-            
-            if http.statusCode == 401 || http.statusCode == 403 {
-                do {
-                    guard let auth = authValues(from: account.filePath) else {
-                        return failedAccount(account, "Failed to read credentials for retry")
-                    }
-                    let newTokens = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth)
-                    var retryRequest = URLRequest(url: url)
-                    retryRequest.httpMethod = "GET"
-                    retryRequest.timeoutInterval = OAuthUsageParsing.requestTimeout
-                    retryRequest.setValue("Bearer \(newTokens)", forHTTPHeaderField: "Authorization")
-                    retryRequest.setValue("oauth-2025-04-20", forHTTPHeaderField: "anthropic-beta")
-                    
-                    let (retryData, retryResponse) = try await URLSession.shared.data(for: retryRequest)
-                    guard let retryHttp = retryResponse as? HTTPURLResponse else {
-                        return failedAccount(account, "No HTTP response on retry")
-                    }
-                    guard retryHttp.statusCode == 200 else {
-                        return failedAccount(account, "Claude usage returned \(retryHttp.statusCode) after refresh retry")
-                    }
-                    let windows = parseClaudeWindows(retryData)
-                    return OAuthAccountUsage(
-                        id: account.id,
-                        provider: account.type,
-                        email: account.displayName,
-                        windows: windows,
-                        updatedAt: Date()
-                    )
-                } catch {
-                    return failedAccount(account, "Retry token refresh failed: \(error.localizedDescription)")
-                }
-            }
-            
-            guard (200..<300).contains(http.statusCode) else {
-                return failedAccount(account, "Claude usage API returned \(http.statusCode)")
-            }
-            
-            let windows = parseClaudeWindows(data)
-            guard !windows.isEmpty else {
-                return failedAccount(account, "Usage response did not include quota windows")
-            }
-            
-            return OAuthAccountUsage(
-                id: account.id,
-                provider: account.type,
-                email: account.displayName,
-                windows: windows,
-                updatedAt: Date()
-            )
-        } catch {
-            return failedAccount(account, error.localizedDescription)
-        }
+    nonisolated private static func successAccount(_ account: AuthAccount, windows: [OAuthUsageWindow]) -> OAuthAccountUsage {
+        OAuthAccountUsage(
+            id: account.id,
+            provider: account.type,
+            email: account.displayName,
+            windows: windows,
+            updatedAt: Date()
+        )
     }
 
     nonisolated private static func parseClaudeWindows(_ data: Data) -> [OAuthUsageWindow] {
@@ -285,7 +272,7 @@ final class OAuthUsageTracker: ObservableObject {
             let resetsAtStr = dict["resets_at"] as? String
             let resetDate = resetsAtStr.flatMap(parseISO8601Date)
             let resetText = resetDate.map(resetText(for:)) ?? resetsAtStr
-            
+
             windows.append(OAuthUsageWindow(
                 title: title,
                 usedPercent: usedPercent,
@@ -315,13 +302,7 @@ final class OAuthUsageTracker: ObservableObject {
             guard !windows.isEmpty else {
                 return failedAccount(account, "Usage response did not include quota windows")
             }
-            return OAuthAccountUsage(
-                id: account.id,
-                provider: account.type,
-                email: account.displayName,
-                windows: windows,
-                updatedAt: Date()
-            )
+            return successAccount(account, windows: windows)
         } catch {
             return failedAccount(account, error.localizedDescription)
         }

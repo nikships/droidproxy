@@ -11,33 +11,39 @@ final class IconCatalog {
     
     func image(named name: String, resizedTo size: NSSize? = nil, template: Bool = false) -> NSImage? {
         let key = cacheKey(name: name, size: size, template: template)
-        
-        cacheLock.lock()
-        if let cached = cache[key] {
-            cacheLock.unlock()
+
+        if let cached = readCache(key: key) {
             return cached.copy() as? NSImage
         }
-        cacheLock.unlock()
-        
+
         guard let resourcePath = bundle.resourcePath else { return nil }
         let iconPath = (resourcePath as NSString).appendingPathComponent(name)
         guard let baseImage = NSImage(contentsOfFile: iconPath) else { return nil }
-        
+
         let image = baseImage.copy() as? NSImage ?? baseImage
-        if let size = size {
+        if let size {
             image.size = size
         }
         image.isTemplate = template
-        
-        cacheLock.lock()
-        cache[key] = image
-        cacheLock.unlock()
-        
+
+        writeCache(key: key, image: image)
         return image.copy() as? NSImage ?? image
     }
-    
+
+    private func readCache(key: String) -> NSImage? {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        return cache[key]
+    }
+
+    private func writeCache(key: String, image: NSImage) {
+        cacheLock.lock()
+        defer { cacheLock.unlock() }
+        cache[key] = image
+    }
+
     private func cacheKey(name: String, size: NSSize?, template: Bool) -> String {
-        if let size = size {
+        if let size {
             return "\(name)-\(Int(size.width))x\(Int(size.height))-\(template)"
         }
         return "\(name)-original-\(template)"

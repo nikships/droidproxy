@@ -56,10 +56,6 @@ class ServerManager: ObservableObject {
         }
     }
 
-    /// Helper class to capture output text across closures
-    private class OutputCapture {
-        var text = ""
-    }
     private var logBuffer: RingBuffer<String>
     private let maxLogLines = 1000
     private let processQueue = DispatchQueue(label: "io.automaze.droidproxy.server-process", qos: .userInitiated)
@@ -118,77 +114,62 @@ class ServerManager: ObservableObject {
         // Clean up any orphaned processes from previous crashes
         killOrphanedProcesses()
 
-        // Use bundled binary from app bundle
-        guard let resourcePath = Bundle.main.resourcePath else {
-            addLog("❌ Error: Could not find resource path")
+        guard let bundledPath = bundledBinaryPath() else {
+            addLog("❌ Error: cli-proxy-api-plus binary not found in app bundle")
             completion(false)
             return
         }
-        
-        let bundledPath = (resourcePath as NSString).appendingPathComponent("cli-proxy-api-plus")
-        guard FileManager.default.fileExists(atPath: bundledPath) else {
-            addLog("❌ Error: cli-proxy-api-plus binary not found at \(bundledPath)")
-            completion(false)
-            return
-        }
-        
-        // Use config path (merged with Z.AI if keys exist)
+
+        // Use config path (merged with user settings and provider exclusions)
         let configPath = getConfigPath()
-        guard !configPath.isEmpty && FileManager.default.fileExists(atPath: configPath) else {
+        guard !configPath.isEmpty, FileManager.default.fileExists(atPath: configPath) else {
             addLog("❌ Error: config.yaml not found")
             completion(false)
             return
         }
         
-        process = Process()
-        process?.executableURL = URL(fileURLWithPath: bundledPath)
-        process?.arguments = ["-config", configPath]
-        
-        // Setup pipes for output
+        let proc = Process()
+        proc.executableURL = URL(fileURLWithPath: bundledPath)
+        proc.arguments = ["-config", configPath]
+
         let outputPipe = Pipe()
         let errorPipe = Pipe()
-        process?.standardOutput = outputPipe
-        process?.standardError = errorPipe
-        
-        // Handle output
+        proc.standardOutput = outputPipe
+        proc.standardError = errorPipe
+
         outputPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                self?.addLog(output)
-            }
+            guard let output = String(data: handle.availableData, encoding: .utf8), !output.isEmpty else { return }
+            self?.addLog(output)
         }
-        
+
         errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            let data = handle.availableData
-            if let output = String(data: data, encoding: .utf8), !output.isEmpty {
-                self?.addLog("⚠️ \(output)")
-            }
+            guard let output = String(data: handle.availableData, encoding: .utf8), !output.isEmpty else { return }
+            self?.addLog("⚠️ \(output)")
         }
-        
-        // Handle termination
-        process?.terminationHandler = { [weak self] process in
-            // Clear pipe handlers to prevent memory leaks
+
+        proc.terminationHandler = { [weak self] process in
+            // Clear pipe handlers to prevent retain cycles on the file handles.
             outputPipe.fileHandleForReading.readabilityHandler = nil
             errorPipe.fileHandleForReading.readabilityHandler = nil
-            
+
             DispatchQueue.main.async {
                 self?.isRunning = false
                 self?.addLog("Server stopped with code: \(process.terminationStatus)")
                 NotificationCenter.default.post(name: .serverStatusChanged, object: nil)
             }
         }
-        
+
+        process = proc
+
         do {
-            try process?.run()
-            DispatchQueue.main.async {
-                self.isRunning = true
-            }
+            try proc.run()
+            DispatchQueue.main.async { self.isRunning = true }
             addLog("✓ Server started on port \(port)")
-            
-            // Wait a bit to ensure it started successfully
+
+            // Give the backend a moment to actually bind before reporting success.
             DispatchQueue.main.asyncAfter(deadline: .now() + Timing.readinessCheckDelay) { [weak self] in
                 guard let self = self else { return }
-                if let process = self.process, process.isRunning {
+                if let running = self.process, running.isRunning {
                     NotificationCenter.default.post(name: .serverStatusChanged, object: nil)
                     completion(true)
                 } else {
@@ -245,112 +226,98 @@ class ServerManager: ObservableObject {
     }
     
     func runAuthCommand(_ command: AuthCommand, completion: @escaping (Bool, String) -> Void) {
-        // Use bundled binary from app bundle
-        guard let resourcePath = Bundle.main.resourcePath else {
-            completion(false, "Could not find resource path")
+        guard let bundledPath = bundledBinaryPath(),
+              let resourcePath = Bundle.main.resourcePath else {
+            completion(false, "cli-proxy-api-plus binary not found in app bundle")
             return
         }
-        
-        let bundledPath = (resourcePath as NSString).appendingPathComponent("cli-proxy-api-plus")
-        guard FileManager.default.fileExists(atPath: bundledPath) else {
-            completion(false, "Binary not found at \(bundledPath)")
-            return
-        }
-        
-        let authProcess = Process()
-        authProcess.executableURL = URL(fileURLWithPath: bundledPath)
 
-        // Get the config path
+        // Auth flow uses the bundled (unmerged) config; user-specific overrides
+        // aren't needed for OAuth login itself.
         let configPath = (resourcePath as NSString).appendingPathComponent("config.yaml")
 
-        switch command {
-        case .claudeLogin:
-            authProcess.arguments = ["--config", configPath, "-claude-login"]
-        case .codexLogin:
-            authProcess.arguments = ["--config", configPath, "-codex-login"]
-        case .antigravityLogin:
-            authProcess.arguments = ["--config", configPath, "-antigravity-login"]
-        case .kimiLogin:
-            authProcess.arguments = ["--config", configPath, "-kimi-login"]
-        }
+        let authProcess = Process()
+        authProcess.executableURL = URL(fileURLWithPath: bundledPath)
+        authProcess.arguments = ["--config", configPath, command.loginFlag]
+        authProcess.environment = ProcessInfo.processInfo.environment
 
-        // Create pipes for output
         let outputPipe = Pipe()
         let errorPipe = Pipe()
         let inputPipe = Pipe()
         authProcess.standardOutput = outputPipe
         authProcess.standardError = errorPipe
         authProcess.standardInput = inputPipe
-        
-        let capture = OutputCapture()
-        
+
         // For Codex login, avoid blocking on the manual callback prompt after ~15s.
         if case .codexLogin = command {
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 12.0) {
-                if authProcess.isRunning {
-                    if let data = "\n".data(using: .utf8) {
-                        try? inputPipe.fileHandleForWriting.write(contentsOf: data)
-                        NSLog("[Auth] Sent newline to keep Codex login waiting for callback")
-                    }
-                }
+                guard authProcess.isRunning, let data = "\n".data(using: .utf8) else { return }
+                try? inputPipe.fileHandleForWriting.write(contentsOf: data)
+                NSLog("[Auth] Sent newline to keep Codex login waiting for callback")
             }
         }
 
-        // Set environment to inherit from parent
-        authProcess.environment = ProcessInfo.processInfo.environment
-        
+        let browserOpenedMessage = "🌐 Browser opened for authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect when you're authenticated."
+
         do {
             NSLog("[Auth] Starting process: %@ with args: %@", bundledPath, authProcess.arguments?.joined(separator: " ") ?? "none")
             try authProcess.run()
             addLog("✓ Authentication process started (PID: \(authProcess.processIdentifier)) - browser should open shortly")
             NSLog("[Auth] Process started with PID: %d", authProcess.processIdentifier)
-            
-            // Set up termination handler to detect when auth completes
+
+            // Notify watchers when auth completes successfully so the UI can pick
+            // up the freshly written credential file.
             authProcess.terminationHandler = { process in
-                let exitCode = process.terminationStatus
-                NSLog("[Auth] Process terminated with exit code: %d", exitCode)
-                
-                if exitCode == 0 {
-                    // Authentication completed successfully
-                    DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
-                        // Give file system a moment to write the credential file
-                        NotificationCenter.default.post(name: .authDirectoryChanged, object: nil)
-                    }
+                NSLog("[Auth] Process terminated with exit code: %d", process.terminationStatus)
+                guard process.terminationStatus == 0 else { return }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
+                    NotificationCenter.default.post(name: .authDirectoryChanged, object: nil)
                 }
             }
-            
+
             // Wait briefly to check if process crashes immediately
             DispatchQueue.global(qos: .userInitiated).asyncAfter(deadline: .now() + 1.0) {
                 if authProcess.isRunning {
                     NSLog("[Auth] Process running after wait, returning success")
-                    completion(true, "🌐 Browser opened for authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect when you're authenticated.")
+                    completion(true, browserOpenedMessage)
+                    return
+                }
+
+                // Process died quickly - check stdout/stderr for clues.
+                let output = String(data: outputPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+                let error = String(data: errorPipe.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8) ?? ""
+
+                NSLog("[Auth] Process died quickly - output: %@", output.isEmpty ? "(empty)" : String(output.prefix(200)))
+
+                if output.contains("Opening browser") || output.contains("Attempting to open URL") {
+                    // Browser opened but process finished — treat as success.
+                    NSLog("[Auth] Browser opened, process completed")
+                    completion(true, browserOpenedMessage)
                 } else {
-                    // Process died quickly - check for error
-                    let outputData = outputPipe.fileHandleForReading.readDataToEndOfFile()
-                    let errorData = errorPipe.fileHandleForReading.readDataToEndOfFile()
-                    
-                    var output = String(data: outputData, encoding: .utf8) ?? ""
-                    if output.isEmpty { output = capture.text }
-                    let error = String(data: errorData, encoding: .utf8) ?? ""
-                    
-                    NSLog("[Auth] Process died quickly - output: %@", output.isEmpty ? "(empty)" : String(output.prefix(200)))
-                    
-                    if output.contains("Opening browser") || output.contains("Attempting to open URL") {
-                        // Browser opened but process finished (probably success)
-                        NSLog("[Auth] Browser opened, process completed")
-                        completion(true, "🌐 Browser opened for authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect when you're authenticated.")
+                    NSLog("[Auth] Process failed")
+                    let message: String
+                    if !error.isEmpty {
+                        message = error
+                    } else if !output.isEmpty {
+                        message = output
                     } else {
-                        // Real error
-                        NSLog("[Auth] Process failed")
-                        let message = error.isEmpty ? (output.isEmpty ? "Authentication process failed unexpectedly" : output) : error
-                        completion(false, message)
+                        message = "Authentication process failed unexpectedly"
                     }
+                    completion(false, message)
                 }
             }
         } catch {
             NSLog("[Auth] Failed to start: %@", error.localizedDescription)
             completion(false, "Failed to start auth process: \(error.localizedDescription)")
         }
+    }
+
+    /// Resolves the path to the bundled `cli-proxy-api-plus` binary, returning
+    /// `nil` if the resource directory or binary is missing.
+    private func bundledBinaryPath() -> String? {
+        guard let resourcePath = Bundle.main.resourcePath else { return nil }
+        let path = (resourcePath as NSString).appendingPathComponent("cli-proxy-api-plus")
+        return FileManager.default.fileExists(atPath: path) ? path : nil
     }
     
     private func addLog(_ message: String) {
@@ -402,24 +369,16 @@ class ServerManager: ObservableObject {
             with: "logging-to-file: \(verboseLogging)"
         )
 
-        // Build list of disabled providers
-        var disabledProviders: [String] = []
-        for (serviceType, oauthKey) in Self.oauthProviderKeys {
-            if !isProviderEnabled(serviceType) {
-                disabledProviders.append(oauthKey)
-            }
-        }
+        // Append provider exclusions for any provider toggled off in the UI.
+        let disabledProviders = Self.oauthProviderKeys
+            .filter { !isProviderEnabled($0.key) }
+            .map { $0.value }
+            .sorted()
 
         if !disabledProviders.isEmpty {
-            configContent += """
-
-# Provider exclusions (auto-added by DroidProxy)
-oauth-excluded-models:
-
-"""
-            for provider in disabledProviders.sorted() {
-                configContent += "  \(provider):\n"
-                configContent += "    - \"*\"\n"
+            configContent += "\n# Provider exclusions (auto-added by DroidProxy)\noauth-excluded-models:\n"
+            for provider in disabledProviders {
+                configContent += "  \(provider):\n    - \"*\"\n"
             }
         }
 
@@ -489,4 +448,14 @@ enum AuthCommand: Equatable {
     case codexLogin
     case antigravityLogin
     case kimiLogin
+
+    /// CLI flag passed to `cli-proxy-api-plus` for this login flow.
+    var loginFlag: String {
+        switch self {
+        case .claudeLogin: return "-claude-login"
+        case .codexLogin: return "-codex-login"
+        case .antigravityLogin: return "-antigravity-login"
+        case .kimiLogin: return "-kimi-login"
+        }
+    }
 }
