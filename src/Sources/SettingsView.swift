@@ -78,27 +78,58 @@ extension View {
             self.buttonStyle(.bordered)
         }
     }
+
+    /// Pushes the pointing-hand cursor while hovered. The `enabled` flag lets
+    /// callers gate the cursor change on a runtime condition (e.g. disabled
+    /// buttons should keep the default cursor).
+    func pointingHandCursor(enabled: Bool = true) -> some View {
+        onHover { inside in
+            guard enabled else { return }
+            if inside {
+                NSCursor.pointingHand.push()
+            } else {
+                NSCursor.pop()
+            }
+        }
+    }
 }
 
 /// A single account row with disable toggle and remove button
 struct AccountRowView: View {
     static let accent = Color(red: 0xF2/255, green: 0x7B/255, blue: 0x2F/255)
-    
+
     let account: AuthAccount
     let removeColor: Color
     let showDisableToggle: Bool
     let isLastEnabled: Bool
     let onToggleDisabled: () -> Void
     let onRemove: () -> Void
-    
+
+    private var statusColor: Color {
+        if account.isDisabled { return .gray }
+        if account.isExpired { return Self.accent.opacity(0.6) }
+        return Self.accent
+    }
+
+    private var nameColor: Color {
+        if account.isDisabled { return .secondary.opacity(0.5) }
+        if account.isExpired { return Self.accent.opacity(0.6) }
+        return .secondary
+    }
+
+    private func disableButtonColor(canDisable: Bool) -> Color {
+        if account.isDisabled { return Self.accent }
+        return canDisable ? Self.accent.opacity(0.6) : .secondary.opacity(0.4)
+    }
+
     var body: some View {
         HStack(spacing: 8) {
             Circle()
-                .fill(account.isDisabled ? Color.gray : (account.isExpired ? Self.accent.opacity(0.6) : Self.accent))
+                .fill(statusColor)
                 .frame(width: 6, height: 6)
             Text(account.displayName)
                 .font(.caption)
-                .foregroundColor(account.isDisabled ? .secondary.opacity(0.5) : (account.isExpired ? Self.accent.opacity(0.6) : .secondary))
+                .foregroundColor(nameColor)
                 .strikethrough(account.isDisabled)
             if account.isExpired && !account.isDisabled {
                 Text("(expired)")
@@ -115,16 +146,12 @@ struct AccountRowView: View {
                 Button(action: onToggleDisabled) {
                     Text(account.isDisabled ? "Enable" : "Disable")
                         .font(.caption)
-                        .foregroundColor(account.isDisabled ? Self.accent : (canDisable ? Self.accent.opacity(0.6) : .secondary.opacity(0.4)))
+                        .foregroundColor(disableButtonColor(canDisable: canDisable))
                 }
                 .buttonStyle(.plain)
                 .disabled(!canDisable)
                 .help(!canDisable ? "At least one account must remain enabled" : "")
-                .onHover { inside in
-                    if canDisable {
-                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                    }
-                }
+                .pointingHandCursor(enabled: canDisable)
             }
             Button(action: onRemove) {
                 HStack(spacing: 2) {
@@ -136,9 +163,7 @@ struct AccountRowView: View {
                 .foregroundColor(removeColor)
             }
             .buttonStyle(.plain)
-            .onHover { inside in
-                if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-            }
+            .pointingHandCursor()
         }
         .padding(.leading, 28)
     }
@@ -317,7 +342,6 @@ struct SettingsView: View {
     @State private var authenticatingService: ServiceType? = nil
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
-    @State private var authResultSuccess = false
     @State private var showingCursorApiKeyAlert = false
     @State private var cursorApiKey = ""
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
@@ -469,9 +493,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .foregroundColor(Color.white.opacity(0.75))
                         .help("Enable beta-gated features")
-                        .onHover { inside in
-                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                        }
+                        .pointingHandCursor()
                     Spacer()
                     HStack(spacing: 8) {
                         HStack(spacing: 4) {
@@ -503,9 +525,7 @@ struct SettingsView: View {
                         }
                         .buttonStyle(.plain)
                         .help(oledTheme ? "Switch to Liquid Glass theme" : "Switch to OLED black theme")
-                        .onHover { inside in
-                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                        }
+                        .pointingHandCursor()
                     }
                 }
                 .padding(.top, 12)
@@ -692,37 +712,17 @@ struct SettingsView: View {
                 .listRowBackground(glassRowBackground)
 
                 Section("Services") {
-                    ServiceRow(
-                        serviceType: .claude,
+                    providerServiceRow(
+                        .claude,
                         iconName: "icon-claude.png",
-                        accounts: authManager.accounts(for: .claude),
-                        isAuthenticating: authenticatingService == .claude,
-                        helpText: nil,
-                        isEnabled: serverManager.isProviderEnabled(.claude),
-                        customTitle: nil,
-                        onConnect: { connectService(.claude) },
-                        onDisconnect: { account in disconnectAccount(account) },
-                        onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.claude, enabled: enabled) },
-                        toggleTint: claudeEffortSelectionColor,
-                        onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
-                    ) { EmptyView() }
+                        toggleTint: claudeEffortSelectionColor
+                    )
 
-                    ServiceRow(
-                        serviceType: .codex,
+                    providerServiceRow(
+                        .codex,
                         iconName: "icon-codex.png",
-                        accounts: authManager.accounts(for: .codex),
-                        isAuthenticating: authenticatingService == .codex,
-                        helpText: nil,
-                        isEnabled: serverManager.isProviderEnabled(.codex),
-                        customTitle: nil,
-                        onConnect: { connectService(.codex) },
-                        onDisconnect: { account in disconnectAccount(account) },
-                        onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.codex, enabled: enabled) },
-                        toggleTint: codexEffortSelectionColor,
-                        onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
-                    ) { EmptyView() }
+                        toggleTint: codexEffortSelectionColor
+                    )
 
                     if serverManager.isProviderEnabled(.codex) {
                         VStack(alignment: .leading, spacing: 6) {
@@ -762,56 +762,27 @@ struct SettingsView: View {
                         .padding(.leading, 28)
                     }
 
-                    ServiceRow(
-                        serviceType: .antigravity,
+                    providerServiceRow(
+                        .antigravity,
                         iconName: "icon-gemini.png",
-                        accounts: authManager.accounts(for: .antigravity),
-                        isAuthenticating: authenticatingService == .antigravity,
-                        helpText: "Uses your Antigravity subscription for the Antigravity-backed Gemini, Claude, and GPT-OSS models.",
-                        isEnabled: serverManager.isProviderEnabled(.antigravity),
-                        customTitle: nil,
-                        onConnect: { connectService(.antigravity) },
-                        onDisconnect: { account in disconnectAccount(account) },
-                        onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.antigravity, enabled: enabled) },
                         toggleTint: antigravityEffortSelectionColor,
-                        onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
-                    ) { EmptyView() }
+                        helpText: "Uses your Antigravity subscription for the Antigravity-backed Gemini, Claude, and GPT-OSS models."
+                    )
 
-                    ServiceRow(
-                        serviceType: .kimi,
+                    providerServiceRow(
+                        .kimi,
                         iconName: "icon-kimi.svg",
-                        accounts: authManager.accounts(for: .kimi),
-                        isAuthenticating: authenticatingService == .kimi,
-                        helpText: nil,
-                        isEnabled: serverManager.isProviderEnabled(.kimi),
-                        customTitle: nil,
-                        onConnect: { connectService(.kimi) },
-                        onDisconnect: { account in disconnectAccount(account) },
-                        onToggleDisabled: { account in toggleAccountDisabled(account) },
-                        onToggleEnabled: { enabled in serverManager.setProviderEnabled(.kimi, enabled: enabled) },
-                        toggleTint: kimiEffortSelectionColor,
-                        onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
-                    ) { EmptyView() }
+                        toggleTint: kimiEffortSelectionColor
+                    )
 
                     if betaFlag {
-                        ServiceRow(
-                            serviceType: .cursor,
+                        providerServiceRow(
+                            .cursor,
                             iconName: "icon-cursor.png",
-                            accounts: authManager.accounts(for: .cursor),
-                            isAuthenticating: authenticatingService == .cursor,
-                            helpText: "Enter your Cursor API Key (from https://cursor-api.standardagents.ai/) to proxy requests directly to Cursor.",
-                            isEnabled: serverManager.isProviderEnabled(.cursor),
-                            customTitle: nil,
-                            onConnect: { connectService(.cursor) },
-                            onDisconnect: { account in disconnectAccount(account) },
-                            onToggleDisabled: { account in toggleAccountDisabled(account) },
-                            onToggleEnabled: { enabled in serverManager.setProviderEnabled(.cursor, enabled: enabled) },
                             toggleTint: cursorEffortSelectionColor,
-                            onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
-                        ) { EmptyView() }
+                            helpText: "Enter your Cursor API Key (from https://cursor-api.standardagents.ai/) to proxy requests directly to Cursor."
+                        )
                     }
-
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -832,9 +803,7 @@ struct SettingsView: View {
                         .font(.caption)
                         .underline()
                         .foregroundColor(oledFooterText)
-                        .onHover { inside in
-                            if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                        }
+                        .pointingHandCursor()
                     Text("|")
                         .font(.caption)
                         .foregroundColor(oledFooterText)
@@ -859,9 +828,7 @@ struct SettingsView: View {
                     .padding(.vertical, 4)
                     .droidGlassCapsule(tint: Color.white.opacity(0.08), interactive: true)
                     .padding(.top, 6)
-                    .onHover { inside in
-                        if inside { NSCursor.pointingHand.push() } else { NSCursor.pop() }
-                    }
+                    .pointingHandCursor()
             }
             .padding(.bottom, 12)
         }
@@ -929,6 +896,33 @@ struct SettingsView: View {
 
     // MARK: - Actions
 
+    /// Constructs a `ServiceRow` wired up to the standard auth/server callbacks.
+    /// Keeps the body's `Section("Services")` declaration compact and free of
+    /// repeated boilerplate per provider.
+    @ViewBuilder
+    private func providerServiceRow(
+        _ serviceType: ServiceType,
+        iconName: String,
+        toggleTint: Color,
+        helpText: String? = nil
+    ) -> some View {
+        ServiceRow(
+            serviceType: serviceType,
+            iconName: iconName,
+            accounts: authManager.accounts(for: serviceType),
+            isAuthenticating: authenticatingService == serviceType,
+            helpText: helpText,
+            isEnabled: serverManager.isProviderEnabled(serviceType),
+            customTitle: nil,
+            onConnect: { connectService(serviceType) },
+            onDisconnect: { account in disconnectAccount(account) },
+            onToggleDisabled: { account in toggleAccountDisabled(account) },
+            onToggleEnabled: { enabled in serverManager.setProviderEnabled(serviceType, enabled: enabled) },
+            toggleTint: toggleTint,
+            onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
+        ) { EmptyView() }
+    }
+
     @ViewBuilder
     private func codexFastModeToggleRow(_ title: String, isOn: Binding<Bool>, helpText: String) -> some View {
         HStack {
@@ -947,16 +941,13 @@ struct SettingsView: View {
     
     private func toggleAccountDisabled(_ account: AuthAccount) {
         if authManager.toggleAccountDisabled(account) {
-            authResultSuccess = true
             authResultMessage = account.isDisabled
                 ? "✓ Enabled \(account.displayName)"
                 : "✓ Disabled \(account.displayName)"
-            showingAuthResult = true
         } else {
-            authResultSuccess = false
             authResultMessage = "Failed to update \(account.displayName). Please try again."
-            showingAuthResult = true
         }
+        showingAuthResult = true
     }
 
     private func refreshOAuthUsage() {
@@ -1027,23 +1018,20 @@ struct SettingsView: View {
         case .codex: command = .codexLogin
         case .antigravity: command = .antigravityLogin
         case .kimi: command = .kimiLogin
-        case .cursor: command = .kimiLogin // Unreachable but required for exhaustiveness
+        case .cursor: return // handled by the early-return above; defensive
         }
         
         serverManager.runAuthCommand(command) { success, output in
             NSLog("[SettingsView] Auth completed - success: %d, output: %@", success, output)
             DispatchQueue.main.async {
                 self.authenticatingService = nil
-                
                 if success {
-                    self.authResultSuccess = true
                     self.authResultMessage = self.successMessage(for: serviceType)
-                    self.showingAuthResult = true
                 } else {
-                    self.authResultSuccess = false
-                    self.authResultMessage = "Authentication failed. Please check if the browser opened and try again.\n\nDetails: \(output.isEmpty ? "No output from authentication process" : output)"
-                    self.showingAuthResult = true
+                    let details = output.isEmpty ? "No output from authentication process" : output
+                    self.authResultMessage = "Authentication failed. Please check if the browser opened and try again.\n\nDetails: \(details)"
                 }
+                self.showingAuthResult = true
             }
         }
     }
@@ -1082,13 +1070,11 @@ struct SettingsView: View {
             NSLog("[SettingsView] Saved Cursor API Key with secure permissions to \(fileURL.path)")
             
             authManager.checkAuthStatus()
-            
-            self.authResultSuccess = true
+
             self.authResultMessage = "✓ Successfully added Cursor API Key."
             self.showingAuthResult = true
         } catch {
             NSLog("[SettingsView] Failed to save Cursor API Key: \(error.localizedDescription)")
-            self.authResultSuccess = false
             self.authResultMessage = "Failed to save Cursor API Key: \(error.localizedDescription)"
             self.showingAuthResult = true
         }
@@ -1100,10 +1086,8 @@ struct SettingsView: View {
         // Stop server, delete file, restart
         let cleanup = {
             if self.authManager.deleteAccount(account) {
-                self.authResultSuccess = true
                 self.authResultMessage = "✓ Removed \(account.displayName) from \(account.type.displayName)"
             } else {
-                self.authResultSuccess = false
                 self.authResultMessage = "Failed to remove account"
             }
             self.showingAuthResult = true
@@ -1195,12 +1179,10 @@ struct SettingsView: View {
             }
             try data.write(to: url, options: .atomic)
             factoryModelsInstalled = true
-            authResultSuccess = true
             authResultMessage = "DroidProxy models added to Factory settings.\n\nA timestamped backup was saved next to settings.json before writing. Reasoning effort is controlled from Droid CLI per session when the selected model exposes multiple levels. Restart Factory or open a new session to see them in the model picker."
             showingAuthResult = true
             NSLog("[SettingsView] Factory custom models applied to %@", url.path)
         } catch {
-            authResultSuccess = false
             authResultMessage = "Failed to update Factory settings: \(error.localizedDescription)"
             showingAuthResult = true
             NSLog("[SettingsView] Failed to apply Factory custom models: %@", error.localizedDescription)

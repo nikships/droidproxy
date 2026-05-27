@@ -154,65 +154,64 @@ class ThinkingProxy {
     private func receiveNextChunk(from connection: NWConnection, accumulatedData: Data) {
         connection.receive(minimumIncompleteLength: 1, maximumLength: 1048576) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
-            
+
             if let error = error {
                 NSLog("[ThinkingProxy] Receive error: \(error)")
                 connection.cancel()
                 return
             }
-            
+
             guard let data = data, !data.isEmpty else {
                 if isComplete {
                     connection.cancel()
                 }
                 return
             }
-            
+
             var newAccumulatedData = accumulatedData
             newAccumulatedData.append(data)
-            
+
             // Find the end of headers (\r\n\r\n) using quick binary match to avoid O(N^2) UTF-8 string decodes on every chunk
             let headerEndPattern = Data([13, 10, 13, 10]) // "\r\n\r\n"
-            if let headerEndRange = newAccumulatedData.range(of: headerEndPattern) {
-                // Parse headers only, keeping the massive body as raw binary data
-                let headerData = Data(newAccumulatedData[..<headerEndRange.upperBound])
-                if let headerString = String(data: headerData, encoding: .utf8) {
-                    
-                    // Look for Content-Length
-                    let lines = headerString.components(separatedBy: "\r\n")
-                    if let contentLengthLine = lines.first(where: { $0.lowercased().starts(with: "content-length:") }) {
-                        let parts = contentLengthLine.components(separatedBy: ":")
-                        if parts.count >= 2 {
-                            let contentLengthStr = parts[1].trimmingCharacters(in: .whitespaces)
-                            if let contentLength = Int(contentLengthStr) {
-                                let bodyStartIndex = headerEndRange.upperBound
-                                let currentBodyLength = newAccumulatedData.count - bodyStartIndex
-                                
-                                // If we haven't received the full body yet, schedule next iteration
-                                if currentBodyLength < contentLength {
-                                    if isComplete {
-                                        // End of stream but content length was not met; process the partial bytes we have
-                                        self.processRequest(data: newAccumulatedData, connection: connection)
-                                    } else {
-                                        self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
-                                    }
-                                    return
-                                }
-                            }
-                        }
-                    }
+            guard let headerEndRange = newAccumulatedData.range(of: headerEndPattern) else {
+                if isComplete {
+                    // Complete but malformed (no headers end found); process what we have.
+                    self.processRequest(data: newAccumulatedData, connection: connection)
+                } else {
+                    // Haven't found header end yet; schedule next iteration.
+                    self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
                 }
-                
-                // We have a complete request, process it
-                self.processRequest(data: newAccumulatedData, connection: connection)
-            } else if !isComplete {
-                // Haven't found header end yet, schedule next iteration
-                self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
-            } else {
-                // Complete but malformed (no headers end found), process what we have
-                self.processRequest(data: newAccumulatedData, connection: connection)
+                return
             }
+
+            // If Content-Length advertises more bytes than we've received and the
+            // stream is still open, keep reading. Otherwise (full body, missing
+            // header, or truncated stream) hand off to processRequest.
+            let bodyReceived = newAccumulatedData.count - headerEndRange.upperBound
+            if !isComplete,
+               let contentLength = self.parseContentLength(in: newAccumulatedData[..<headerEndRange.upperBound]),
+               bodyReceived < contentLength {
+                self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
+                return
+            }
+
+            self.processRequest(data: newAccumulatedData, connection: connection)
         }
+    }
+
+    /// Parses the `Content-Length` value from the raw header bytes of an HTTP
+    /// request. Returns nil if the header is missing or unparseable.
+    private func parseContentLength(in headerData: Data) -> Int? {
+        guard let headerString = String(data: headerData, encoding: .utf8) else {
+            return nil
+        }
+        for line in headerString.components(separatedBy: "\r\n")
+            where line.lowercased().hasPrefix("content-length:") {
+            guard let colonIndex = line.firstIndex(of: ":") else { continue }
+            let value = line[line.index(after: colonIndex)...].trimmingCharacters(in: .whitespaces)
+            return Int(value)
+        }
+        return nil
     }
     
     /**
@@ -260,9 +259,8 @@ class ThinkingProxy {
             sendError(to: connection, statusCode: 400, message: "Invalid request format - no body separator")
             return
         }
-        
-        let bodyStart = requestString.distance(from: requestString.startIndex, to: bodyStartRange.upperBound)
-        let bodyString = String(requestString[requestString.index(requestString.startIndex, offsetBy: bodyStart)...])
+
+        let bodyString = String(requestString[bodyStartRange.upperBound...])
         
         // Redirect Amp CLI login directly to ampcode.com to preserve auth state cookies
         if path.starts(with: "/auth/cli-login") || path.starts(with: "/api/auth/cli-login") {
@@ -928,93 +926,91 @@ class ThinkingProxy {
     private func receiveAmpResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
-            
+
             if let error = error {
                 NSLog("[ThinkingProxy] Receive Amp response error: \(error)")
                 targetConnection.cancel()
                 originalConnection.cancel()
                 return
             }
-            
-            if let data = data, !data.isEmpty {
-                // Convert to string to rewrite headers
-                if var responseString = String(data: data, encoding: .utf8) {
-                    // Rewrite Location headers to prepend /api/
-                    responseString = responseString.replacingOccurrences(
-                        of: "\r\nlocation: /",
-                        with: "\r\nlocation: /api/",
-                        options: .caseInsensitive
-                    )
-                    responseString = responseString.replacingOccurrences(
-                        of: "\r\nLocation: /",
-                        with: "\r\nLocation: /api/"
-                    )
 
-                    // Rewrite absolute Location headers to keep browser on localhost proxy
-                    responseString = responseString.replacingOccurrences(
-                        of: "\r\nLocation: https://ampcode.com/",
-                        with: "\r\nLocation: /api/",
-                        options: .caseInsensitive
-                    )
-                    responseString = responseString.replacingOccurrences(
-                        of: "\r\nLocation: http://ampcode.com/",
-                        with: "\r\nLocation: /api/",
-                        options: .caseInsensitive
-                    )
-
-                    // Rewrite cookie domain so browser accepts cookies from localhost
-                    responseString = responseString.replacingOccurrences(
-                        of: "Domain=.ampcode.com",
-                        with: "Domain=localhost",
-                        options: .caseInsensitive
-                    )
-                    responseString = responseString.replacingOccurrences(
-                        of: "Domain=ampcode.com",
-                        with: "Domain=localhost",
-                        options: .caseInsensitive
-                    )
-                    
-                    if let modifiedData = responseString.data(using: .utf8) {
-                        originalConnection.send(content: modifiedData, completion: .contentProcessed({ sendError in
-                            if let sendError = sendError {
-                                NSLog("[ThinkingProxy] Send Amp response error: \(sendError)")
-                            }
-                            
-                            if isComplete {
-                                targetConnection.cancel()
-                                originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                                    originalConnection.cancel()
-                                }))
-                            } else {
-                                // Continue receiving more data
-                                self.receiveAmpResponse(from: targetConnection, originalConnection: originalConnection)
-                            }
-                        }))
-                    }
-                } else {
-                    // Not UTF-8, forward as-is
-                    originalConnection.send(content: data, completion: .contentProcessed({ sendError in
-                        if let sendError = sendError {
-                            NSLog("[ThinkingProxy] Send Amp response error: \(sendError)")
-                        }
-                        
-                        if isComplete {
-                            targetConnection.cancel()
-                            originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                                originalConnection.cancel()
-                            }))
-                        } else {
-                            self.receiveAmpResponse(from: targetConnection, originalConnection: originalConnection)
-                        }
-                    }))
+            guard let data = data, !data.isEmpty else {
+                if isComplete {
+                    self.finishStreaming(target: targetConnection, client: originalConnection)
                 }
-            } else if isComplete {
-                targetConnection.cancel()
-                originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                    originalConnection.cancel()
-                }))
+                return
             }
+
+            // Pick what to forward: rewritten UTF-8 bytes if possible, else original.
+            // If we successfully decoded UTF-8 but failed to re-encode (unreachable
+            // in practice), match the original behavior of dropping the chunk.
+            let outboundData: Data
+            if let responseString = String(data: data, encoding: .utf8) {
+                guard let modifiedData = self.rewriteAmpResponseHeaders(in: responseString).data(using: .utf8) else {
+                    return
+                }
+                outboundData = modifiedData
+            } else {
+                outboundData = data
+            }
+
+            originalConnection.send(content: outboundData, completion: .contentProcessed({ sendError in
+                if let sendError = sendError {
+                    NSLog("[ThinkingProxy] Send Amp response error: \(sendError)")
+                }
+
+                if isComplete {
+                    self.finishStreaming(target: targetConnection, client: originalConnection)
+                } else {
+                    self.receiveAmpResponse(from: targetConnection, originalConnection: originalConnection)
+                }
+            }))
         }
+    }
+
+    /// Rewrites Amp response headers so browser flows continue to work through the
+    /// local proxy: prepends `/api/` to relative Location values, strips the
+    /// `https://ampcode.com/` host from absolute Location values, and rewrites
+    /// `Domain=` cookie attributes to `localhost`.
+    private func rewriteAmpResponseHeaders(in responseString: String) -> String {
+        var result = responseString
+
+        // Rewrite Location headers to prepend /api/
+        result = result.replacingOccurrences(
+            of: "\r\nlocation: /",
+            with: "\r\nlocation: /api/",
+            options: .caseInsensitive
+        )
+        result = result.replacingOccurrences(
+            of: "\r\nLocation: /",
+            with: "\r\nLocation: /api/"
+        )
+
+        // Rewrite absolute Location headers to keep browser on localhost proxy
+        result = result.replacingOccurrences(
+            of: "\r\nLocation: https://ampcode.com/",
+            with: "\r\nLocation: /api/",
+            options: .caseInsensitive
+        )
+        result = result.replacingOccurrences(
+            of: "\r\nLocation: http://ampcode.com/",
+            with: "\r\nLocation: /api/",
+            options: .caseInsensitive
+        )
+
+        // Rewrite cookie domain so browser accepts cookies from localhost
+        result = result.replacingOccurrences(
+            of: "Domain=.ampcode.com",
+            with: "Domain=localhost",
+            options: .caseInsensitive
+        )
+        result = result.replacingOccurrences(
+            of: "Domain=ampcode.com",
+            with: "Domain=localhost",
+            options: .caseInsensitive
+        )
+
+        return result
     }
 
     /**
@@ -1039,11 +1035,9 @@ class ThinkingProxy {
                 let excludedHeaders: Set<String> = ["content-length", "host", "transfer-encoding"]
 
                 for (name, value) in headers {
-                    let lowercasedName = name.lowercased()
-                    if excludedHeaders.contains(lowercasedName) {
-                        continue
+                    if !excludedHeaders.contains(name.lowercased()) {
+                        forwardedRequest += "\(name): \(value)\r\n"
                     }
-                    forwardedRequest += "\(name): \(value)\r\n"
                 }
 
                 // Override Host header
@@ -1101,17 +1095,17 @@ class ThinkingProxy {
      */
     private func streamNextChunk(from targetConnection: NWConnection,
                                  to originalConnection: NWConnection,
-                                 rewriteState: AmpProviderRewriteState? = nil) {
+                                 rewriteState: AmpProviderRewriteState?) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
-            
+
             if let error = error {
                 NSLog("[ThinkingProxy] Receive response error: \(error)")
                 targetConnection.cancel()
                 originalConnection.cancel()
                 return
             }
-            
+
             if let data = data, !data.isEmpty {
                 var outboundData = data
                 if let rewriteState {
@@ -1128,13 +1122,9 @@ class ThinkingProxy {
                     if let sendError = sendError {
                         NSLog("[ThinkingProxy] Send response error: \(sendError)")
                     }
-                    
+
                     if isComplete {
-                        targetConnection.cancel()
-                        // Always close client connection - no keep-alive/pipelining support
-                        originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                            originalConnection.cancel()
-                        }))
+                        self.finishStreaming(target: targetConnection, client: originalConnection)
                     } else {
                         // Schedule next iteration of the streaming loop
                         self.streamNextChunk(from: targetConnection, to: originalConnection, rewriteState: rewriteState)
@@ -1157,6 +1147,18 @@ class ThinkingProxy {
                 }
             }
         }
+    }
+
+    /**
+     Cancels the target connection and signals end-of-stream to the client before
+     cancelling it as well. Safe to call even if `target` has already been
+     cancelled — `NWConnection.cancel()` is idempotent.
+     */
+    private func finishStreaming(target: NWConnection, client: NWConnection) {
+        target.cancel()
+        client.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
+            client.cancel()
+        }))
     }
     
     /**
@@ -1300,35 +1302,32 @@ class ThinkingProxy {
     private func receiveCursorResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
-            
+
             if let error = error {
                 NSLog("[ThinkingProxy] Receive Cursor response error: \(error)")
                 targetConnection.cancel()
                 originalConnection.cancel()
                 return
             }
-            
-            if let data = data, !data.isEmpty {
-                originalConnection.send(content: data, completion: .contentProcessed({ sendError in
-                    if let sendError = sendError {
-                        NSLog("[ThinkingProxy] Send Cursor response error: \(sendError)")
-                    }
-                    
-                    if isComplete {
-                        targetConnection.cancel()
-                        originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                            originalConnection.cancel()
-                        }))
-                    } else {
-                        self.receiveCursorResponse(from: targetConnection, originalConnection: originalConnection)
-                    }
-                }))
-            } else if isComplete {
-                targetConnection.cancel()
-                originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                    originalConnection.cancel()
-                }))
+
+            guard let data = data, !data.isEmpty else {
+                if isComplete {
+                    self.finishStreaming(target: targetConnection, client: originalConnection)
+                }
+                return
             }
+
+            originalConnection.send(content: data, completion: .contentProcessed({ sendError in
+                if let sendError = sendError {
+                    NSLog("[ThinkingProxy] Send Cursor response error: \(sendError)")
+                }
+
+                if isComplete {
+                    self.finishStreaming(target: targetConnection, client: originalConnection)
+                } else {
+                    self.receiveCursorResponse(from: targetConnection, originalConnection: originalConnection)
+                }
+            }))
         }
     }
 }

@@ -32,21 +32,8 @@ final class AuthDirectoryMonitor {
             queue: DispatchQueue.main
         )
 
-        source.setEventHandler { [weak self] in
-            guard let self else { return }
-            pendingRefresh?.cancel()
-            let workItem = DispatchWorkItem { [weak self] in
-                guard let self else { return }
-                NSLog("%@ Auth directory changed", logPrefix)
-                onChange()
-            }
-            pendingRefresh = workItem
-            DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: workItem)
-        }
-
-        source.setCancelHandler {
-            close(fileDescriptor)
-        }
+        source.setEventHandler { [weak self] in self?.scheduleRefresh() }
+        source.setCancelHandler { close(fileDescriptor) }
 
         source.resume()
         self.source = source
@@ -57,5 +44,16 @@ final class AuthDirectoryMonitor {
         pendingRefresh = nil
         source?.cancel()
         source = nil
+    }
+
+    private func scheduleRefresh() {
+        pendingRefresh?.cancel()
+        let workItem = DispatchWorkItem { [weak self] in
+            guard let self else { return }
+            NSLog("%@ Auth directory changed", logPrefix)
+            onChange()
+        }
+        pendingRefresh = workItem
+        DispatchQueue.main.asyncAfter(deadline: .now() + debounceInterval, execute: workItem)
     }
 }

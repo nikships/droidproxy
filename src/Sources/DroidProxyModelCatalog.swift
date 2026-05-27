@@ -56,14 +56,12 @@ struct DroidProxyModelDefinition: Equatable {
         ]
         guard !levels.isEmpty else { return entry }
         entry["enableThinking"] = true
-        let defLevel = levels.count == 1 ? levels[0].value : defaultLevelValue
-        entry["reasoningEffort"] = defLevel
+        entry["reasoningEffort"] = levels.count == 1 ? levels[0].value : defaultLevelValue
         return entry
     }
 }
 
 enum DroidProxyModelCatalog {
-    private static let minimal = DroidProxyThinkingLevel(value: "minimal", displayName: "Minimal")
     private static let low = DroidProxyThinkingLevel(value: "low", displayName: "Low")
     private static let medium = DroidProxyThinkingLevel(value: "medium", displayName: "Medium")
     private static let high = DroidProxyThinkingLevel(value: "high", displayName: "High")
@@ -73,21 +71,13 @@ enum DroidProxyModelCatalog {
     private static let claudeAdvancedLevels = [low, medium, high, xhigh, max]
     private static let claudeClassicLevels = [low, medium, high, max]
     private static let codexLevels = [low, medium, high, xhigh]
-    private static let kimiLevels = [high]
-    private static let antigravityLowLevel = [low]
-    private static let antigravityMediumLevel = [medium]
-    private static let antigravityHighLevel = [high]
-    private static let gemini35FlashAntigravityLevels = [medium, high]
-    private static let geminiProLevels = [low, medium, high]
-    private static let geminiFlashLevels = [minimal, low, medium, high]
-    private static let cursorLevels = [high]
 
     private static func antigravityModel(
         baseModel: String,
         idSlug: String,
         displayName: String,
         maxOutputTokens: Int = 65536,
-        levels: [DroidProxyThinkingLevel] = antigravityHighLevel,
+        levels: [DroidProxyThinkingLevel] = [high],
         defaultLevelValue: String = "high"
     ) -> DroidProxyModelDefinition {
         DroidProxyModelDefinition(
@@ -215,7 +205,7 @@ enum DroidProxyModelCatalog {
                 baseModel: "gemini-3.1-pro-low",
                 idSlug: "gemini-3.1-pro-low",
                 displayName: "Gemini 3.1 Pro (Low)",
-                levels: antigravityLowLevel,
+                levels: [low],
                 defaultLevelValue: "low"
             ),
             antigravityModel(
@@ -227,14 +217,14 @@ enum DroidProxyModelCatalog {
                 baseModel: "gemini-3-flash-agent",
                 idSlug: "gemini-3.5-flash",
                 displayName: "Gemini 3.5 Flash",
-                levels: gemini35FlashAntigravityLevels,
+                levels: [medium, high],
                 defaultLevelValue: "high"
             ),
             antigravityModel(
                 baseModel: "gemini-3.5-flash-low",
                 idSlug: "gemini-3.5-flash-low",
                 displayName: "Gemini 3.5 Flash (Low)",
-                levels: antigravityLowLevel,
+                levels: [low],
                 defaultLevelValue: "low"
             ),
             antigravityModel(
@@ -259,7 +249,7 @@ enum DroidProxyModelCatalog {
                 idSlug: "gpt-oss-120b-medium",
                 displayName: "GPT-OSS 120B (Medium)",
                 maxOutputTokens: 32768,
-                levels: antigravityMediumLevel,
+                levels: [medium],
                 defaultLevelValue: "medium"
             ),
             DroidProxyModelDefinition(
@@ -271,7 +261,7 @@ enum DroidProxyModelCatalog {
                 providerKey: "kimi",
                 baseURL: "http://localhost:8317/v1",
                 kind: .kimi,
-                levels: kimiLevels,
+                levels: [high],
                 defaultLevelValue: "high"
             )
         ]
@@ -287,7 +277,7 @@ enum DroidProxyModelCatalog {
                     providerKey: "cursor",
                     baseURL: "http://localhost:8317/v1",
                     kind: .cursor,
-                    levels: cursorLevels,
+                    levels: [high],
                     defaultLevelValue: "high"
                 ),
                 DroidProxyModelDefinition(
@@ -299,7 +289,7 @@ enum DroidProxyModelCatalog {
                     providerKey: "cursor",
                     baseURL: "http://localhost:8317/v1",
                     kind: .cursor,
-                    levels: cursorLevels,
+                    levels: [high],
                     defaultLevelValue: "high"
                 )
             ])
@@ -318,5 +308,4 @@ enum DroidProxyModelCatalog {
     static var allSettingsIDs: Set<String> {
         Set(definitions.map(\.simpleID))
     }
-
 }

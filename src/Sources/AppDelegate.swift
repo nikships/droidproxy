@@ -11,10 +11,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var serverManager: ServerManager!
     var thinkingProxy: ThinkingProxy!
     private let notificationCenter = UNUserNotificationCenter.current()
-    private var notificationPermissionGranted = false
     private let updaterController: SPUStandardUpdaterController
     private var authDirectoryMonitor: AuthDirectoryMonitor?
     private var themeObserver: NSObjectProtocol?
+
+    private static let menuBarIconSize = NSSize(width: 18, height: 18)
+
+    // Menu item tags used by `updateMenuBarStatus` to look up entries again.
+    private enum MenuTag {
+        static let startStop = 100
+        static let copyURL = 102
+        static let dashboard = 103
+    }
     
     override init() {
         self.updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
@@ -61,35 +69,28 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     private func preloadIcons() {
-        let statusIconSize = NSSize(width: 18, height: 18)
         let serviceIconSize = NSSize(width: 20, height: 20)
-        
-        let iconsToPreload = [
-            ("icon-active.png", statusIconSize),
-            ("icon-inactive.png", statusIconSize),
+        let iconsToPreload: [(name: String, size: NSSize)] = [
+            ("icon-active.png", Self.menuBarIconSize),
+            ("icon-inactive.png", Self.menuBarIconSize),
             ("icon-claude.png", serviceIconSize),
             ("icon-codex.png", serviceIconSize),
             ("icon-gemini.png", serviceIconSize)
         ]
-        
-        for (name, size) in iconsToPreload {
-            if IconCatalog.shared.image(named: name, resizedTo: size, template: true) == nil {
-                NSLog("[IconPreload] Warning: Failed to preload icon '%@'", name)
-            }
+
+        for (name, size) in iconsToPreload where IconCatalog.shared.image(named: name, resizedTo: size, template: true) == nil {
+            NSLog("[IconPreload] Warning: Failed to preload icon '%@'", name)
         }
     }
     
     private func configureNotifications() {
         notificationCenter.delegate = self
-        notificationCenter.requestAuthorization(options: [.alert, .sound]) { [weak self] granted, error in
+        notificationCenter.requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
                 NSLog("[Notifications] Authorization failed: %@", error.localizedDescription)
             }
-            DispatchQueue.main.async {
-                self?.notificationPermissionGranted = granted
-                if !granted {
-                    NSLog("[Notifications] Authorization not granted; notifications will be suppressed")
-                }
+            if !granted {
+                NSLog("[Notifications] Authorization not granted; notifications will be suppressed")
             }
         }
     }
@@ -124,63 +125,62 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     
     func setupMenuBar() {
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
-
-        if let button = statusItem.button {
-            if let icon = IconCatalog.shared.image(named: "icon-inactive.png", resizedTo: NSSize(width: 18, height: 18), template: true) {
-                button.image = icon
-            } else {
-                let fallback = NSImage(systemSymbolName: "network.slash", accessibilityDescription: "DroidProxy")
-                fallback?.isTemplate = true
-                button.image = fallback
-                NSLog("[MenuBar] Failed to load inactive icon from bundle; using fallback system icon")
-            }
-        }
+        updateStatusBarIcon(isRunning: false)
 
         menu = NSMenu()
-
-        // Server Status
         menu.addItem(NSMenuItem(title: "Server: Stopped", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
 
-        // Main Actions
         menu.addItem(NSMenuItem(title: "Open Settings", action: #selector(openSettings), keyEquivalent: "s"))
         menu.addItem(NSMenuItem.separator())
-        
-        // Server Control
+
         let startStopItem = NSMenuItem(title: "Start Server", action: #selector(toggleServer), keyEquivalent: "")
-        startStopItem.tag = 100
+        startStopItem.tag = MenuTag.startStop
         menu.addItem(startStopItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // Copy URL
         let copyURLItem = NSMenuItem(title: "Copy Server URL", action: #selector(copyServerURL), keyEquivalent: "c")
         copyURLItem.isEnabled = false
-        copyURLItem.tag = 102
+        copyURLItem.tag = MenuTag.copyURL
         menu.addItem(copyURLItem)
 
-        // Open Dashboard
         let dashboardItem = NSMenuItem(title: "Open Dashboard", action: #selector(openDashboard), keyEquivalent: "d")
         dashboardItem.isEnabled = false
-        dashboardItem.tag = 103
+        dashboardItem.tag = MenuTag.dashboard
         menu.addItem(dashboardItem)
 
         menu.addItem(NSMenuItem.separator())
 
-        // Check for Updates
         let checkForUpdatesItem = NSMenuItem(title: "Check for Updates...", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "u")
         checkForUpdatesItem.target = updaterController
         menu.addItem(checkForUpdatesItem)
 
         menu.addItem(NSMenuItem.separator())
-
-        // Quit
         menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
 
         statusItem.menu = menu
     }
 
+    /// Updates the menu-bar icon to reflect the current running state, falling
+    /// back to system symbols when bundled assets are unavailable.
+    private func updateStatusBarIcon(isRunning: Bool) {
+        guard let button = statusItem?.button else { return }
+        let iconName = isRunning ? "icon-active.png" : "icon-inactive.png"
+        let stateLabel = isRunning ? "active" : "inactive"
 
+        if let icon = IconCatalog.shared.image(named: iconName, resizedTo: Self.menuBarIconSize, template: true) {
+            button.image = icon
+            return
+        }
+
+        let fallbackSymbol = isRunning ? "network" : "network.slash"
+        let accessibilityLabel = isRunning ? "Running" : "Stopped"
+        let fallback = NSImage(systemSymbolName: fallbackSymbol, accessibilityDescription: accessibilityLabel)
+        fallback?.isTemplate = true
+        button.image = fallback
+        NSLog("[MenuBar] Failed to load %@ icon; using fallback", stateLabel)
+    }
 
     @objc func openSettings() {
         if settingsWindow == nil {
@@ -230,20 +230,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     private func applyTheme(to window: NSWindow) {
-        let opacity = AppPreferences.backgroundOpacity
-        if opacity >= 1.0 {
-            // Fully opaque: make the window a solid NSWindow so macOS doesn't
-            // composite the desktop behind it regardless of SwiftUI layers.
-            window.isOpaque = true
-            window.backgroundColor = .black
-            window.alphaValue = 1.0
-        } else {
-            // Translucent: keep non-opaque so VisualEffectBlur can show the
-            // desktop blur. SwiftUI layers control the visible opacity.
-            window.isOpaque = false
-            window.backgroundColor = .clear
-            window.alphaValue = 1.0
-        }
+        // Fully opaque: solid NSWindow so macOS doesn't composite the desktop
+        // behind it regardless of SwiftUI layers.
+        // Translucent: keep non-opaque so VisualEffectBlur can show the desktop
+        // blur; SwiftUI layers control the visible opacity.
+        let isOpaque = AppPreferences.backgroundOpacity >= 1.0
+        window.isOpaque = isOpaque
+        window.backgroundColor = isOpaque ? .black : .clear
+        window.alphaValue = 1.0
     }
 
     @objc func toggleServer() {
@@ -300,13 +294,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     func stopServer() {
-        // Stop the thinking proxy first to stop accepting new requests
+        // Stop the thinking proxy first to stop accepting new requests,
+        // then shut down the CLIProxyAPI backend.
         thinkingProxy.stop()
-        
-        // Then stop CLIProxyAPI backend
         serverManager.stop()
-        
         updateMenuBarStatus()
+    }
+
+    /// Shut down both local servers if the backend is currently running. Safe
+    /// to call from termination paths where state may already be torn down.
+    private func stopServersIfRunning() {
+        guard serverManager.isRunning else { return }
+        thinkingProxy.stop()
+        serverManager.stop()
     }
 
     @objc func copyServerURL() {
@@ -324,47 +324,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
 
     @objc func handleAuthDirectoryChanged() {
         NSLog("[AppDelegate] Auth directory changed notification received — refreshing settings")
-        // Re-open settings window if it exists so the user sees the new account
-        if let window = settingsWindow {
-            window.makeKeyAndOrderFront(nil)
-            NSApp.activate(ignoringOtherApps: true)
-        }
+        // Re-open the settings window if it's already onscreen so the user sees
+        // the newly-discovered account.
+        guard let window = settingsWindow else { return }
+        window.makeKeyAndOrderFront(nil)
+        NSApp.activate(ignoringOtherApps: true)
     }
 
     @objc func updateMenuBarStatus() {
-        // Update status items
+        let isRunning = serverManager.isRunning
+
         if let serverStatus = menu.item(at: 0) {
-            serverStatus.title = serverManager.isRunning ? "Server: Running (port \(thinkingProxy.proxyPort))" : "Server: Stopped"
+            serverStatus.title = isRunning ? "Server: Running (port \(thinkingProxy.proxyPort))" : "Server: Stopped"
         }
+        menu.item(withTag: MenuTag.startStop)?.title = isRunning ? "Stop Server" : "Start Server"
+        menu.item(withTag: MenuTag.copyURL)?.isEnabled = isRunning
+        menu.item(withTag: MenuTag.dashboard)?.isEnabled = isRunning
 
-        // Update button states
-        if let startStopItem = menu.item(withTag: 100) {
-            startStopItem.title = serverManager.isRunning ? "Stop Server" : "Start Server"
-        }
-
-        if let copyURLItem = menu.item(withTag: 102) {
-            copyURLItem.isEnabled = serverManager.isRunning
-        }
-
-        if let dashboardItem = menu.item(withTag: 103) {
-            dashboardItem.isEnabled = serverManager.isRunning
-        }
-
-        // Update icon based on server status
-        if let button = statusItem.button {
-            let iconName = serverManager.isRunning ? "icon-active.png" : "icon-inactive.png"
-            let fallbackSymbol = serverManager.isRunning ? "network" : "network.slash"
-            
-            if let icon = IconCatalog.shared.image(named: iconName, resizedTo: NSSize(width: 18, height: 18), template: true) {
-                button.image = icon
-                NSLog("[MenuBar] Loaded %@ icon from cache", serverManager.isRunning ? "active" : "inactive")
-            } else {
-                let fallback = NSImage(systemSymbolName: fallbackSymbol, accessibilityDescription: serverManager.isRunning ? "Running" : "Stopped")
-                fallback?.isTemplate = true
-                button.image = fallback
-                NSLog("[MenuBar] Failed to load %@ icon; using fallback", serverManager.isRunning ? "active" : "inactive")
-            }
-        }
+        updateStatusBarIcon(isRunning: isRunning)
     }
 
     func showNotification(title: String, body: String) {
@@ -387,12 +364,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     @objc func quit() {
-        // Stop server and wait for cleanup before quitting
-        if serverManager.isRunning {
-            thinkingProxy.stop()
-            serverManager.stop()
-        }
-        // Give a moment for cleanup to complete
+        // Stop servers and give cleanup a moment before actually terminating.
+        stopServersIfRunning()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             NSApp.terminate(nil)
         }
@@ -401,28 +374,21 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self, name: .serverStatusChanged, object: nil)
         NotificationCenter.default.removeObserver(self, name: .authDirectoryChanged, object: nil)
-        if let themeObserver {
-            NotificationCenter.default.removeObserver(themeObserver)
-            self.themeObserver = nil
-        }
+        removeThemeObserver()
         authDirectoryMonitor?.stop()
         authDirectoryMonitor = nil
-        // Final cleanup - stop server if still running
-        if serverManager.isRunning {
-            thinkingProxy.stop()
-            serverManager.stop()
-        }
+        stopServersIfRunning()
     }
-    
+
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
-        // If server is running, stop it first
-        if serverManager.isRunning {
-            thinkingProxy.stop()
-            serverManager.stop()
-            // Give server time to stop (up to 3 seconds total with the improved stop method)
-            return .terminateNow
-        }
+        stopServersIfRunning()
         return .terminateNow
+    }
+
+    private func removeThemeObserver() {
+        guard let themeObserver else { return }
+        NotificationCenter.default.removeObserver(themeObserver)
+        self.themeObserver = nil
     }
     
     // MARK: - Auth Directory Monitoring
@@ -447,12 +413,8 @@ extension Notification.Name {
 
 extension AppDelegate {
     func windowDidClose(_ notification: Notification) {
-        if notification.object as? NSWindow === settingsWindow {
-            if let themeObserver {
-                NotificationCenter.default.removeObserver(themeObserver)
-                self.themeObserver = nil
-            }
-            settingsWindow = nil
-        }
+        guard notification.object as? NSWindow === settingsWindow else { return }
+        removeThemeObserver()
+        settingsWindow = nil
     }
 }

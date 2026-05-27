@@ -38,11 +38,7 @@ enum AppPreferences {
     }
 
     static var secretKey: String {
-        let defaults = UserDefaults.standard
-        guard defaults.object(forKey: secretKeyKey) != nil else {
-            return defaultSecretKey
-        }
-        return defaults.string(forKey: secretKeyKey) ?? defaultSecretKey
+        UserDefaults.standard.string(forKey: secretKeyKey) ?? defaultSecretKey
     }
 
     static var backgroundOpacity: Double {
