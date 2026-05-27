@@ -311,6 +311,10 @@ class ThinkingProxy {
                     sendError(to: connection, statusCode: 400, message: "Cursor provider is disabled in DroidProxy settings.")
                     return
                 }
+                if let result = rewriteCursorModelAlias(jsonString: modifiedBody, fields: requestFields) {
+                    modifiedBody = result
+                    requestFields = inspectRequestJSONFields(in: modifiedBody)
+                }
                 forwardToCursor(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
                 return
             }
@@ -407,6 +411,10 @@ class ThinkingProxy {
         "ag-c46o-thinking": "claude-opus-4-6-thinking"
     ]
 
+    private static let cursorModelAliases: [String: String] = [
+        "cursor-composer-2.5": "composer-2.5"
+    ]
+
     private func rewriteAntigravityModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
         guard let model = fields?.model,
               let modelLocation = fields?.modelLocation,
@@ -417,6 +425,19 @@ class ThinkingProxy {
         var result = jsonString
         result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
         ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Antigravity alias)")
+        return result
+    }
+
+    private func rewriteCursorModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
+        guard let model = fields?.model,
+              let modelLocation = fields?.modelLocation,
+              let backendModel = Self.cursorModelAliases[model] else {
+            return nil
+        }
+
+        var result = jsonString
+        result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Cursor alias)")
         return result
     }
 
