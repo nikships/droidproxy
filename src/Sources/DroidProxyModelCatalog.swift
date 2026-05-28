@@ -2,7 +2,6 @@ import Foundation
 
 enum DroidProxyModelKind {
     case claudeAdaptive
-    case claudeClassic
     case codex
     case gemini
     case kimi
@@ -107,30 +106,6 @@ enum DroidProxyModelCatalog {
                 kind: .claudeAdaptive,
                 levels: claudeAdvancedLevels,
                 defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "claude-opus-4-6",
-                idSlug: "opus-4-6",
-                displayName: "Opus 4.6",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeAdaptive,
-                levels: claudeClassicLevels,
-                defaultLevelValue: "max"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "claude-opus-4-5-20251101",
-                idSlug: "opus-4-5",
-                displayName: "Opus 4.5",
-                maxOutputTokens: 64000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeClassic,
-                levels: claudeClassicLevels,
-                defaultLevelValue: "high"
             ),
             DroidProxyModelDefinition(
                 baseModel: "claude-sonnet-4-6",

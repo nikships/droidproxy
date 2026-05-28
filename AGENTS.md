@@ -72,7 +72,7 @@ What it still does today:
 What it no longer does (removed in the Droid-CLI-thinking refactor):
 
 - No Claude adaptive thinking injection (Opus 4.8 / 4.6 / Sonnet 4.6 — `thinking` + `output_config`)
-- No Opus 4.5 classic `thinking.budget_tokens` injection
+- No Opus 4.8 classic `thinking.budget_tokens` injection
 - No Codex `reasoning.effort` injection
 - No Gemini `generationConfig.thinkingConfig` injection
 - No Kimi `reasoning_effort` injection
