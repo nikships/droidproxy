@@ -71,12 +71,12 @@ What it still does today:
 
 What it no longer does (removed in the Droid-CLI-thinking refactor):
 
-- No Claude adaptive thinking injection (Opus 4.7 / 4.6 / Sonnet 4.6 — `thinking` + `output_config`)
+- No Claude adaptive thinking injection (Opus 4.8 / 4.6 / Sonnet 4.6 — `thinking` + `output_config`)
 - No Opus 4.5 classic `thinking.budget_tokens` injection
 - No Codex `reasoning.effort` injection
 - No Gemini `generationConfig.thinkingConfig` injection
 - No Kimi `reasoning_effort` injection
-- No `claude-opus-4-7(high)` / `gpt-5.2(xhigh)` etc. “advanced variant” suffix parsing — every level now ships in the single base entry via Droid CLI metadata
+- No `claude-opus-4-8(high)` / `gpt-5.2(xhigh)` etc. “advanced variant” suffix parsing — every level now ships in the single base entry via Droid CLI metadata
 - No Max Budget Mode override
 
 ### Amp routing

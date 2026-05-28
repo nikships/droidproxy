@@ -10,7 +10,7 @@ const cases = [
   {
     tag: '02 — Same Droid',
     title: 'Nothing about Factory Droid changes.',
-    body: 'DroidProxy installs custom models in your Factory client with one click. Pick "DroidProxy: Opus 4.7" instead of the default — same UI, same agent, same models. Your subscription handles the bill.',
+    body: 'DroidProxy installs custom models in your Factory client with one click. Pick "DroidProxy: Opus 4.8" instead of the default — same UI, same agent, same models. Your subscription handles the bill.',
     footLabel: 'Setup',
     footValue: 'install · sign in · apply',
     footRight: '1 click',
@@ -18,7 +18,7 @@ const cases = [
   {
     tag: '03 — Pick your lab',
     title: 'Mix and match Claude, ChatGPT & Gemini.',
-    body: 'Got a Claude Pro plan? Use Opus 4.7 and Sonnet 4.6. ChatGPT Plus? Run GPT-5 inside Droid. Gemini Advanced? Same. Sign in to whichever ones you have — the rest just stay disabled.',
+    body: 'Got a Claude Pro plan? Use Opus 4.8 and Sonnet 4.6. ChatGPT Plus? Run GPT-5 inside Droid. Gemini Advanced? Same. Sign in to whichever ones you have — the rest just stay disabled.',
     footLabel: 'Models',
     footValue: '7 supported · all optional',
     footRight: '3 labs',

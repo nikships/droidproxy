@@ -18,8 +18,8 @@ All releases are code-signed and notarized by Apple. Existing installs auto-upda
 ## Features
 
 - **One-click OAuth auth** -- Claude Code, Codex, Gemini, and Kimi login launched from the Settings window, with credential monitoring and automatic OAuth token refresh.
-- **Per-model reasoning/effort controls** -- Configure Opus 4.7, Sonnet 4.6, GPT 5.2, GPT 5.3 Codex, GPT 5.4, GPT 5.5, Gemini 3.1 Pro, Gemini 3 Flash, and Kimi K2.6 directly from the Settings window. Also supports `fast` mode for gpt models.
-- **Max Budget Mode** -- Nuclear launch button that forces maximum reasoning on Opud/Sonnet 4.6 requests: classic extended thinking with `budget_tokens: 63999`, `max_tokens: 64000`, and `effort: max`. Opus 4.7 does not need this override. Full thinking power for Sonnet, your quota's problem.
+- **Per-model reasoning/effort controls** -- Configure Opus 4.8, Sonnet 4.6, GPT 5.2, GPT 5.3 Codex, GPT 5.4, GPT 5.5, Gemini 3.1 Pro, Gemini 3 Flash, and Kimi K2.6 directly from the Settings window. Also supports `fast` mode for gpt models.
+- **Max Budget Mode** -- Nuclear launch button that forces maximum reasoning on Opud/Sonnet 4.6 requests: classic extended thinking with `budget_tokens: 63999`, `max_tokens: 64000`, and `effort: max`. Opus 4.8 does not need this override. Full thinking power for Sonnet, your quota's problem.
 - **Usage tracking** -- Claude and Codex OAuth quota windows (5-hour + weekly) rendered in the **OAuth Quota Usage** section of the Settings window. Fetched directly from each provider's OAuth API (no `codex` CLI dependency) and refreshed on demand via the inline refresh button.
 
 <p align="center">

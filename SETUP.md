@@ -13,12 +13,12 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
 ```json
 "customModels": [
     {
-      "model": "claude-opus-4-7",
-      "id": "custom:droidproxy:opus-4-7",
+      "model": "claude-opus-4-8",
+      "id": "custom:droidproxy:opus-4-8",
       "index": 0,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
-      "displayName": "DroidProxy: Opus 4.7",
+      "displayName": "DroidProxy: Opus 4.8",
       "maxOutputTokens": 128000,
       "noImageSupport": false,
       "provider": "anthropic"
@@ -109,7 +109,7 @@ Use the standard Claude and Codex model aliases in the `model` field. Claude ent
 
 1. Open DroidProxy Settings
 2. Set the desired effort:
-   - Opus 4.7: `low`, `medium`, `high`, `xhigh`, or `max`
+   - Opus 4.8: `low`, `medium`, `high`, `xhigh`, or `max`
    - Sonnet 4.6: `low`, `medium`, `high`, or `max`
    - GPT 5.2: `low`, `medium`, `high`, or `xhigh`
    - GPT 5.3 Codex: `low`, `medium`, `high`, or `xhigh`

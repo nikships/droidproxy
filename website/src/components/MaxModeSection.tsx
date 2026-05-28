@@ -13,7 +13,7 @@ export default function MaxModeSection() {
             <dd>Tough debugging, big refactors, deep architecture questions</dd>
             <dt>Trade-off</dt>
             <dd>Burns subscription quota faster — but it's still your subscription, not metered Factory tokens</dd>
-            <dt>Opus 4.7</dt>
+            <dt>Opus 4.8</dt>
             <dd>Already runs adaptive thinking by default — no toggle needed</dd>
           </dl>
         </div>
