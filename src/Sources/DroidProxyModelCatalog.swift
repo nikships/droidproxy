@@ -3,7 +3,6 @@ import Foundation
 enum DroidProxyModelKind {
     case claudeAdaptive
     case codex
-    case gemini
     case kimi
     case antigravity
     case cursor
