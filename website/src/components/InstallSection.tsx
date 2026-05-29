@@ -32,18 +32,8 @@ const codePlain = `// What "Apply" writes for you — no need to touch this your
     "displayName": "DroidProxy: GPT 5.5",
     "maxOutputTokens": 128000,
     "provider": "openai"
-  },
-  {
-    "model": "gemini-3.1-pro-preview",
-    "id": "custom:droidproxy:gemini-3.1-pro",
-    "index": 5,
-    "baseUrl": "http://localhost:8317/v1",
-    "apiKey": "***",
-    "displayName": "DroidProxy: Gemini 3.1 Pro",
-    "maxOutputTokens": 65536,
-    "provider": "openai"
   }
-  // + GPT 5.3 Codex, GPT 5.4, Gemini 3 Flash
+  // + GPT 5.2, GPT 5.3 Codex, GPT 5.4, Gemini, Kimi
 ]`
 
 const codeHtml = `<span class="c">// What "Apply" writes for you — no need to touch this yourself.</span>
@@ -77,18 +67,8 @@ const codeHtml = `<span class="c">// What "Apply" writes for you — no need to 
     <span class="k">"displayName"</span>: <span class="s">"DroidProxy: GPT 5.5"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
     <span class="k">"provider"</span>: <span class="s">"openai"</span>
-  },
-  {
-    <span class="k">"model"</span>: <span class="s">"gemini-3.1-pro-preview"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:gemini-3.1-pro"</span>,
-    <span class="k">"index"</span>: <span class="n">5</span>,
-    <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317/v1"</span>,
-    <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Gemini 3.1 Pro"</span>,
-    <span class="k">"maxOutputTokens"</span>: <span class="n">65536</span>,
-    <span class="k">"provider"</span>: <span class="s">"openai"</span>
   }
-  <span class="c">// + GPT 5.3 Codex, GPT 5.4, Gemini 3 Flash</span>
+  <span class="c">// + GPT 5.2, GPT 5.3 Codex, GPT 5.4, Gemini, Kimi</span>
 ]`
 
 export default function InstallSection() {
@@ -153,7 +133,7 @@ export default function InstallSection() {
           <div>
             <div className="code-block">
               <div className="code-head">
-                <span><span className="mono" style={{ color: 'var(--accent)' }}>$</span> &nbsp; ~/.factory/config.json &nbsp; <span style={{ color: 'var(--dim)' }}>— customModels</span></span>
+                <span><span className="mono" style={{ color: 'var(--accent)' }}>$</span> &nbsp; ~/.factory/settings.json &nbsp; <span style={{ color: 'var(--dim)' }}>— customModels</span></span>
                 <button className="copy" type="button" onClick={handleCopy}>
                   {copied ? 'Copied' : 'Copy'}
                 </button>

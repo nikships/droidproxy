@@ -5,7 +5,7 @@ export default function Footer() {
         <a href="#" className="brand">
           <img src="/assets/logo.png" alt="" />
           <span>DroidProxy</span>
-          <small>v1.8.1 · MIT</small>
+          <small>v1.8.32 · MIT</small>
         </a>
         <div className="foot-links">
           <a href="https://github.com/anand-92/droidproxy" target="_blank" rel="noopener">GitHub</a>

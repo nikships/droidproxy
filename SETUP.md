@@ -103,20 +103,20 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
 ]
 ```
 
-Use the standard Claude and Codex model aliases in the `model` field. Claude entries use `provider: "anthropic"` with `http://localhost:8317`; GPT/Codex and Gemini entries use `provider: "openai"` with `http://localhost:8317/v1`. DroidProxy applies Claude adaptive thinking, Codex reasoning effort, and Gemini thinking levels based on the selected model and the effort/level setting in DroidProxy itself.
+Use the standard Claude, Codex, and Gemini model aliases in the `model` field. Claude and Gemini entries use `http://localhost:8317` (with `provider: "anthropic"` and `provider: "google"` respectively); GPT/Codex entries use `provider: "openai"` with `http://localhost:8317/v1`. Reasoning effort is chosen per session from Droid CLI's model selector — DroidProxy registers each model with its native reasoning levels and forwards the chosen value upstream unchanged.
 
-## 3. Configure Thinking Effort
+## 3. Choose Reasoning Effort
 
-1. Open DroidProxy Settings
-2. Set the desired effort:
-   - Opus 4.8: `low`, `medium`, `high`, `xhigh`, or `max`
-   - Sonnet 4.6: `low`, `medium`, `high`, or `max`
-   - GPT 5.2: `low`, `medium`, `high`, or `xhigh`
-   - GPT 5.3 Codex: `low`, `medium`, `high`, or `xhigh`
-   - GPT 5.4: `low`, `medium`, `high`, or `xhigh`
-   - GPT 5.5: `low`, `medium`, `high`, or `xhigh`
-   - Gemini 3.1 Pro: `low`, `medium`, or `high`
-   - Gemini 3 Flash: `minimal`, `low`, `medium`, or `high`
+Reasoning effort is selected per session in Droid CLI's model picker — DroidProxy registers each model with its native reasoning levels, so the level you pick in Droid is forwarded upstream unchanged. Supported levels per model:
+
+- Opus 4.8: `low`, `medium`, `high`, `xhigh`, or `max`
+- Sonnet 4.6: `low`, `medium`, `high`, or `max`
+- GPT 5.2: `low`, `medium`, `high`, or `xhigh`
+- GPT 5.3 Codex: `low`, `medium`, `high`, or `xhigh`
+- GPT 5.4: `low`, `medium`, `high`, or `xhigh`
+- GPT 5.5: `low`, `medium`, `high`, or `xhigh`
+- Gemini 3.1 Pro: `low`, `medium`, or `high`
+- Gemini 3 Flash: `minimal`, `low`, `medium`, or `high`
 
 ## 4. Enable Thinking Output
 
