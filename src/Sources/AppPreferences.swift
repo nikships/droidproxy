@@ -6,6 +6,7 @@ enum AppPreferences {
     static let gpt55FastModeKey = "gpt55FastMode"
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"
+    static let bindAddressKey = "bindAddress"
     static let oledThemeKey = "oledTheme"
     static let backgroundOpacityKey = "backgroundOpacity"
     static let betaFlagKey = "BETA_FLAG"
@@ -16,6 +17,7 @@ enum AppPreferences {
     static let defaultGpt55FastMode = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
+    static let defaultBindAddress = "127.0.0.1"
     static let defaultOledTheme = false
     static let defaultBackgroundOpacity = 0.55
     static let defaultBetaFlag = false
@@ -39,6 +41,10 @@ enum AppPreferences {
 
     static var secretKey: String {
         UserDefaults.standard.string(forKey: secretKeyKey) ?? defaultSecretKey
+    }
+
+    static var bindAddress: String {
+        UserDefaults.standard.string(forKey: bindAddressKey) ?? defaultBindAddress
     }
 
     static var backgroundOpacity: Double {

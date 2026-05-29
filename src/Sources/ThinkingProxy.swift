@@ -76,10 +76,23 @@ class ThinkingProxy {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
             
+            let bindAddress = AppPreferences.bindAddress
+            
             guard let port = NWEndpoint.Port(rawValue: proxyPort) else {
                 NSLog("[ThinkingProxy] Invalid port: %d", proxyPort)
                 return
             }
+
+            // If a specific bind address is set (and it's not 0.0.0.0), restrict the listener to it.
+            // 0.0.0.0 means bind to all interfaces, which is the default behavior when
+            // requiredLocalEndpoint is not set.
+            if bindAddress != "0.0.0.0" {
+                parameters.requiredLocalEndpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(bindAddress), port: port)
+                NSLog("[ThinkingProxy] Binding to \(bindAddress):\(proxyPort)")
+            } else {
+                NSLog("[ThinkingProxy] Binding to all interfaces (0.0.0.0):\(proxyPort)")
+            }
+
             listener = try NWListener(using: parameters, on: port)
             
             listener?.stateUpdateHandler = { [weak self] state in

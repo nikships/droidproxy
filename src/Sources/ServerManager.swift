@@ -349,6 +349,12 @@ class ServerManager: ObservableObject {
         // Inject user-persisted remote-management settings from UserDefaults
         let allowRemote = AppPreferences.allowRemote
         let secretKey = AppPreferences.secretKey
+        let bindAddress = AppPreferences.bindAddress
+
+        configContent = configContent.replacingOccurrences(
+            of: "host: 127.0.0.1",
+            with: "host: \(bindAddress)"
+        )
         configContent = configContent.replacingOccurrences(
             of: "  allow-remote: false",
             with: "  allow-remote: \(allowRemote)"

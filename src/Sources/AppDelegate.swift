@@ -312,12 +312,16 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     @objc func copyServerURL() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
-        pasteboard.setString("http://localhost:\(thinkingProxy.proxyPort)", forType: .string)
+        let host = AppPreferences.bindAddress
+        let displayHost = (host == "0.0.0.0") ? "localhost" : host
+        pasteboard.setString("http://\(displayHost):\(thinkingProxy.proxyPort)", forType: .string)
         showNotification(title: "Copied", body: "Server URL copied to clipboard")
     }
 
     @objc func openDashboard() {
-        if let url = URL(string: "http://localhost:8318/management.html") {
+        let host = AppPreferences.bindAddress
+        let displayHost = (host == "0.0.0.0") ? "127.0.0.1" : host
+        if let url = URL(string: "http://\(displayHost):8318/management.html") {
             NSWorkspace.shared.open(url)
         }
     }
