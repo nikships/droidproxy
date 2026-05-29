@@ -32,7 +32,7 @@ export default function Navbar() {
             rel="noopener"
             className="btn btn-primary"
           >
-            Download <span className="mono" style={{ opacity: 0.7, fontSize: 11, letterSpacing: '0.04em' }}>.dmg</span>
+            Download <span className="mono" style={{ opacity: 0.7, fontSize: 11, letterSpacing: '0.04em' }}>.zip</span>
           </a>
         </div>
       </div>

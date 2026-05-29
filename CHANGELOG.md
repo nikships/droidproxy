@@ -4,12 +4,13 @@ All notable changes to DroidProxy will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.50] - 2026-01-13
-
 ## [Unreleased]
 
 ### Added
 - **GPT 5.2 model** -- New Codex model exposed end-to-end: per-model reasoning effort picker (`low` / `medium` / `high` / `xhigh`, default `high`), Fast Mode toggle (`service_tier=priority` on `/v1/responses` and `/api/v1/responses`), and Factory custom-models entry `custom:droidproxy:gpt-5.2`. Click Apply Factory Models again after upgrading to provision it into `~/.factory/settings.json`.
+- **Gemini provider support** -- OAuth login, credential monitoring, provider enable/disable, and service icon in Settings UI
+- **Gemini thinking level controls** -- Per-model thinking level pickers for Gemini 3.1 Pro (`low` / `medium` / `high`) and Gemini 3 Flash (`minimal` / `low` / `medium` / `high`)
+- **Gemini Factory custom models** -- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` added to one-click Factory model provisioning
 
 ### Removed
 - **Challenger plugin removed** -- The Challenger droids (Opus / GPT / Gemini), the Settings "Challenger Plugin" Apply button, and the bundled `.factory/droids/challenger-*.md` + `.factory/commands/challenge-*.md` files have all been removed. Any previously installed copies under `~/.factory/droids/` and `~/.factory/commands/` should be deleted manually if you no longer want them.
@@ -20,13 +21,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Encrypted reasoning state mismatch on `/v1/responses`** ([#58](https://github.com/anand-92/droidproxy/issues/58)) -- Bundled `config.yaml` now enables `routing.session-affinity: true` (TTL `2h`). Stateful Codex Responses API turns now stay pinned to the same upstream auth, so encrypted reasoning content created on turn N is no longer replayed through a different account on turn N+1 with `400 The encrypted content ... could not be verified`.
 
 ### Changed
-- **Claude Opus 4.8 migration** -- Opus 4.8 support replaced with Opus 4.8 throughout the app: model detection (`claude-opus-4-8`), Settings UI label, and Factory custom models entry (`custom:droidproxy:opus-4-7`) now target Opus 4.8. Effort options are `low` / `medium` / `high` / `xhigh` / `max`, with a default of `xhigh` per Anthropic's recommendation for coding and agentic workloads.
-- **Opus 4.8 Factory custom model** -- `custom:droidproxy:opus-4-6` is removed from `customModels` during Apply/Re-apply so users don't end up with stale entries alongside the new Opus 4.8 model.
-
-### Added
-- **Gemini provider support** -- OAuth login, credential monitoring, provider enable/disable, and service icon in Settings UI
-- **Gemini thinking level controls** -- Per-model thinking level pickers for Gemini 3.1 Pro (`low` / `medium` / `high`) and Gemini 3 Flash (`minimal` / `low` / `medium` / `high`)
-- **Gemini Factory custom models** -- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` added to one-click Factory model provisioning
+- **Claude Opus 4.8 migration** -- Opus 4.7 support is replaced with Opus 4.8 throughout the app: model detection (`claude-opus-4-8`), the Settings UI label, and the Factory custom-models entry (`custom:droidproxy:opus-4-8`) now target Opus 4.8. Effort options are `low` / `medium` / `high` / `xhigh` / `max`, with a default of `xhigh` per Anthropic's recommendation for coding and agentic workloads.
+- **Legacy Opus cleanup** -- Stale `custom:droidproxy:opus-4-5` and `custom:droidproxy:opus-4-6` entries are removed from `customModels` during Apply/Re-apply so users don't end up with old Opus models alongside Opus 4.8.
 
 ## [1.8.121] - 2026-04-02
 

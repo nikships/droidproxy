@@ -71,8 +71,8 @@ What it still does today:
 
 What it no longer does (removed in the Droid-CLI-thinking refactor):
 
-- No Claude adaptive thinking injection (Opus 4.8 / 4.6 / Sonnet 4.6 — `thinking` + `output_config`)
-- No Opus 4.8 classic `thinking.budget_tokens` injection
+- No Claude adaptive thinking injection (Opus 4.8 / Sonnet 4.6 — `thinking` + `output_config`)
+- No classic `thinking.budget_tokens` injection
 - No Codex `reasoning.effort` injection
 - No Gemini `generationConfig.thinkingConfig` injection
 - No Kimi `reasoning_effort` injection
@@ -121,7 +121,7 @@ Behavior to know:
 |---|---|
 | `src/Sources/main.swift` | NSApplication entry point that instantiates `AppDelegate` and calls `NSApplicationMain`. |
 | `src/Sources/AppDelegate.swift` | App lifecycle, menu bar UI, settings window, notifications, Sparkle updater, auth-directory watcher, startup ordering for the two local servers. |
-| `src/Sources/ServerManager.swift` | Starts/stops bundled `cli-proxy-api-plus`, captures logs, merges config, handles provider enable/disable, runs Claude/Codex/Gemini login commands, and kills orphaned backend processes. |
+| `src/Sources/ServerManager.swift` | Starts/stops bundled `cli-proxy-api-plus`, captures logs, merges config (including injecting the remote-management `allow-remote`/`secret-key` settings from UserDefaults), handles provider enable/disable, runs Claude/Codex/Gemini login commands, and kills orphaned backend processes. |
 | `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy that forwards requests to CLIProxyAPIPlus. Rewrites the Anthropic-Beta header to drop `redact-thinking-2026-02-12` on Claude thinking requests, injects `service_tier=priority` on enabled Codex fast-mode models, rewrites Gemini `/v1/responses` to `/v1/chat/completions`, handles Amp request/response rewriting, and emits a `REQUEST REASONING` log line per request. Does not inject reasoning or thinking fields. |
 | `src/Sources/DroidProxyModelCatalog.swift` | Authoritative catalog of DroidProxy-exposed models. Each `DroidProxyModelDefinition` carries its supported `levels` plus a `defaultLevelValue`, and `settingsEntry` always embeds Factory's native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid CLI's per-session selector can expose the full level set. |
 | `src/Sources/SettingsView.swift` | SwiftUI settings UI for server status, launch-at-login, provider toggles, auth flows, the Codex fast-mode (`service_tier=priority`) subsection, the Factory custom-models Apply button, OLED theme, background opacity, and remote-access settings. No thinking/reasoning selectors — those live in Droid CLI. |
@@ -131,7 +131,8 @@ Behavior to know:
 | `src/Sources/NotificationNames.swift` | Shared `Notification.Name` constants (`serverStatusChanged`, `authDirectoryChanged`). |
 | `src/Sources/IconCatalog.swift` | Caches `NSImage` lookups from the bundle's resource path so menu-bar / settings icons aren't re-decoded per access. |
 | `src/Sources/LogoView.swift` | Inline-SVG `LogoView` used in the settings UI. |
-| `src/Sources/TunnelManager.swift` | Stubbed tunnel/remote-access scaffolding; currently not wired into the app flow despite the matching `allowRemote`/`secretKey` preferences. |
+| `src/Sources/AuthDirectoryMonitor.swift` | Debounced `DispatchSource` watcher on `~/.cli-proxy-api` that fires an `onChange` callback when auth JSON files are added, changed, or removed. Used by both `AppDelegate` and `SettingsView`. |
+| `src/Sources/AuthPaths.swift` | Single source of truth for the auth directory location (`~/.cli-proxy-api`). |
 | `src/Sources/Resources/config.yaml` | Bundled CLIProxyAPIPlus config (`port: 8318`, localhost binding, Amp upstream settings, auth dir). |
 | `src/Info.plist` | Bundle metadata. Current source-of-truth values include app name `DroidProxy`, bundle ID `com.droidproxy.app`, and Sparkle feed URL on `anand-92/droidproxy`. |
 
