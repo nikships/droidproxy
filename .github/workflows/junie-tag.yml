@@ -33,10 +33,10 @@ jobs:
 
       - name: Run Junie
         id: junie
-        uses: JetBrains/junie-github-action@v1.3.9
+        uses: JetBrains/junie-github-action@latest
         with:
           junie_api_key: ${{ secrets.JUNIE_API_KEY }}
           assignee_trigger: "junie-agent"
           use_single_comment: true
           junie_version: "latest"
-          model: "gemini-3-flash-preview"
+          model: "gpt-5.3-codex"
