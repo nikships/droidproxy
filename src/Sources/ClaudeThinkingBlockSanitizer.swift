@@ -36,9 +36,21 @@ struct ClaudeThinkingBlockSanitizer {
                 return removableThinkingTypes.contains(type)
             }
 
-            deletionRanges.append(contentsOf: rangesForRemoving(forRemoving: removableIndexes,
-                                                              from: blocks,
-                                                              in: json))
+            guard !removableIndexes.isEmpty else {
+                continue
+            }
+
+            // Removing every block would leave `"content":[]`, which Anthropic rejects.
+            // Drop the whole stale assistant message instead.
+            if removableIndexes.count == blocks.count {
+                deletionRanges.append(contentsOf: rangesForRemoving(forRemoving: [index],
+                                                                    from: messages,
+                                                                    in: json))
+            } else {
+                deletionRanges.append(contentsOf: rangesForRemoving(forRemoving: removableIndexes,
+                                                                    from: blocks,
+                                                                    in: json))
+            }
         }
 
         guard !deletionRanges.isEmpty else {
@@ -62,19 +74,19 @@ struct ClaudeThinkingBlockSanitizer {
     private struct MessageInfo {
         let role: String?
         let contentRange: Range<String.Index>?
-        let hasOnlyToolResults: Bool
+        let isToolResultTurn: Bool
     }
 
     private static func messageInfo(in json: String, range: Range<String.Index>) -> MessageInfo {
         let role = objectStringField(in: json, objectRange: range, key: "role")
         guard let content = findObjectFieldLocation(in: json, key: "content", objectRange: range) else {
-            return MessageInfo(role: role, contentRange: nil, hasOnlyToolResults: false)
+            return MessageInfo(role: role, contentRange: nil, isToolResultTurn: false)
         }
 
         return MessageInfo(role: role,
                            contentRange: content.valueRange,
-                           hasOnlyToolResults: role == "user" && contentHasOnlyToolResults(in: json,
-                                                                                            range: content.valueRange))
+                           isToolResultTurn: role == "user" && contentHasAnyToolResult(in: json,
+                                                                                       range: content.valueRange))
     }
 
     private static func latestAssistantIndexWithTrailingToolResults(_ messages: [MessageInfo]) -> Int? {
@@ -83,7 +95,7 @@ struct ClaudeThinkingBlockSanitizer {
 
         while index >= 0 {
             let message = messages[index]
-            guard message.role == "user", message.hasOnlyToolResults else {
+            guard message.role == "user", message.isToolResultTurn else {
                 break
             }
             sawTrailingToolResults = true
@@ -98,13 +110,13 @@ struct ClaudeThinkingBlockSanitizer {
         return index
     }
 
-    private static func contentHasOnlyToolResults(in json: String, range: Range<String.Index>) -> Bool {
+    private static func contentHasAnyToolResult(in json: String, range: Range<String.Index>) -> Bool {
         guard let blocks = arrayElementRanges(in: json, arrayRange: range),
               !blocks.isEmpty else {
             return false
         }
 
-        return blocks.allSatisfy { blockRange in
+        return blocks.contains { blockRange in
             objectStringField(in: json, objectRange: blockRange, key: "type") == "tool_result"
         }
     }
