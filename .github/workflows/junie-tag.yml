@@ -39,4 +39,4 @@ jobs:
           assignee_trigger: "junie-agent"
           use_single_comment: true
           junie_version: "latest"
-          model: "gemini-3-flash-preview"
+          model: "gpt-5.3-codex"
