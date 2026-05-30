@@ -1,0 +1,42 @@
+name: PR Build
+
+# Compile-only check for pull requests. Mirrors the Swift build step from the
+# production release workflow (.github/workflows/release.yml) but stops after a
+# successful build — no code signing, notarization, or release is performed.
+
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - 'create-app-bundle.sh'
+      - '.github/workflows/pr-build.yml'
+
+# Cancel a previous in-progress run when the PR branch is updated.
+concurrency:
+  group: pr-build-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    name: Swift Build
+    runs-on: macos-26
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Show toolchain
+        run: |
+          sw_vers
+          xcodebuild -version
+          swift --version
+
+      - name: Build Swift package
+        working-directory: src
+        # Same invocation create-app-bundle.sh uses for the release build,
+        # so a green check here means the release build will also compile.
+        run: swift build -c release --arch arm64
