@@ -10,7 +10,7 @@ A native macOS menu bar app that proxies Claude Code, Codex, Gemini, and Kimi au
 
 Grab the latest release from [Releases](https://github.com/anand-92/droidproxy/releases/latest):
 
-- **DroidProxy-arm64.zip** -- Apple Silicon (M1/M2/M3/M4/M5)
+- **DroidProxy-arm64.zip** -- Apple Silicon
 
 Each release also ships a `DroidProxy-arm64.zip.sha256` checksum. Unzip and drag `DroidProxy.app` into your Applications folder. All releases are code-signed and notarized by Apple, and existing installs auto-update via Sparkle.
 
@@ -32,7 +32,7 @@ See [SETUP.md](SETUP.md) for authentication and manual Factory configuration ins
 ## Requirements
 
 - macOS 13.0+ (Ventura or later)
-- Apple Silicon (M1/M2/M3/M4)
+- Apple Silicon 
 
 ## Build from source
 
