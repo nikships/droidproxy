@@ -33,7 +33,7 @@ jobs:
 
       - name: Run Junie
         id: junie
-        uses: JetBrains/junie-github-action@latest
+        uses: JetBrains/junie-github-action@main
         with:
           junie_api_key: ${{ secrets.JUNIE_API_KEY }}
           assignee_trigger: "junie-agent"
