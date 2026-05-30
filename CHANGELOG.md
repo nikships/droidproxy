@@ -457,8 +457,8 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ### Added
 - **Intel Mac (x86_64) support** - Separate builds now available for Intel and Apple Silicon Macs
-  - Download `VibeProxy-x86_64.dmg` for Intel Macs
-  - Download `VibeProxy-arm64.dmg` for Apple Silicon (M1/M2/M3)
+  - Download `DroidProxy-x86_64.dmg` for Intel Macs
+  - Download `DroidProxy-arm64.dmg` for Apple Silicon (M1/M2/M3)
   - ⚠️ Intel build is untested - please report if it works!
 
 
@@ -470,7 +470,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 
 ### Added
-- **Provider Priority** - Enable/disable individual providers to avoid model conflicts ([#159](https://github.com/automazeio/vibeproxy/issues/159))
+- **Provider Priority** - Enable/disable individual providers to avoid model conflicts ([#159](https://github.com/anand-92/droidproxy/issues/159))
   - Toggle switches in Settings UI to enable/disable each provider
   - Disabled providers have all models excluded via `oauth-excluded-models`
   - Changes apply instantly via hot reload (no restart needed)
@@ -1025,7 +1025,7 @@ This release is all about code improvements and standartization. No user-facing 
 ## [1.2.0] - 2025-11-22
 
 ### Added
-- **Amp CLI Integration** - Full support for Amp CLI through VibeProxy
+- **Amp CLI Integration** - Full support for Amp CLI through DroidProxy
   - Smart path routing: `/auth/cli-login` → `/api/auth/cli-login` for authentication
   - Provider path rewriting: `/provider/*` → `/api/provider/*` for model requests
   - Management route forwarding to ampcode.com with Location header rewriting
@@ -1067,7 +1067,7 @@ This release is all about code improvements and standartization. No user-facing 
 ### Fixed
 - **Auto-Update Workflow** - Improved file filtering to prevent unwanted files from CLIProxyAPI releases
   - Now explicitly excludes: README.md, LICENSE, config.example.yaml, config.yaml, README_CN.md
-  - Prevents accidental overwriting of VibeProxy documentation files
+  - Prevents accidental overwriting of DroidProxy documentation files
   - Added debug output to detect unexpected extracted files
 
 ### Note
@@ -1246,7 +1246,7 @@ This release is all about code improvements and standartization. No user-facing 
 
 ## [1.0.0] - 2025-10-05
 
-Initial release of VibeProxy - a native macOS menu bar application for managing CLIProxyAPI.
+Initial release of DroidProxy - a native macOS menu bar application for managing CLIProxyAPI.
 
 ### Features
 
@@ -1281,137 +1281,137 @@ All future changes will be documented here before release.
 
 ---
 
-[1.8.120]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.120
-[1.8.119]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.119
-[1.8.118]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.118
-[1.8.117]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.117
-[1.8.116]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.116
-[1.8.115]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.115
-[1.8.114]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.114
-[1.8.113]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.113
-[1.8.112]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.112
-[1.8.111]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.111
-[1.8.110]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.110
-[1.8.109]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.109
-[1.8.108]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.108
-[1.8.107]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.107
-[1.8.106]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.106
-[1.8.105]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.105
-[1.8.104]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.104
-[1.8.103]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.103
-[1.8.102]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.102
-[1.8.101]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.101
-[1.8.100]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.100
-[1.8.99]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.99
-[1.8.98]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.98
-[1.8.97]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.97
-[1.8.96]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.96
-[1.8.95]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.95
-[1.8.94]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.94
-[1.8.93]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.93
-[1.8.92]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.92
-[1.8.91]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.91
-[1.8.90]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.90
-[1.8.89]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.89
-[1.8.88]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.88
-[1.8.87]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.87
-[1.8.86]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.86
-[1.8.85]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.85
-[1.8.84]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.84
-[1.8.83]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.83
-[1.8.82]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.82
-[1.8.81]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.81
-[1.8.80]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.80
-[1.8.79]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.79
-[1.8.78]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.78
-[1.8.77]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.77
-[1.8.76]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.76
-[1.8.74]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.74
-[1.8.73]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.73
-[1.8.72]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.72
-[1.8.71]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.71
-[1.8.70]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.70
-[1.8.69]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.69
-[1.8.67]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.67
-[1.8.66]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.66
-[1.8.65]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.65
-[1.8.64]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.64
-[1.8.63]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.63
-[1.8.62]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.62
-[1.8.61]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.61
-[1.8.60]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.60
-[1.8.59]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.59
-[1.8.51]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.51
-[1.8.50]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.50
-[1.8.49]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.49
-[1.8.47]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.47
-[1.8.46]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.46
-[1.8.45]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.45
-[1.8.44]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.44
-[1.8.43]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.43
-[1.8.42]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.42
-[1.8.41]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.41
-[1.8.39]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.39
-[1.8.38]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.38
-[1.8.37]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.37
-[1.8.36]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.36
-[1.8.35]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.35
-[1.8.34]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.34
-[1.8.33]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.33
-[1.8.32]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.32
-[1.8.31]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.31
-[1.8.30]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.30
-[1.8.29]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.29
-[1.8.28]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.28
-[1.8.27]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.27
-[1.8.26]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.26
-[1.8.25]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.25
-[1.8.24]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.24
-[1.8.23]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.23
-[1.8.22]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.22
-[1.8.21]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.21
-[1.8.20]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.20
-[1.8.19]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.19
-[1.8.18]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.18
-[1.8.17]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.17
-[1.8.16]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.16
-[1.8.15]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.15
-[1.8.14]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.14
-[1.8.13]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.13
-[1.8.12]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.12
-[1.8.11]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.11
-[1.8.10]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.10
-[1.8.8]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.8
-[1.8.7]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.7
-[1.8.6]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.6
-[1.8.5]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.5
-[1.8.4]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.4
-[1.8.3]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.3
-[1.8.2]: https://github.com/automazeio/vibeproxy/releases/tag/v1.8.2
-[1.7.1]: https://github.com/automazeio/vibeproxy/releases/tag/v1.7.1
-[1.6.6]: https://github.com/automazeio/vibeproxy/releases/tag/v1.6.6
-[1.6.5]: https://github.com/automazeio/vibeproxy/releases/tag/v1.6.5
-[1.6.4]: https://github.com/automazeio/vibeproxy/releases/tag/v1.6.4
-[1.6.3]: https://github.com/automazeio/vibeproxy/releases/tag/v1.6.3
-[1.6.2]: https://github.com/automazeio/vibeproxy/releases/tag/v1.6.2
-[1.6.1]: https://github.com/automazeio/vibeproxy/releases/tag/v1.6.1
-[1.6.0]: https://github.com/automazeio/vibeproxy/releases/tag/v1.6.0
-[1.5.3] - [1.5.7]: https://github.com/automazeio/vibeproxy/releases/tag/v1.5.7
-[1.5.2]: https://github.com/automazeio/vibeproxy/releases/tag/v1.5.2
-[1.5.1]: https://github.com/automazeio/vibeproxy/releases/tag/v1.5.1
-[1.5.0]: https://github.com/automazeio/vibeproxy/releases/tag/v1.5.0
-[1.4.1]: https://github.com/automazeio/vibeproxy/releases/tag/v1.4.1
-[1.4.0]: https://github.com/automazeio/vibeproxy/releases/tag/v1.4.0
-[1.3.0]: https://github.com/automazeio/vibeproxy/releases/tag/v1.3.0
-[1.2.0]: https://github.com/automazeio/vibeproxy/releases/tag/v1.2.0
-[1.1.0]: https://github.com/automazeio/vibeproxy/releases/tag/v1.1.0
-[1.0.9]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.9
-[1.0.8]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.8
-[1.0.7]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.7
-[1.0.6]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.6
-[1.0.5]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.5
-[1.0.4]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.4
-[1.0.3]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.3
-[1.0.2]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.2
-[1.0.1]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.1
-[1.0.0]: https://github.com/automazeio/vibeproxy/releases/tag/v1.0.0
+[1.8.120]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.120
+[1.8.119]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.119
+[1.8.118]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.118
+[1.8.117]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.117
+[1.8.116]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.116
+[1.8.115]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.115
+[1.8.114]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.114
+[1.8.113]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.113
+[1.8.112]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.112
+[1.8.111]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.111
+[1.8.110]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.110
+[1.8.109]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.109
+[1.8.108]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.108
+[1.8.107]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.107
+[1.8.106]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.106
+[1.8.105]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.105
+[1.8.104]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.104
+[1.8.103]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.103
+[1.8.102]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.102
+[1.8.101]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.101
+[1.8.100]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.100
+[1.8.99]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.99
+[1.8.98]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.98
+[1.8.97]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.97
+[1.8.96]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.96
+[1.8.95]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.95
+[1.8.94]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.94
+[1.8.93]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.93
+[1.8.92]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.92
+[1.8.91]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.91
+[1.8.90]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.90
+[1.8.89]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.89
+[1.8.88]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.88
+[1.8.87]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.87
+[1.8.86]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.86
+[1.8.85]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.85
+[1.8.84]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.84
+[1.8.83]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.83
+[1.8.82]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.82
+[1.8.81]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.81
+[1.8.80]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.80
+[1.8.79]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.79
+[1.8.78]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.78
+[1.8.77]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.77
+[1.8.76]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.76
+[1.8.74]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.74
+[1.8.73]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.73
+[1.8.72]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.72
+[1.8.71]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.71
+[1.8.70]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.70
+[1.8.69]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.69
+[1.8.67]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.67
+[1.8.66]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.66
+[1.8.65]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.65
+[1.8.64]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.64
+[1.8.63]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.63
+[1.8.62]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.62
+[1.8.61]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.61
+[1.8.60]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.60
+[1.8.59]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.59
+[1.8.51]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.51
+[1.8.50]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.50
+[1.8.49]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.49
+[1.8.47]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.47
+[1.8.46]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.46
+[1.8.45]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.45
+[1.8.44]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.44
+[1.8.43]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.43
+[1.8.42]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.42
+[1.8.41]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.41
+[1.8.39]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.39
+[1.8.38]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.38
+[1.8.37]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.37
+[1.8.36]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.36
+[1.8.35]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.35
+[1.8.34]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.34
+[1.8.33]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.33
+[1.8.32]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.32
+[1.8.31]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.31
+[1.8.30]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.30
+[1.8.29]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.29
+[1.8.28]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.28
+[1.8.27]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.27
+[1.8.26]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.26
+[1.8.25]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.25
+[1.8.24]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.24
+[1.8.23]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.23
+[1.8.22]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.22
+[1.8.21]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.21
+[1.8.20]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.20
+[1.8.19]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.19
+[1.8.18]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.18
+[1.8.17]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.17
+[1.8.16]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.16
+[1.8.15]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.15
+[1.8.14]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.14
+[1.8.13]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.13
+[1.8.12]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.12
+[1.8.11]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.11
+[1.8.10]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.10
+[1.8.8]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.8
+[1.8.7]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.7
+[1.8.6]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.6
+[1.8.5]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.5
+[1.8.4]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.4
+[1.8.3]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.3
+[1.8.2]: https://github.com/anand-92/droidproxy/releases/tag/v1.8.2
+[1.7.1]: https://github.com/anand-92/droidproxy/releases/tag/v1.7.1
+[1.6.6]: https://github.com/anand-92/droidproxy/releases/tag/v1.6.6
+[1.6.5]: https://github.com/anand-92/droidproxy/releases/tag/v1.6.5
+[1.6.4]: https://github.com/anand-92/droidproxy/releases/tag/v1.6.4
+[1.6.3]: https://github.com/anand-92/droidproxy/releases/tag/v1.6.3
+[1.6.2]: https://github.com/anand-92/droidproxy/releases/tag/v1.6.2
+[1.6.1]: https://github.com/anand-92/droidproxy/releases/tag/v1.6.1
+[1.6.0]: https://github.com/anand-92/droidproxy/releases/tag/v1.6.0
+[1.5.3] - [1.5.7]: https://github.com/anand-92/droidproxy/releases/tag/v1.5.7
+[1.5.2]: https://github.com/anand-92/droidproxy/releases/tag/v1.5.2
+[1.5.1]: https://github.com/anand-92/droidproxy/releases/tag/v1.5.1
+[1.5.0]: https://github.com/anand-92/droidproxy/releases/tag/v1.5.0
+[1.4.1]: https://github.com/anand-92/droidproxy/releases/tag/v1.4.1
+[1.4.0]: https://github.com/anand-92/droidproxy/releases/tag/v1.4.0
+[1.3.0]: https://github.com/anand-92/droidproxy/releases/tag/v1.3.0
+[1.2.0]: https://github.com/anand-92/droidproxy/releases/tag/v1.2.0
+[1.1.0]: https://github.com/anand-92/droidproxy/releases/tag/v1.1.0
+[1.0.9]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.9
+[1.0.8]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.8
+[1.0.7]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.7
+[1.0.6]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.6
+[1.0.5]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.5
+[1.0.4]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.4
+[1.0.3]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.3
+[1.0.2]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.2
+[1.0.1]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.1
+[1.0.0]: https://github.com/anand-92/droidproxy/releases/tag/v1.0.0

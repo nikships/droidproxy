@@ -147,12 +147,6 @@ Behavior to know:
 
 ## Release Notes For Agents
 
-Release automation lives in `.github/workflows/release.yml` (no `Makefile` or `scripts/create-release.sh` in this repo). The workflow has already been migrated off the old `VibeProxy` / `automazeio/vibeproxy` identity.
+Release automation lives in `.github/workflows/release.yml` (no `Makefile` or `scripts/create-release.sh` in this repo). The app ships as a single arm64 build; there is no x86_64 appcast or Intel release path.
 
-Legacy `VibeProxy` references still live in:
-
-- `appcast-x86_64.xml` (historical enclosure URLs)
-- `CHANGELOG.md` (release history)
-- `context/OG-vibeproxy-we-forked/` (full upstream fork snapshot, reference only)
-
-Those are intentional history. If a task touches release tooling, audit the current workflow and `create-app-bundle.sh` rather than copying from those legacy files.
+If a task touches release tooling, audit the current workflow and `create-app-bundle.sh`.

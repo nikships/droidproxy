@@ -113,14 +113,6 @@ echo -e "${BLUE}Setting version to: ${VERSION} (build ${BUILD_NUMBER})${NC}"
 /usr/libexec/PlistBuddy -c "Set :CFBundleShortVersionString ${VERSION}" "$APP_DIR/Contents/Info.plist"
 /usr/libexec/PlistBuddy -c "Set :CFBundleVersion ${BUILD_NUMBER}" "$APP_DIR/Contents/Info.plist"
 
-# Update SUFeedURL based on architecture (for Sparkle auto-updates)
-TARGET_ARCH="${TARGET_ARCH:-arm64}"
-if [ "$TARGET_ARCH" = "x86_64" ]; then
-    APPCAST_URL="https://raw.githubusercontent.com/anand-92/droidproxy/main/appcast-x86_64.xml"
-    echo -e "${BLUE}Setting Sparkle feed URL for Intel: ${APPCAST_URL}${NC}"
-    /usr/libexec/PlistBuddy -c "Set :SUFeedURL ${APPCAST_URL}" "$APP_DIR/Contents/Info.plist"
-fi
-
 # Create PkgInfo
 echo -e "${BLUE}Creating PkgInfo...${NC}"
 echo -n "APPL????" > "$APP_DIR/Contents/PkgInfo"
