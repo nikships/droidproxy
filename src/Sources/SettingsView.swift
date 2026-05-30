@@ -647,25 +647,27 @@ struct SettingsView: View {
                                 }
                         }
 
-                        HStack {
-                            Text("Bind address")
-                            Spacer()
-                            TextField("127.0.0.1", text: $bindAddress)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: 200)
-                                .disableAutocorrection(true)
-                                .onSubmit {
-                                    _ = serverManager.getConfigPath()
-                                }
-                                .onChange(of: bindAddress) { _ in
-                                    _ = serverManager.getConfigPath()
-                                }
-                        }
+                        if betaFlag {
+                            HStack {
+                                Text("Bind address")
+                                Spacer()
+                                TextField("127.0.0.1", text: $bindAddress)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: 200)
+                                    .disableAutocorrection(true)
+                                    .onSubmit {
+                                        _ = serverManager.getConfigPath()
+                                    }
+                                    .onChange(of: bindAddress) { _ in
+                                        _ = serverManager.getConfigPath()
+                                    }
+                            }
 
-                        Text("Default is 127.0.0.1. Set to 0.0.0.0 to allow access from other devices on your network (e.g. Tailscale). Requires server restart.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
+                            Text("Default is 127.0.0.1. Set to 0.0.0.0 to allow access from other devices on your network (e.g. Tailscale). Requires server restart.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
 
                         if allowRemote && secretKey.isEmpty {
                             HStack(spacing: 4) {

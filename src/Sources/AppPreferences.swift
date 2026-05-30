@@ -44,7 +44,8 @@ enum AppPreferences {
     }
 
     static var bindAddress: String {
-        UserDefaults.standard.string(forKey: bindAddressKey) ?? defaultBindAddress
+        guard betaFlag else { return defaultBindAddress }
+        return UserDefaults.standard.string(forKey: bindAddressKey) ?? defaultBindAddress
     }
 
     static var backgroundOpacity: Double {
