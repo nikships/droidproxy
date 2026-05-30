@@ -111,75 +111,87 @@ class ServerManager: ObservableObject {
             return
         }
 
-        // Clean up any orphaned processes from previous crashes
-        killOrphanedProcesses()
+        // Run startup off the main thread: the orphan cleanup below shells out to
+        // pgrep/pkill (and may Thread.sleep when it finds a stale backend), which
+        // would otherwise block the UI during launch. All @Published mutations and
+        // the completion handler are hopped back to main.
+        processQueue.async { [weak self] in
+            guard let self = self else { return }
 
-        guard let bundledPath = bundledBinaryPath() else {
-            addLog("❌ Error: cli-proxy-api binary not found in app bundle")
-            completion(false)
-            return
-        }
-
-        // Use config path (merged with user settings and provider exclusions)
-        let configPath = getConfigPath()
-        guard !configPath.isEmpty, FileManager.default.fileExists(atPath: configPath) else {
-            addLog("❌ Error: config.yaml not found")
-            completion(false)
-            return
-        }
-        
-        let proc = Process()
-        proc.executableURL = URL(fileURLWithPath: bundledPath)
-        proc.arguments = ["-config", configPath]
-
-        let outputPipe = Pipe()
-        let errorPipe = Pipe()
-        proc.standardOutput = outputPipe
-        proc.standardError = errorPipe
-
-        outputPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            guard let output = String(data: handle.availableData, encoding: .utf8), !output.isEmpty else { return }
-            self?.addLog(output)
-        }
-
-        errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
-            guard let output = String(data: handle.availableData, encoding: .utf8), !output.isEmpty else { return }
-            self?.addLog("⚠️ \(output)")
-        }
-
-        proc.terminationHandler = { [weak self] process in
-            // Clear pipe handlers to prevent retain cycles on the file handles.
-            outputPipe.fileHandleForReading.readabilityHandler = nil
-            errorPipe.fileHandleForReading.readabilityHandler = nil
-
-            DispatchQueue.main.async {
-                self?.isRunning = false
-                self?.addLog("Server stopped with code: \(process.terminationStatus)")
-                NotificationCenter.default.post(name: .serverStatusChanged, object: nil)
+            let finish: (Bool) -> Void = { success in
+                DispatchQueue.main.async { completion(success) }
             }
-        }
 
-        process = proc
+            // Clean up any orphaned processes from previous crashes
+            self.killOrphanedProcesses()
 
-        do {
-            try proc.run()
-            DispatchQueue.main.async { self.isRunning = true }
-            addLog("✓ Server started on port \(port)")
+            guard let bundledPath = self.bundledBinaryPath() else {
+                self.addLog("❌ Error: cli-proxy-api binary not found in app bundle")
+                finish(false)
+                return
+            }
 
-            // Give the backend a moment to actually bind before reporting success.
-            DispatchQueue.main.asyncAfter(deadline: .now() + Timing.readinessCheckDelay) { [weak self] in
-                guard let self = self else { return }
-                if let running = self.process, running.isRunning {
+            // Use config path (merged with user settings and provider exclusions)
+            let configPath = self.getConfigPath()
+            guard !configPath.isEmpty, FileManager.default.fileExists(atPath: configPath) else {
+                self.addLog("❌ Error: config.yaml not found")
+                finish(false)
+                return
+            }
+
+            let proc = Process()
+            proc.executableURL = URL(fileURLWithPath: bundledPath)
+            proc.arguments = ["-config", configPath]
+
+            let outputPipe = Pipe()
+            let errorPipe = Pipe()
+            proc.standardOutput = outputPipe
+            proc.standardError = errorPipe
+
+            outputPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+                guard let output = String(data: handle.availableData, encoding: .utf8), !output.isEmpty else { return }
+                self?.addLog(output)
+            }
+
+            errorPipe.fileHandleForReading.readabilityHandler = { [weak self] handle in
+                guard let output = String(data: handle.availableData, encoding: .utf8), !output.isEmpty else { return }
+                self?.addLog("⚠️ \(output)")
+            }
+
+            proc.terminationHandler = { [weak self] process in
+                // Clear pipe handlers to prevent retain cycles on the file handles.
+                outputPipe.fileHandleForReading.readabilityHandler = nil
+                errorPipe.fileHandleForReading.readabilityHandler = nil
+
+                DispatchQueue.main.async {
+                    self?.isRunning = false
+                    self?.addLog("Server stopped with code: \(process.terminationStatus)")
                     NotificationCenter.default.post(name: .serverStatusChanged, object: nil)
-                    completion(true)
-                } else {
-                    self.addLog("⚠️ Server exited before becoming ready")
-                    completion(false)
                 }
             }
-        } catch {
-            addLog("❌ Failed to start server: \(error.localizedDescription)")
-            completion(false)
+
+            self.process = proc
+
+            do {
+                try proc.run()
+                DispatchQueue.main.async { self.isRunning = true }
+                self.addLog("✓ Server started on port \(self.port)")
+
+                // Give the backend a moment to actually bind before reporting success.
+                DispatchQueue.main.asyncAfter(deadline: .now() + Timing.readinessCheckDelay) { [weak self] in
+                    guard let self = self else { return }
+                    if let running = self.process, running.isRunning {
+                        NotificationCenter.default.post(name: .serverStatusChanged, object: nil)
+                        completion(true)
+                    } else {
+                        self.addLog("⚠️ Server exited before becoming ready")
+                        completion(false)
+                    }
+                }
+            } catch {
+                self.addLog("❌ Failed to start server: \(error.localizedDescription)")
+                finish(false)
+            }
         }
     }
     

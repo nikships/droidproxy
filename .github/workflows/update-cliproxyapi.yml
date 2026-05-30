@@ -83,11 +83,14 @@ jobs:
 
       - name: Download CLIProxyAPI
         if: steps.check.outputs.skip == 'false'
+        env:
+          # Pass upstream-derived values through env (not direct ${{ }} expansion)
+          # so a crafted release tag can't inject shell into the run script.
+          VERSION: ${{ steps.upstream.outputs.version }}
+          TAG: ${{ steps.upstream.outputs.tag }}
         run: |
           set -euo pipefail
 
-          VERSION="${{ steps.upstream.outputs.version }}"
-          TAG="${{ steps.upstream.outputs.tag }}"
           FILENAME="CLIProxyAPI_${VERSION}_darwin_aarch64.tar.gz"
           URL="https://github.com/router-for-me/CLIProxyAPI/releases/download/${TAG}/${FILENAME}"
 
