@@ -67,17 +67,27 @@ class ThinkingProxy {
      Starts the thinking proxy server on port 8317
      */
     func start() {
+        startListener(allowCustomBindAddress: true)
+    }
+
+    /// Creates and starts the listener. When `allowCustomBindAddress` is true the
+    /// user-configured bind address is applied; if the listener then fails (for
+    /// example the address is malformed or not assigned to any local interface)
+    /// it retries once with `allowCustomBindAddress` false, falling back to the
+    /// default all-interfaces bind so a bad address can't leave the proxy down.
+    private func startListener(allowCustomBindAddress: Bool) {
         guard !isRunning else {
             NSLog("[ThinkingProxy] Already running")
             return
         }
-        
+
+        let bindAddress = AppPreferences.bindAddress
+        let useCustomBind = allowCustomBindAddress && bindAddress != "0.0.0.0"
+
         do {
             let parameters = NWParameters.tcp
             parameters.allowLocalEndpointReuse = true
-            
-            let bindAddress = AppPreferences.bindAddress
-            
+
             guard let port = NWEndpoint.Port(rawValue: proxyPort) else {
                 NSLog("[ThinkingProxy] Invalid port: %d", proxyPort)
                 return
@@ -86,16 +96,19 @@ class ThinkingProxy {
             // If a specific bind address is set (and it's not 0.0.0.0), restrict the listener to it.
             // 0.0.0.0 means bind to all interfaces, which is the default behavior when
             // requiredLocalEndpoint is not set.
-            if bindAddress != "0.0.0.0" {
+            if useCustomBind {
                 parameters.requiredLocalEndpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(bindAddress), port: port)
                 NSLog("[ThinkingProxy] Binding to \(bindAddress):\(proxyPort)")
+            } else if !allowCustomBindAddress {
+                NSLog("[ThinkingProxy] Falling back to all interfaces after bind failure: \(proxyPort)")
             } else {
                 NSLog("[ThinkingProxy] Binding to all interfaces (0.0.0.0):\(proxyPort)")
             }
 
-            listener = try NWListener(using: parameters, on: port)
-            
-            listener?.stateUpdateHandler = { [weak self] state in
+            let newListener = try NWListener(using: parameters, on: port)
+            listener = newListener
+
+            newListener.stateUpdateHandler = { [weak self, weak newListener] state in
                 switch state {
                 case .ready:
                     DispatchQueue.main.async {
@@ -107,6 +120,20 @@ class ThinkingProxy {
                     DispatchQueue.main.async {
                         self?.isRunning = false
                     }
+                    // A custom bind address may be invalid or unavailable on this
+                    // machine, leaving the listener failed. Fall back once to the
+                    // default all-interfaces bind so the proxy keeps working.
+                    if useCustomBind {
+                        NSLog("[ThinkingProxy] Bind to \(bindAddress) failed; retrying on all interfaces")
+                        newListener?.stateUpdateHandler = nil
+                        newListener?.cancel()
+                        if self?.listener === newListener {
+                            self?.listener = nil
+                        }
+                        DispatchQueue.global(qos: .userInitiated).async {
+                            self?.startListener(allowCustomBindAddress: false)
+                        }
+                    }
                 case .cancelled:
                     NSLog("[ThinkingProxy] Cancelled")
                     DispatchQueue.main.async {
@@ -116,18 +143,24 @@ class ThinkingProxy {
                     break
                 }
             }
-            
-            listener?.newConnectionHandler = { [weak self] connection in
+
+            newListener.newConnectionHandler = { [weak self] connection in
                 self?.handleConnection(connection)
             }
-            
-            listener?.start(queue: .global(qos: .userInitiated))
-            
+
+            newListener.start(queue: .global(qos: .userInitiated))
+
         } catch {
             NSLog("[ThinkingProxy] Failed to start: \(error)")
+            // NWListener init can also throw for an invalid required endpoint;
+            // fall back to the default bind so a bad address isn't fatal.
+            if useCustomBind {
+                NSLog("[ThinkingProxy] Retrying on all interfaces after start failure")
+                startListener(allowCustomBindAddress: false)
+            }
         }
     }
-    
+
     /**
      Stops the thinking proxy server
      */

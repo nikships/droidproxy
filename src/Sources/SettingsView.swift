@@ -655,10 +655,11 @@ struct SettingsView: View {
                                     .textFieldStyle(.roundedBorder)
                                     .frame(maxWidth: 200)
                                     .disableAutocorrection(true)
+                                    // Regenerate the merged config when the user commits the
+                                    // value (Return / focus loss), not on every keystroke — the
+                                    // previous .onChange rewrote the config file on every typed
+                                    // character. The new address applies on the next server restart.
                                     .onSubmit {
-                                        _ = serverManager.getConfigPath()
-                                    }
-                                    .onChange(of: bindAddress) { _ in
                                         _ = serverManager.getConfigPath()
                                     }
                             }

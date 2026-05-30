@@ -351,10 +351,15 @@ class ServerManager: ObservableObject {
         let secretKey = AppPreferences.secretKey
         let bindAddress = AppPreferences.bindAddress
 
-        configContent = configContent.replacingOccurrences(
-            of: "host: 127.0.0.1",
-            with: "host: \(bindAddress)"
-        )
+        // bindAddress is user-controlled (already validated/sanitized in
+        // AppPreferences). Replace only the first `host:` anchor rather than
+        // every occurrence, and warn if the expected anchor is missing so
+        // silent config drift is visible in the logs.
+        if let hostRange = configContent.range(of: "host: 127.0.0.1") {
+            configContent.replaceSubrange(hostRange, with: "host: \(bindAddress)")
+        } else {
+            NSLog("[ServerManager] Warning: 'host: 127.0.0.1' anchor not found in bundled config; bind address not applied")
+        }
         configContent = configContent.replacingOccurrences(
             of: "  allow-remote: false",
             with: "  allow-remote: \(allowRemote)"

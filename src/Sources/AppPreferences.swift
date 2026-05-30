@@ -45,7 +45,14 @@ enum AppPreferences {
 
     static var bindAddress: String {
         guard betaFlag else { return defaultBindAddress }
-        return UserDefaults.standard.string(forKey: bindAddressKey) ?? defaultBindAddress
+        let raw = UserDefaults.standard.string(forKey: bindAddressKey) ?? defaultBindAddress
+        let trimmed = raw.trimmingCharacters(in: .whitespacesAndNewlines)
+        // Reject empty or multi-line values that would produce an invalid
+        // NWEndpoint host or inject extra lines into the generated YAML config.
+        guard !trimmed.isEmpty, !trimmed.contains(where: { $0.isNewline }) else {
+            return defaultBindAddress
+        }
+        return trimmed
     }
 
     static var backgroundOpacity: Double {
