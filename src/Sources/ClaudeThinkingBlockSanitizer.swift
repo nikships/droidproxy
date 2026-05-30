@@ -6,10 +6,20 @@ struct ClaudeThinkingBlockSanitizer {
         let valueRange: Range<String.Index>
     }
 
+    private struct Replacement {
+        let range: Range<String.Index>
+        let text: String
+    }
+
     private static let removableThinkingTypes: Set<String> = [
         "thinking",
         "redacted_thinking"
     ]
+
+    // Substituted for a content array that would otherwise become `[]` after stripping.
+    // Replacing (rather than dropping the message) keeps the assistant turn in place so
+    // user/assistant roles still alternate.
+    private static let emptyContentPlaceholder = "[{\"type\":\"text\",\"text\":\"...\"}]"
 
     static func sanitize(_ json: String) -> String {
         guard let messagesLocation = findTopLevelFieldLocation(in: json, key: "messages"),
@@ -19,7 +29,7 @@ struct ClaudeThinkingBlockSanitizer {
 
         let messageInfos = messages.map { messageInfo(in: json, range: $0) }
         let preserveThinkingAtIndex = latestAssistantIndexWithTrailingToolResults(messageInfos)
-        var deletionRanges: [Range<String.Index>] = []
+        var replacements: [Replacement] = []
 
         for (index, info) in messageInfos.enumerated() {
             guard info.role == "assistant",
@@ -41,31 +51,30 @@ struct ClaudeThinkingBlockSanitizer {
             }
 
             // Removing every block would leave `"content":[]`, which Anthropic rejects.
-            // Drop the whole stale assistant message instead.
+            // Replace the content with a placeholder instead of deleting the array so the
+            // assistant message (and role alternation) is preserved.
             if removableIndexes.count == blocks.count {
-                deletionRanges.append(contentsOf: rangesForRemoving(forRemoving: [index],
-                                                                    from: messages,
-                                                                    in: json))
+                replacements.append(Replacement(range: contentRange, text: emptyContentPlaceholder))
             } else {
-                deletionRanges.append(contentsOf: rangesForRemoving(forRemoving: removableIndexes,
-                                                                    from: blocks,
-                                                                    in: json))
+                let ranges = rangesForRemoving(forRemoving: removableIndexes, from: blocks, in: json)
+                replacements.append(contentsOf: ranges.map { Replacement(range: $0, text: "") })
             }
         }
 
-        guard !deletionRanges.isEmpty else {
+        guard !replacements.isEmpty else {
             return json
         }
 
         var result = ""
         result.reserveCapacity(json.count)
         var cursor = json.startIndex
-        for range in deletionRanges.sorted(by: { $0.lowerBound < $1.lowerBound }) {
-            guard cursor <= range.lowerBound else {
+        for replacement in replacements.sorted(by: { $0.range.lowerBound < $1.range.lowerBound }) {
+            guard cursor <= replacement.range.lowerBound else {
                 continue
             }
-            result.append(contentsOf: json[cursor..<range.lowerBound])
-            cursor = range.upperBound
+            result.append(contentsOf: json[cursor..<replacement.range.lowerBound])
+            result.append(replacement.text)
+            cursor = replacement.range.upperBound
         }
         result.append(contentsOf: json[cursor..<json.endIndex])
         return result
