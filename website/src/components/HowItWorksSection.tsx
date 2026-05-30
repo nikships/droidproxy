@@ -9,7 +9,7 @@ const steps = [
   {
     num: '02',
     name: 'DroidProxy holds the login',
-    desc: 'Tokens stay on your Mac. DroidProxy refreshes them in the background so nothing ever expires mid-session — no API keys, no copy-paste, no .env files. The menu bar dropdown also shows your live Claude and Codex rate limit windows, so you always know how much subscription budget is left before the next reset.',
+    desc: 'Tokens stay on your Mac. DroidProxy refreshes them in the background so nothing ever expires mid-session — no API keys, no copy-paste, no .env files. The Settings window also shows your live Claude and Codex usage windows — the 5-hour and weekly ones — so you always know how much subscription budget is left before the next reset.',
     portLabel: 'stored at',
     port: '~/.cli-proxy-api',
   },

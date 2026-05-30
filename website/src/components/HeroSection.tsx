@@ -5,7 +5,7 @@ export default function HeroSection() {
     <section className="hero" style={{ borderBottom: '1px solid var(--border)' }}>
       <div className="container hero-grid">
         <div>
-          <span className="eyebrow"><span className="dot"></span>v1.8.1 · macOS · free & open source</span>
+          <span className="eyebrow"><span className="dot"></span>v1.8.32 · macOS · free & open source</span>
           <h1 className="title">
             Use your <em>Claude, ChatGPT & Gemini</em> subscriptions inside Factory Droid.
           </h1>

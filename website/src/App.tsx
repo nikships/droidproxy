@@ -4,7 +4,7 @@ import LogosStrip from './components/LogosStrip'
 import UseCasesSection from './components/UseCasesSection'
 import HowItWorksSection from './components/HowItWorksSection'
 import ModelsSection from './components/ModelsSection'
-import MaxModeSection from './components/MaxModeSection'
+import FastModeSection from './components/FastModeSection'
 import InstallSection from './components/InstallSection'
 import SpecsSection from './components/SpecsSection'
 import ClosingCTA from './components/ClosingCTA'
@@ -20,7 +20,7 @@ function App() {
         <UseCasesSection />
         <HowItWorksSection />
         <ModelsSection />
-        <MaxModeSection />
+        <FastModeSection />
         <InstallSection />
         <SpecsSection />
         <ClosingCTA />

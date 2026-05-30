@@ -4,29 +4,25 @@ All notable changes to DroidProxy will be documented in this file.
 
 This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [1.8.50] - 2026-01-13
-
 ## [Unreleased]
 
 ### Added
 - **GPT 5.2 model** -- New Codex model exposed end-to-end: per-model reasoning effort picker (`low` / `medium` / `high` / `xhigh`, default `high`), Fast Mode toggle (`service_tier=priority` on `/v1/responses` and `/api/v1/responses`), and Factory custom-models entry `custom:droidproxy:gpt-5.2`. Click Apply Factory Models again after upgrading to provision it into `~/.factory/settings.json`.
+- **Gemini provider support** -- OAuth login, credential monitoring, provider enable/disable, and service icon in Settings UI
+- **Gemini thinking level controls** -- Per-model thinking level pickers for Gemini 3.1 Pro (`low` / `medium` / `high`) and Gemini 3 Flash (`minimal` / `low` / `medium` / `high`)
+- **Gemini Factory custom models** -- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` added to one-click Factory model provisioning
 
 ### Removed
 - **Challenger plugin removed** -- The Challenger droids (Opus / GPT / Gemini), the Settings "Challenger Plugin" Apply button, and the bundled `.factory/droids/challenger-*.md` + `.factory/commands/challenge-*.md` files have all been removed. Any previously installed copies under `~/.factory/droids/` and `~/.factory/commands/` should be deleted manually if you no longer want them.
 
 ### Fixed
-- **Claude thinking display** -- DroidProxy now requests summarized Opus 4.7 thinking and removes the `redact-thinking-2026-02-12` beta for Claude thinking requests so Anthropic streams plaintext `thinking_delta` blocks instead of empty thinking blocks with only signatures.
+- **Claude thinking display** -- DroidProxy now requests summarized Opus 4.8 thinking and removes the `redact-thinking-2026-02-12` beta for Claude thinking requests so Anthropic streams plaintext `thinking_delta` blocks instead of empty thinking blocks with only signatures.
 - **Codex `auth_unavailable` blackout during long sessions** ([#57](https://github.com/anand-92/droidproxy/issues/57)) -- Bundled `config.yaml` now sets `disable-cooling: true` so a single transient failure on a Codex/Claude/Gemini auth no longer parks every available account behind a cooldown window. Long Factory/Droid sessions on `gpt-5.5`, `gpt-5.4`, etc. no longer fail with `503 auth_unavailable: no auth available (providers=codex,github-copilot)` after working normally for hours.
 - **Encrypted reasoning state mismatch on `/v1/responses`** ([#58](https://github.com/anand-92/droidproxy/issues/58)) -- Bundled `config.yaml` now enables `routing.session-affinity: true` (TTL `2h`). Stateful Codex Responses API turns now stay pinned to the same upstream auth, so encrypted reasoning content created on turn N is no longer replayed through a different account on turn N+1 with `400 The encrypted content ... could not be verified`.
 
 ### Changed
-- **Claude Opus 4.7 migration** -- Opus 4.6 support replaced with Opus 4.7 throughout the app: model detection (`claude-opus-4-7`), Settings UI label, and Factory custom models entry (`custom:droidproxy:opus-4-7`) now target Opus 4.7. Effort options are `low` / `medium` / `high` / `xhigh` / `max`, with a default of `xhigh` per Anthropic's recommendation for coding and agentic workloads.
-- **Opus 4.6 Factory custom model** -- `custom:droidproxy:opus-4-6` is removed from `customModels` during Apply/Re-apply so users don't end up with stale entries alongside the new Opus 4.7 model.
-
-### Added
-- **Gemini provider support** -- OAuth login, credential monitoring, provider enable/disable, and service icon in Settings UI
-- **Gemini thinking level controls** -- Per-model thinking level pickers for Gemini 3.1 Pro (`low` / `medium` / `high`) and Gemini 3 Flash (`minimal` / `low` / `medium` / `high`)
-- **Gemini Factory custom models** -- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` added to one-click Factory model provisioning
+- **Claude Opus 4.8 migration** -- Opus 4.7 support is replaced with Opus 4.8 throughout the app: model detection (`claude-opus-4-8`), the Settings UI label, and the Factory custom-models entry (`custom:droidproxy:opus-4-8`) now target Opus 4.8. Effort options are `low` / `medium` / `high` / `xhigh` / `max`, with a default of `xhigh` per Anthropic's recommendation for coding and agentic workloads.
+- **Legacy Opus cleanup** -- Stale `custom:droidproxy:opus-4-5` and `custom:droidproxy:opus-4-6` entries are removed from `customModels` during Apply/Re-apply so users don't end up with old Opus models alongside Opus 4.8.
 
 ## [1.8.121] - 2026-04-02
 
@@ -34,7 +30,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Codex provider support** -- OAuth login, credential monitoring, provider enable/disable, and service icon in Settings UI
 
 ### Changed
-- **Granular thinking effort controls** -- Replaced the single "Force Opus 4.6 max effort" toggle with separate per-model effort pickers for Opus 4.6 (low/medium/high/max) and Sonnet 4.6 (low/medium/high)
+- **Granular thinking effort controls** -- Replaced the single "Force Opus 4.8 max effort" toggle with separate per-model effort pickers for Opus 4.8 (low/medium/high/max) and Sonnet 4.6 (low/medium/high)
 - **Simplified ThinkingProxy** -- Removed model suffix parsing, budget capping, max_tokens adjustment, and interleaved thinking beta header logic; thinking injection now uses per-model preferences directly with adaptive thinking only
 
 ## [1.8.120] - 2026-03-17
@@ -997,8 +993,8 @@ This release is all about code improvements and standartization. No user-facing 
 ## [1.3.0] - 2025-11-25
 
 ### Added
-- **Claude Opus 4.5 Support** - Full documentation for Claude's latest Opus 4.5 model
-  - Added `claude-opus-4-5-20251101` base model configuration
+- **Claude Opus 4.8 Support** - Full documentation for Claude's latest Opus 4.8 model
+  - Added `claude-opus-4-8` base model configuration
   - Added extended thinking variants: `-thinking-4000`, `-thinking-10000`, `-thinking-32000`
   - Complete setup instructions in FACTORY_SETUP.md
   - Available through bundled CLIProxyAPI 6.5.18+
