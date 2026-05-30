@@ -368,6 +368,14 @@ class ThinkingProxy {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)
             }
+            if let model = requestFields?.model, isClaudeModel(model) {
+                let sanitizedBody = ClaudeThinkingBlockSanitizer.sanitize(modifiedBody)
+                if sanitizedBody != modifiedBody {
+                    ThinkingProxy.fileLog("SANITIZED CLAUDE THINKING BLOCKS: stripped stale assistant thinking before forwarding")
+                    modifiedBody = sanitizedBody
+                    requestFields = inspectRequestJSONFields(in: modifiedBody)
+                }
+            }
             if let summary = reasoningSummaryLog(in: modifiedBody, fields: requestFields) {
                 ThinkingProxy.fileLog("REQUEST REASONING: \(summary)")
             }

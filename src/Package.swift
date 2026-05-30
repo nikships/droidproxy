@@ -23,6 +23,11 @@ let package = Package(
             resources: [
                 .copy("Resources")
             ]
+        ),
+        .testTarget(
+            name: "CLIProxyMenuBarTests",
+            dependencies: ["CLIProxyMenuBar"],
+            path: "Tests/CLIProxyMenuBarTests"
         )
     ]
 )
