@@ -33,7 +33,7 @@ git log --oneline $(git describe --tags --abbrev=0)..HEAD
 
 - New feature -> bump minor (e.g. 1.5.0 -> 1.6.0)
 - Bug fix only -> bump patch (e.g. 1.5.0 -> 1.5.1)
-- CLIProxyAPIPlus bump alone -> bump patch
+- CLIProxyAPI bump alone -> bump patch
 
 ### 2. Bump version in Info.plist
 
@@ -46,7 +46,7 @@ APP_VERSION=<version> ./create-app-bundle.sh
 ```
 
 This does a release swift build from `src/`, assembles the `.app` bundle, signs everything
-(cli-proxy-api-plus, Sparkle.framework, main executable) with Developer ID, and verifies.
+(cli-proxy-api, Sparkle.framework, main executable) with Developer ID, and verifies.
 
 The build number (`CFBundleVersion`) is auto-set to `git rev-list --count HEAD`.
 
@@ -112,7 +112,7 @@ gh release create vX.Y.Z DroidProxy-arm64.zip \
   --title "vX.Y.Z" \
   --notes "### Added
 - Feature description
-- **CLIProxyAPIPlus X.X.X-X** -- Latest upstream release"
+- **CLIProxyAPI X.X.X** -- Latest upstream release"
 ```
 
 ## Verify it worked

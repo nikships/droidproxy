@@ -115,7 +115,7 @@ class ServerManager: ObservableObject {
         killOrphanedProcesses()
 
         guard let bundledPath = bundledBinaryPath() else {
-            addLog("❌ Error: cli-proxy-api-plus binary not found in app bundle")
+            addLog("❌ Error: cli-proxy-api binary not found in app bundle")
             completion(false)
             return
         }
@@ -228,7 +228,7 @@ class ServerManager: ObservableObject {
     func runAuthCommand(_ command: AuthCommand, completion: @escaping (Bool, String) -> Void) {
         guard let bundledPath = bundledBinaryPath(),
               let resourcePath = Bundle.main.resourcePath else {
-            completion(false, "cli-proxy-api-plus binary not found in app bundle")
+            completion(false, "cli-proxy-api binary not found in app bundle")
             return
         }
 
@@ -312,11 +312,11 @@ class ServerManager: ObservableObject {
         }
     }
 
-    /// Resolves the path to the bundled `cli-proxy-api-plus` binary, returning
+    /// Resolves the path to the bundled `cli-proxy-api` binary, returning
     /// `nil` if the resource directory or binary is missing.
     private func bundledBinaryPath() -> String? {
         guard let resourcePath = Bundle.main.resourcePath else { return nil }
-        let path = (resourcePath as NSString).appendingPathComponent("cli-proxy-api-plus")
+        let path = (resourcePath as NSString).appendingPathComponent("cli-proxy-api")
         return FileManager.default.fileExists(atPath: path) ? path : nil
     }
     
@@ -410,12 +410,26 @@ class ServerManager: ObservableObject {
         return logBuffer.elements()
     }
     
-    /// Kill any orphaned cli-proxy-api-plus processes that might be running
+    /// Exact process names to sweep for orphans. `cli-proxy-api` is the current
+    /// bundled backend; `cli-proxy-api-plus` is the legacy name, swept once so an
+    /// orphan left over from a pre-migration build can't keep holding port 8318.
+    private static let orphanProcessNames = ["cli-proxy-api", "cli-proxy-api-plus"]
+
+    /// Kill any orphaned backend processes that might be running.
     private func killOrphanedProcesses() {
-        // First check if any processes exist using pgrep
+        for name in Self.orphanProcessNames {
+            killOrphanedProcesses(named: name)
+        }
+    }
+
+    private func killOrphanedProcesses(named processName: String) {
+        // Match the exact process name (not -f against the full command line):
+        // the backend's config path is `~/.cli-proxy-api/merged-config.yaml`, so a
+        // `-f cli-proxy-api` pattern would also match unrelated processes that merely
+        // reference that directory (e.g. `tail -f ~/.cli-proxy-api/logs/...`).
         let checkTask = Process()
         checkTask.executableURL = URL(fileURLWithPath: "/usr/bin/pgrep")
-        checkTask.arguments = ["-f", "cli-proxy-api-plus"]
+        checkTask.arguments = ["-x", processName]
         
         let outputPipe = Pipe()
         checkTask.standardOutput = outputPipe
@@ -432,12 +446,12 @@ class ServerManager: ObservableObject {
                 let pids = output.components(separatedBy: .newlines).filter { !$0.isEmpty }
                 
                 if !pids.isEmpty {
-                    addLog("⚠️ Found orphaned server process(es): \(pids.joined(separator: ", "))")
+                    addLog("⚠️ Found orphaned server process(es) [\(processName)]: \(pids.joined(separator: ", "))")
                     
                     // Now kill them
                     let killTask = Process()
                     killTask.executableURL = URL(fileURLWithPath: "/usr/bin/pkill")
-                    killTask.arguments = ["-9", "-f", "cli-proxy-api-plus"]
+                    killTask.arguments = ["-9", "-x", processName]
                     
                     try killTask.run()
                     killTask.waitUntilExit()
@@ -460,7 +474,7 @@ enum AuthCommand: Equatable {
     case antigravityLogin
     case kimiLogin
 
-    /// CLI flag passed to `cli-proxy-api-plus` for this login flow.
+    /// CLI flag passed to `cli-proxy-api` for this login flow.
     var loginFlag: String {
         switch self {
         case .claudeLogin: return "-claude-login"

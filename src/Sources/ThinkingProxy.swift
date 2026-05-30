@@ -11,7 +11,6 @@ import Network
    request enables thinking, so Claude emits visible thinking blocks.
  - Injects `service_tier: "priority"` for OpenAI Responses API requests on the user-enabled
    GPT 5.x fast-mode models (these toggles are independent of reasoning effort).
- - Forwards Amp CLI auth/management paths to ampcode.com and normalizes the response.
  - Rewrites Gemini `/v1/responses` to `/v1/chat/completions` since the backend does not
    support Gemini via the Responses API endpoint.
 
@@ -307,35 +306,9 @@ class ThinkingProxy {
         }
 
         let bodyString = String(requestString[bodyStartRange.upperBound...])
-        
-        // Redirect Amp CLI login directly to ampcode.com to preserve auth state cookies
-        if path.starts(with: "/auth/cli-login") || path.starts(with: "/api/auth/cli-login") {
-            let loginPath = path.hasPrefix("/api/") ? String(path.dropFirst(4)) : path
-            let redirectUrl = "https://ampcode.com" + loginPath
-            NSLog("[ThinkingProxy] Redirecting Amp CLI login to: \(redirectUrl)")
-            sendRedirect(to: connection, location: redirectUrl)
-            return
-        }
 
-        // Rewrite Amp CLI paths
         var rewrittenPath = path
-        if path.starts(with: "/provider/") {
-            // Rewrite /provider/* to /api/provider/*
-            rewrittenPath = "/api" + path
-            NSLog("[ThinkingProxy] Rewriting Amp provider path: \(path) -> \(rewrittenPath)")
-        }
-        
-        // Check if this is an Amp management request (anything not targeting provider or /v1)
-        // Note: /provider/ paths are already rewritten to /api/provider/ above
-        let isProviderPath = rewrittenPath.starts(with: "/api/provider/")
-        let isCliProxyPath = rewrittenPath.starts(with: "/v1/") || rewrittenPath.starts(with: "/api/v1/")
-        if !isProviderPath && !isCliProxyPath {
-            let ampPath = rewrittenPath
-            NSLog("[ThinkingProxy] Amp management request detected, forwarding to ampcode.com: \(ampPath)")
-            forwardToAmp(method: method, path: ampPath, version: httpVersion, headers: headers, body: bodyString, originalConnection: connection)
-            return
-        }
-        
+
         // Try to parse and modify JSON body for POST requests
         var modifiedBody = bodyString
         var requestFields: RequestJSONFields? = bodyString.isEmpty ? nil : inspectRequestJSONFields(in: bodyString)
@@ -844,67 +817,6 @@ class ThinkingProxy {
         "/api/v1/responses"
     ]
 
-    private static let ampProviderToolRewritePattern = "\"name\"\\s*:\\s*\"bash\""
-    private static let ampProviderRewriteCarryLength = 31
-
-    private final class AmpProviderRewriteState {
-        var carry = ""
-    }
-
-    private func shouldNormalizeAmpProviderResponse(for path: String) -> Bool {
-        let normalizedPath = path.split(separator: "?").first.map(String.init) ?? path
-        return normalizedPath.starts(with: "/api/provider/")
-    }
-
-    private func normalizeAmpProviderResponseChunk(_ data: Data,
-                                                   rewriteState: AmpProviderRewriteState,
-                                                   isComplete: Bool) -> Data {
-        let carryPrefix = rewriteState.carry
-        rewriteState.carry = ""
-
-        guard let chunk = String(data: data, encoding: .utf8) else {
-            if carryPrefix.isEmpty {
-                return data
-            }
-            var passthrough = Data(carryPrefix.utf8)
-            passthrough.append(data)
-            return passthrough
-        }
-
-        var combined = carryPrefix + chunk
-        let beforeRewrite = combined
-        combined = combined.replacingOccurrences(of: Self.ampProviderToolRewritePattern,
-                                                 with: "\"name\":\"Bash\"",
-                                                 options: .regularExpression)
-        if combined != beforeRewrite {
-            NSLog("[ThinkingProxy] Normalized Amp provider tool name(s) in response chunk")
-        }
-
-        guard !isComplete else {
-            return Data(combined.utf8)
-        }
-
-        let carryLength = min(Self.ampProviderRewriteCarryLength, combined.count)
-        if carryLength == combined.count {
-            rewriteState.carry = combined
-            return Data()
-        }
-
-        let carryStart = combined.index(combined.endIndex, offsetBy: -carryLength)
-        let output = String(combined[..<carryStart])
-        rewriteState.carry = String(combined[carryStart...])
-        return Data(output.utf8)
-    }
-
-    private func flushNormalizedResponseCarry(_ rewriteState: AmpProviderRewriteState?) -> Data? {
-        guard let rewriteState, !rewriteState.carry.isEmpty else {
-            return nil
-        }
-        let carry = rewriteState.carry
-        rewriteState.carry = ""
-        return Data(carry.utf8)
-    }
-
     private func processOpenAIFastMode(jsonString: String, path: String, fields: RequestJSONFields?) -> String? {
         let normalizedPath = path.split(separator: "?").first.map(String.init) ?? path
         guard Self.fastTierEligibleResponsePaths.contains(normalizedPath) else { return nil }
@@ -930,161 +842,6 @@ class ThinkingProxy {
         result.insert(contentsOf: ",\"service_tier\":\"priority\"", at: modelLocation.pairRange.upperBound)
         NSLog("[ThinkingProxy] Injected service_tier=priority for model '\(model)' on path \(path)")
         ThinkingProxy.fileLog("INJECTED service_tier=priority for model \(model)")
-        return result
-    }
-
-    /**
-     Forwards Amp API requests to ampcode.com, stripping the /api/ prefix
-     */
-    private func forwardToAmp(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
-        // Create TLS parameters for HTTPS
-        let tlsOptions = NWProtocolTLS.Options()
-        let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
-        
-        // Create connection to ampcode.com:443
-        let endpoint = NWEndpoint.hostPort(host: "ampcode.com", port: 443)
-        let targetConnection = NWConnection(to: endpoint, using: parameters)
-        
-        targetConnection.stateUpdateHandler = { state in
-            switch state {
-            case .ready:
-                // Build the forwarded request
-                var forwardedRequest = "\(method) \(path) \(version)\r\n"
-                
-                // Forward most headers, excluding some that need to be overridden
-                let excludedHeaders: Set<String> = ["host", "content-length", "connection", "transfer-encoding"]
-                for (name, value) in headers {
-                    if !excludedHeaders.contains(name.lowercased()) {
-                        forwardedRequest += "\(name): \(value)\r\n"
-                    }
-                }
-                
-                // Override Host header for ampcode.com
-                forwardedRequest += "Host: ampcode.com\r\n"
-                forwardedRequest += "Connection: close\r\n"
-                
-                let contentLength = body.utf8.count
-                forwardedRequest += "Content-Length: \(contentLength)\r\n"
-                forwardedRequest += "\r\n"
-                forwardedRequest += body
-                
-                // Send to ampcode.com
-                if let requestData = forwardedRequest.data(using: .utf8) {
-                    targetConnection.send(content: requestData, completion: .contentProcessed({ error in
-                        if let error = error {
-                            NSLog("[ThinkingProxy] Send error to ampcode.com: \(error)")
-                            targetConnection.cancel()
-                            originalConnection.cancel()
-                        } else {
-                            // Receive response from ampcode.com and rewrite Location headers
-                            self.receiveAmpResponse(from: targetConnection, originalConnection: originalConnection)
-                        }
-                    }))
-                }
-                
-            case .failed(let error):
-                NSLog("[ThinkingProxy] Connection to ampcode.com failed: \(error)")
-                self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Could not connect to ampcode.com")
-                targetConnection.cancel()
-                
-            default:
-                break
-            }
-        }
-        
-        targetConnection.start(queue: .global(qos: .userInitiated))
-    }
-    
-    /**
-     Receives response from ampcode.com and rewrites Location headers to add /api/ prefix
-     */
-    private func receiveAmpResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
-        targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
-            guard let self = self else { return }
-
-            if let error = error {
-                NSLog("[ThinkingProxy] Receive Amp response error: \(error)")
-                targetConnection.cancel()
-                originalConnection.cancel()
-                return
-            }
-
-            guard let data = data, !data.isEmpty else {
-                if isComplete {
-                    self.finishStreaming(target: targetConnection, client: originalConnection)
-                }
-                return
-            }
-
-            // Pick what to forward: rewritten UTF-8 bytes if possible, else original.
-            // If we successfully decoded UTF-8 but failed to re-encode (unreachable
-            // in practice), match the original behavior of dropping the chunk.
-            let outboundData: Data
-            if let responseString = String(data: data, encoding: .utf8) {
-                guard let modifiedData = self.rewriteAmpResponseHeaders(in: responseString).data(using: .utf8) else {
-                    return
-                }
-                outboundData = modifiedData
-            } else {
-                outboundData = data
-            }
-
-            originalConnection.send(content: outboundData, completion: .contentProcessed({ sendError in
-                if let sendError = sendError {
-                    NSLog("[ThinkingProxy] Send Amp response error: \(sendError)")
-                }
-
-                if isComplete {
-                    self.finishStreaming(target: targetConnection, client: originalConnection)
-                } else {
-                    self.receiveAmpResponse(from: targetConnection, originalConnection: originalConnection)
-                }
-            }))
-        }
-    }
-
-    /// Rewrites Amp response headers so browser flows continue to work through the
-    /// local proxy: prepends `/api/` to relative Location values, strips the
-    /// `https://ampcode.com/` host from absolute Location values, and rewrites
-    /// `Domain=` cookie attributes to `localhost`.
-    private func rewriteAmpResponseHeaders(in responseString: String) -> String {
-        var result = responseString
-
-        // Rewrite Location headers to prepend /api/
-        result = result.replacingOccurrences(
-            of: "\r\nlocation: /",
-            with: "\r\nlocation: /api/",
-            options: .caseInsensitive
-        )
-        result = result.replacingOccurrences(
-            of: "\r\nLocation: /",
-            with: "\r\nLocation: /api/"
-        )
-
-        // Rewrite absolute Location headers to keep browser on localhost proxy
-        result = result.replacingOccurrences(
-            of: "\r\nLocation: https://ampcode.com/",
-            with: "\r\nLocation: /api/",
-            options: .caseInsensitive
-        )
-        result = result.replacingOccurrences(
-            of: "\r\nLocation: http://ampcode.com/",
-            with: "\r\nLocation: /api/",
-            options: .caseInsensitive
-        )
-
-        // Rewrite cookie domain so browser accepts cookies from localhost
-        result = result.replacingOccurrences(
-            of: "Domain=.ampcode.com",
-            with: "Domain=localhost",
-            options: .caseInsensitive
-        )
-        result = result.replacingOccurrences(
-            of: "Domain=ampcode.com",
-            with: "Domain=localhost",
-            options: .caseInsensitive
-        )
-
         return result
     }
 
@@ -1133,10 +890,8 @@ class ThinkingProxy {
                             targetConnection.cancel()
                             originalConnection.cancel()
                         } else {
-                            let normalizeAmpProviderResponse = self.shouldNormalizeAmpProviderResponse(for: path)
                             self.receiveResponse(from: targetConnection,
-                                                 originalConnection: originalConnection,
-                                                 normalizeAmpProviderResponse: normalizeAmpProviderResponse)
+                                                 originalConnection: originalConnection)
                         }
                     }))
                 }
@@ -1158,19 +913,16 @@ class ThinkingProxy {
      Starts the streaming loop for response data
      */
     private func receiveResponse(from targetConnection: NWConnection,
-                                 originalConnection: NWConnection,
-                                 normalizeAmpProviderResponse: Bool = false) {
-        let rewriteState = normalizeAmpProviderResponse ? AmpProviderRewriteState() : nil
+                                 originalConnection: NWConnection) {
         // Start the streaming loop
-        streamNextChunk(from: targetConnection, to: originalConnection, rewriteState: rewriteState)
+        streamNextChunk(from: targetConnection, to: originalConnection)
     }
     
     /**
      Streams response chunks iteratively (uses async scheduling instead of recursion to avoid stack buildup)
      */
     private func streamNextChunk(from targetConnection: NWConnection,
-                                 to originalConnection: NWConnection,
-                                 rewriteState: AmpProviderRewriteState?) {
+                                 to originalConnection: NWConnection) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
 
@@ -1182,18 +934,8 @@ class ThinkingProxy {
             }
 
             if let data = data, !data.isEmpty {
-                var outboundData = data
-                if let rewriteState {
-                    outboundData = self.normalizeAmpProviderResponseChunk(data, rewriteState: rewriteState, isComplete: isComplete)
-                }
-
-                if outboundData.isEmpty && !isComplete {
-                    self.streamNextChunk(from: targetConnection, to: originalConnection, rewriteState: rewriteState)
-                    return
-                }
-
                 // Forward response chunk to original client
-                originalConnection.send(content: outboundData, completion: .contentProcessed({ sendError in
+                originalConnection.send(content: data, completion: .contentProcessed({ sendError in
                     if let sendError = sendError {
                         NSLog("[ThinkingProxy] Send response error: \(sendError)")
                     }
@@ -1202,24 +944,15 @@ class ThinkingProxy {
                         self.finishStreaming(target: targetConnection, client: originalConnection)
                     } else {
                         // Schedule next iteration of the streaming loop
-                        self.streamNextChunk(from: targetConnection, to: originalConnection, rewriteState: rewriteState)
+                        self.streamNextChunk(from: targetConnection, to: originalConnection)
                     }
                 }))
             } else if isComplete {
                 targetConnection.cancel()
-                if let carryData = self.flushNormalizedResponseCarry(rewriteState), !carryData.isEmpty {
-                    originalConnection.send(content: carryData, completion: .contentProcessed({ _ in
-                        // Always close client connection - no keep-alive/pipelining support
-                        originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                            originalConnection.cancel()
-                        }))
-                    }))
-                } else {
-                    // Always close client connection - no keep-alive/pipelining support
-                    originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
-                        originalConnection.cancel()
-                    }))
-                }
+                // Always close client connection - no keep-alive/pipelining support
+                originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
+                    originalConnection.cancel()
+                }))
             }
         }
     }
@@ -1262,23 +995,6 @@ class ThinkingProxy {
         responseData.append(bodyData)
         
         connection.send(content: responseData, completion: .contentProcessed({ _ in
-            connection.cancel()
-        }))
-    }
-
-    private func sendRedirect(to connection: NWConnection, location: String) {
-        let headers = "HTTP/1.1 302 Found\r\n" +
-                     "Location: \(location)\r\n" +
-                     "Content-Length: 0\r\n" +
-                     "Connection: close\r\n" +
-                     "\r\n"
-
-        guard let headerData = headers.data(using: .utf8) else {
-            connection.cancel()
-            return
-        }
-
-        connection.send(content: headerData, completion: .contentProcessed({ _ in
             connection.cancel()
         }))
     }

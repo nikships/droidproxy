@@ -66,32 +66,34 @@ jobs:
           echo "build_number=$BUILD_NUMBER" >> "$GITHUB_OUTPUT"
           echo "Releasing v${VERSION} (build ${BUILD_NUMBER})"
 
-      - name: Verify bundled CLIProxyAPIPlus
+      - name: Verify bundled CLIProxyAPI
         id: cliproxy
         run: |
           set -euo pipefail
 
-          # Upstream router-for-me/CLIProxyAPIPlus was removed, so we ship the
-          # binary that's already committed at src/Sources/Resources/cli-proxy-api-plus
-          # instead of re-downloading it during the release build.
-          BIN="src/Sources/Resources/cli-proxy-api-plus"
+          # The bundled binary is committed at src/Sources/Resources/cli-proxy-api
+          # (bumped by the Update CLIProxyAPI workflow), so we verify the committed
+          # binary instead of re-downloading it during the release build.
+          BIN="src/Sources/Resources/cli-proxy-api"
           if [ ! -f "$BIN" ]; then
-            echo "::error::Bundled CLIProxyAPIPlus binary missing at $BIN"
+            echo "::error::Bundled CLIProxyAPI binary missing at $BIN"
             exit 1
           fi
           chmod +x "$BIN"
 
-          OUTPUT=$("$BIN" 2>&1 || true)
-          VERSION=$(printf '%s\n' "$OUTPUT" | sed -nE 's/.*CLIProxyAPI Version: ([0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?)-plus,.*/\1/p' | head -n 1)
+          # `-h` prints the version banner on the first line and exits 0 (running
+          # with no args would block trying to start the server).
+          OUTPUT=$("$BIN" -h 2>&1 || true)
+          VERSION=$(printf '%s\n' "$OUTPUT" | sed -nE 's/.*CLIProxyAPI Version: ([0-9]+\.[0-9]+\.[0-9]+(-[0-9]+)?),.*/\1/p' | head -n 1)
 
           if [ -z "$VERSION" ]; then
-            echo "::error::Failed to detect bundled CLIProxyAPIPlus version"
+            echo "::error::Failed to detect bundled CLIProxyAPI version"
             echo "$OUTPUT"
             exit 1
           fi
 
           echo "version=$VERSION" >> "$GITHUB_OUTPUT"
-          echo "Bundled CLIProxyAPIPlus: $VERSION"
+          echo "Bundled CLIProxyAPI: $VERSION"
           file "$BIN"
 
       - name: Build app bundle

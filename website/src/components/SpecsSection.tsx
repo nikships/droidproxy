@@ -5,7 +5,7 @@ const specs = [
   { label: 'License', value: 'MIT', small: 'open source · free forever' },
   { label: 'Auto-update', value: 'Sparkle', small: 'EdDSA-signed appcast' },
   { label: 'Auth model', value: 'Native OAuth', small: 'no API keys to provision' },
-  { label: 'Built on', value: 'CLIProxyAPIPlus', small: 'router-for-me · MIT' },
+  { label: 'Built on', value: 'CLIProxyAPI', small: 'router-for-me · MIT' },
   { label: 'Distribution', value: 'Notarized .zip', small: 'Sparkle auto-updates' },
   { label: 'Usage tracking', value: 'Built-in', small: 'Claude · Codex · 5h + weekly' },
 ]

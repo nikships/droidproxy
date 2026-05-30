@@ -4,10 +4,6 @@ port: 8318
 # Bind to localhost only for security (prevents exposure on public IPs)
 host: 127.0.0.1
 
-# Amp CLI integration (management requests only - login, user, threads)
-amp-upstream-url: "https://ampcode.com"
-amp-restrict-management-to-localhost: true
-
 # Management API settings
 remote-management:
   allow-remote: false

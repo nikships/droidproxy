@@ -720,7 +720,7 @@ struct SettingsView: View {
                         .onChange(of: verboseLogging) { _ in
                             _ = serverManager.getConfigPath()
                         }
-                        .help("Writes verbose backend request/response logs to ~/.cli-proxy-api/logs/. CLIProxyAPIPlus hot-reloads, so no restart is required.")
+                        .help("Writes verbose backend request/response logs to ~/.cli-proxy-api/logs/. CLIProxyAPI hot-reloads, so no restart is required.")
 
                     HStack {
                         Text("Logs folder")
@@ -823,7 +823,7 @@ struct SettingsView: View {
                     Text("DroidProxy \(appVersion) was made possible thanks to")
                         .font(.caption)
                         .foregroundColor(oledFooterText)
-                    Link("CLIProxyAPIPlus", destination: URL(string: "https://github.com/router-for-me/CLIProxyAPIPlus")!)
+                    Link("CLIProxyAPI", destination: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!)
                         .font(.caption)
                         .underline()
                         .foregroundColor(oledFooterText)
@@ -1067,7 +1067,7 @@ struct SettingsView: View {
         case .codex:
             return "🌐 Browser opened for Codex authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .antigravity:
-            return "🌐 Browser opened for Antigravity authentication.\n\nYou must have Google Antigravity installed before adding an Antigravity account.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api-plus --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
+            return "🌐 Browser opened for Antigravity authentication.\n\nYou must have Google Antigravity installed before adding an Antigravity account.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
         case .kimi:
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .cursor:

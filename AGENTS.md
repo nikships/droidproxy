@@ -8,7 +8,7 @@ The Swift package lives in `src/`. Run all `swift build`, `swift run`, and `swif
 # Preferred dev loop: kill any running DroidProxy, rebuild the .app bundle, and
 # launch the freshly signed build. Use this instead of running create-app-bundle.sh
 # + open by hand — it guarantees the old menu-bar process and bundled
-# cli-proxy-api-plus are stopped before the new app starts.
+# cli-proxy-api are stopped before the new app starts.
 ./dev-relaunch.sh
 
 # Debug build (no .app bundle, no relaunch)
@@ -23,7 +23,7 @@ cd src && swift build
 ./create-app-bundle.sh
 ```
 
-`dev-relaunch.sh` is the preferred way to run DroidProxy during development. It calls `create-app-bundle.sh` (which runs `swift build -c release` and assembles the signed `.app`) after killing any running `CLIProxyMenuBar` / `cli-proxy-api-plus` processes, then launches the fresh bundle. Do not use it for releases — those go through `.github/workflows/release.yml`.
+`dev-relaunch.sh` is the preferred way to run DroidProxy during development. It calls `create-app-bundle.sh` (which runs `swift build -c release` and assembles the signed `.app`) after killing any running `CLIProxyMenuBar` / `cli-proxy-api` processes, then launches the fresh bundle. Do not use it for releases — those go through `.github/workflows/release.yml`.
 
 `create-app-bundle.sh` currently builds `DroidProxy.app` at the repo root and bundles resources from `src/Sources/Resources/`.
 
@@ -50,11 +50,11 @@ The compiled app code is under `src/`. Treat `src/Sources/**`, `src/Info.plist`,
 DroidProxy is a macOS menu bar app (`LSUIElement`) with:
 
 1. `ThinkingProxy` on `localhost:8317`, the user-facing TCP proxy.
-2. Bundled `CLIProxyAPIPlus` on `127.0.0.1:8318`, managed as a child process by `ServerManager`.
+2. Bundled `CLIProxyAPI` on `127.0.0.1:8318`, managed as a child process by `ServerManager`.
 
 Typical request flow:
 
-`Client -> :8317 ThinkingProxy -> :8318 CLIProxyAPIPlus -> upstream provider`
+`Client -> :8317 ThinkingProxy -> :8318 CLIProxyAPI -> upstream provider`
 
 ### Current ThinkingProxy behavior
 
@@ -64,8 +64,7 @@ What it still does today:
 
 - **Anthropic-Beta rewriting**: When a Claude request has `thinking.type` of `enabled`/`adaptive`/`auto`, the proxy strips `redact-thinking-2026-02-12` from the `Anthropic-Beta` header and appends the visible-thinking beta list (interleaved-thinking, prompt-caching-scope, fast-mode, etc.). Without this, Claude emits only signed empty thinking blocks.
 - **Service tier (fast mode)** for Responses API paths (`/v1/responses`, `/api/v1/responses`): injects `"service_tier":"priority"` for `gpt-5.3-codex`, `gpt-5.4`, or `gpt-5.5` when `AppPreferences.gpt53CodexFastMode`, `AppPreferences.gpt54FastMode`, or `AppPreferences.gpt55FastMode` is enabled and the client did not already set `service_tier`. Fast mode is API priority and is independent of reasoning effort. (`gpt-5.2` is still served but no longer exposes a fast-mode toggle.)
-- **Gemini path rewrite**: `/v1/responses` (and `/api/v1/responses`) are rewritten to `/v1/chat/completions` for Gemini models since CLIProxyAPIPlus does not support Gemini via the Responses API endpoint.
-- **Amp routing**: see the `Amp routing` section below.
+- **Gemini path rewrite**: `/v1/responses` (and `/api/v1/responses`) are rewritten to `/v1/chat/completions` for OAuth Code Assist Gemini models (the `-preview`-suffixed names) since CLIProxyAPI does not support those via the Responses API endpoint.
 - **Per-request reasoning log** to `/tmp/droidproxy-debug.log`: each `POST` emits a `REQUEST REASONING:` line that extracts just `reasoning` / `reasoning_effort` / `thinking` / `output_config` / `service_tier` / `generationConfig` from the parsed body so the actual values Droid is sending are visible without dumping the whole prompt. Example: `REQUEST REASONING: model=gpt-5.5 reasoning={"effort":"xhigh","summary":"auto"}`.
 - Preserves JSON key order by editing the raw JSON string instead of re-serializing (critical for Anthropic's prompt cache). The remaining helpers (`injectJSONField`, `findTopLevelFieldLocation`, etc.) exist for `processOpenAIFastMode`.
 
@@ -78,15 +77,7 @@ What it no longer does (removed in the Droid-CLI-thinking refactor):
 - No Kimi `reasoning_effort` injection
 - No `claude-opus-4-8(high)` / `gpt-5.2(xhigh)` etc. “advanced variant” suffix parsing — every level now ships in the single base entry via Droid CLI metadata
 - No Max Budget Mode override
-
-### Amp routing
-
-`ThinkingProxy` also handles Amp-specific routing:
-
-- `/auth/cli-login` and `/api/auth/cli-login` are redirected directly to `https://ampcode.com/...`
-- `/provider/*` is rewritten to `/api/provider/*`
-- Requests that are not provider requests and not `/v1/*` or `/api/v1/*` are treated as Amp management requests and forwarded to `ampcode.com`
-- Amp response `Location` headers and cookie domains are rewritten so browser flows continue working through localhost
+- No Amp CLI routing (the `/auth/cli-login` redirect, `/provider/*` rewrite, `ampcode.com` management forwarding, and Amp response normalization were removed when switching to mainline CLIProxyAPI)
 
 ## Auth And Providers
 
@@ -112,7 +103,7 @@ Behavior to know:
 - The last enabled account for a provider cannot be disabled
 - Provider-level toggles in `SettingsView` are separate from per-account disable flags
 - Provider-level disable writes `oauth-excluded-models` into `~/.cli-proxy-api/merged-config.yaml`
-- `CLIProxyAPIPlus` hot-reloads config changes, so provider enable/disable does not require a restart
+- `CLIProxyAPI` hot-reloads config changes, so provider enable/disable does not require a restart
 - The app watches `~/.cli-proxy-api/` for changes from both `AppDelegate` and `SettingsView`
 
 ## Key Files
@@ -121,8 +112,8 @@ Behavior to know:
 |---|---|
 | `src/Sources/main.swift` | NSApplication entry point that instantiates `AppDelegate` and calls `NSApplicationMain`. |
 | `src/Sources/AppDelegate.swift` | App lifecycle, menu bar UI, settings window, notifications, Sparkle updater, auth-directory watcher, startup ordering for the two local servers. |
-| `src/Sources/ServerManager.swift` | Starts/stops bundled `cli-proxy-api-plus`, captures logs, merges config (including injecting the remote-management `allow-remote`/`secret-key` settings from UserDefaults), handles provider enable/disable, runs Claude/Codex/Gemini login commands, and kills orphaned backend processes. |
-| `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy that forwards requests to CLIProxyAPIPlus. Rewrites the Anthropic-Beta header to drop `redact-thinking-2026-02-12` on Claude thinking requests, injects `service_tier=priority` on enabled Codex fast-mode models, rewrites Gemini `/v1/responses` to `/v1/chat/completions`, handles Amp request/response rewriting, and emits a `REQUEST REASONING` log line per request. Does not inject reasoning or thinking fields. |
+| `src/Sources/ServerManager.swift` | Starts/stops bundled `cli-proxy-api`, captures logs, merges config (including injecting the remote-management `allow-remote`/`secret-key` settings from UserDefaults), handles provider enable/disable, runs Claude/Codex/Gemini login commands, and kills orphaned backend processes. |
+| `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy that forwards requests to CLIProxyAPI. Rewrites the Anthropic-Beta header to drop `redact-thinking-2026-02-12` on Claude thinking requests, injects `service_tier=priority` on enabled Codex fast-mode models, rewrites OAuth Code Assist Gemini `/v1/responses` to `/v1/chat/completions`, and emits a `REQUEST REASONING` log line per request. Does not inject reasoning or thinking fields. |
 | `src/Sources/DroidProxyModelCatalog.swift` | Authoritative catalog of DroidProxy-exposed models. Each `DroidProxyModelDefinition` carries its supported `levels` plus a `defaultLevelValue`, and `settingsEntry` always embeds Factory's native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid CLI's per-session selector can expose the full level set. |
 | `src/Sources/SettingsView.swift` | SwiftUI settings UI for server status, launch-at-login, provider toggles, auth flows, the Codex fast-mode (`service_tier=priority`) subsection, the Factory custom-models Apply button, OLED theme, background opacity, and remote-access settings. No thinking/reasoning selectors — those live in Droid CLI. |
 | `src/Sources/AuthStatus.swift` | `AuthManager`, account parsing, expiry detection, file deletion, and per-account disabled-state updates. |
@@ -133,7 +124,7 @@ Behavior to know:
 | `src/Sources/LogoView.swift` | Inline-SVG `LogoView` used in the settings UI. |
 | `src/Sources/AuthDirectoryMonitor.swift` | Debounced `DispatchSource` watcher on `~/.cli-proxy-api` that fires an `onChange` callback when auth JSON files are added, changed, or removed. Used by both `AppDelegate` and `SettingsView`. |
 | `src/Sources/AuthPaths.swift` | Single source of truth for the auth directory location (`~/.cli-proxy-api`). |
-| `src/Sources/Resources/config.yaml` | Bundled CLIProxyAPIPlus config (`port: 8318`, localhost binding, Amp upstream settings, auth dir). |
+| `src/Sources/Resources/config.yaml` | Bundled CLIProxyAPI config (`port: 8318`, localhost binding, auth dir). |
 | `src/Info.plist` | Bundle metadata. Current source-of-truth values include app name `DroidProxy`, bundle ID `com.droidproxy.app`, and Sparkle feed URL on `anand-92/droidproxy`. |
 
 ## Conventions
@@ -141,7 +132,7 @@ Behavior to know:
 - Use `NSLog`, not `print` or `os_log`
 - Source-of-truth edits land under `src/` (especially `src/Sources/**`, `src/Sources/Resources/`, `src/Info.plist`) and `create-app-bundle.sh` at the repo root; there is no longer a parallel top-level `resources/` mirror
 - Treat `DroidProxy.app`, `CLIProxyMenuBar`, and `com.droidproxy.app` as the active app identity
-- `CLIProxyAPIPlus` is bundled as `src/Sources/Resources/cli-proxy-api-plus`
+- `CLIProxyAPI` is bundled as `src/Sources/Resources/cli-proxy-api`
 - `ThinkingProxy` uses surgical string insertion for JSON edits to preserve cache-sensitive key ordering (do not switch to `JSONSerialization.data` round-trips)
 - Local backend traffic is intended to stay on localhost only (`127.0.0.1:8318`)
 

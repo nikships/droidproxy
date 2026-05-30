@@ -12,7 +12,7 @@ export default function Footer() {
           <a href="https://github.com/anand-92/droidproxy/releases" target="_blank" rel="noopener">Releases</a>
           <a href="https://github.com/anand-92/droidproxy/issues" target="_blank" rel="noopener">Issues</a>
           <a href="https://github.com/anand-92/droidproxy/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
-          <a href="https://github.com/router-for-me/CLIProxyAPIPlus" target="_blank" rel="noopener">CLIProxyAPIPlus</a>
+          <a href="https://github.com/router-for-me/CLIProxyAPI" target="_blank" rel="noopener">CLIProxyAPI</a>
         </div>
       </div>
     </footer>

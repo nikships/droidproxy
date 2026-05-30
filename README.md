@@ -4,7 +4,7 @@
   <img src="logo.png" alt="DroidProxy" width="128">
 </p>
 
-A native macOS menu bar app that proxies Claude Code, Codex, Gemini, and Kimi authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPIPlus](https://github.com/router-for-me/CLIProxyAPIPlus).
+A native macOS menu bar app that proxies Claude Code, Codex, Gemini, and Kimi authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
 
 ## Download
 
@@ -58,8 +58,8 @@ src/
 ├── Sources/
 │   ├── main.swift                   # NSApplication entry point
 │   ├── AppDelegate.swift            # App lifecycle, menu bar, settings window, Sparkle updater
-│   ├── ServerManager.swift          # cli-proxy-api-plus process control, config merge, auth flows
-│   ├── ThinkingProxy.swift          # TCP proxy on :8317 (Anthropic-Beta rewrite, fast mode, Amp routing)
+│   ├── ServerManager.swift          # cli-proxy-api process control, config merge, auth flows
+│   ├── ThinkingProxy.swift          # TCP proxy on :8317 (Anthropic-Beta rewrite, fast mode, Gemini path rewrite)
 │   ├── SettingsView.swift           # SwiftUI settings UI
 │   ├── DroidProxyModelCatalog.swift # Authoritative catalog of exposed Factory models
 │   ├── AuthStatus.swift             # AuthManager: account parsing, expiry, enable/disable
@@ -71,8 +71,8 @@ src/
 │   ├── NotificationNames.swift      # Shared Notification.Name constants
 │   ├── LogoView.swift               # Inline-SVG logo used in the settings UI
 │   └── Resources/
-│       ├── cli-proxy-api-plus       # Bundled CLIProxyAPIPlus binary
-│       ├── config.yaml              # Server config (port 8318, localhost, Amp upstream)
+│       ├── cli-proxy-api            # Bundled CLIProxyAPI binary
+│       ├── config.yaml              # Server config (port 8318, localhost)
 │       ├── AppIcon.icns             # App icon
 │       ├── icon-active.png          # Menu bar icon (active)
 │       ├── icon-inactive.png        # Menu bar icon (inactive)

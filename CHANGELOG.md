@@ -13,6 +13,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Gemini Factory custom models** -- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` added to one-click Factory model provisioning
 
 ### Removed
+- **Amp CLI routing removed** -- The leftover Amp integration (the `/auth/cli-login` redirect, `/provider/*` rewrite, `ampcode.com` management forwarding, and Amp provider response normalization in `ThinkingProxy`, plus the `amp-upstream-url` / `amp-restrict-management-to-localhost` keys in the bundled `config.yaml`) has been removed. It was non-functional and unused.
 - **Challenger plugin removed** -- The Challenger droids (Opus / GPT / Gemini), the Settings "Challenger Plugin" Apply button, and the bundled `.factory/droids/challenger-*.md` + `.factory/commands/challenge-*.md` files have all been removed. Any previously installed copies under `~/.factory/droids/` and `~/.factory/commands/` should be deleted manually if you no longer want them.
 
 ### Fixed
@@ -21,6 +22,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Encrypted reasoning state mismatch on `/v1/responses`** ([#58](https://github.com/anand-92/droidproxy/issues/58)) -- Bundled `config.yaml` now enables `routing.session-affinity: true` (TTL `2h`). Stateful Codex Responses API turns now stay pinned to the same upstream auth, so encrypted reasoning content created on turn N is no longer replayed through a different account on turn N+1 with `400 The encrypted content ... could not be verified`.
 
 ### Changed
+- **Switched bundled backend to mainline CLIProxyAPI** -- DroidProxy now bundles [`router-for-me/CLIProxyAPI`](https://github.com/router-for-me/CLIProxyAPI) (`cli-proxy-api`) instead of the discontinued `CLIProxyAPIPlus` fork, restoring automatic upstream updates. The auto-update workflow now tracks mainline releases (`darwin_aarch64`) and opens a bump PR every 12h. No user-facing provider changes -- Claude / Codex / Gemini / Kimi auth and routing are unchanged.
 - **Claude Opus 4.8 migration** -- Opus 4.7 support is replaced with Opus 4.8 throughout the app: model detection (`claude-opus-4-8`), the Settings UI label, and the Factory custom-models entry (`custom:droidproxy:opus-4-8`) now target Opus 4.8. Effort options are `low` / `medium` / `high` / `xhigh` / `max`, with a default of `xhigh` per Anthropic's recommendation for coding and agentic workloads.
 - **Legacy Opus cleanup** -- Stale `custom:droidproxy:opus-4-5` and `custom:droidproxy:opus-4-6` entries are removed from `customModels` during Apply/Re-apply so users don't end up with old Opus models alongside Opus 4.8.
 
