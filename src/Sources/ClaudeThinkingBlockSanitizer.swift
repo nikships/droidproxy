@@ -28,7 +28,25 @@ struct ClaudeThinkingBlockSanitizer {
         }
 
         let messageInfos = messages.map { messageInfo(in: json, range: $0) }
-        let preserveThinkingAtIndex = latestAssistantIndexWithTrailingToolResults(messageInfos)
+        var preserveThinkingAtIndex = latestAssistantIndexWithTrailingToolResults(messageInfos)
+
+        // Droid sometimes squashes several reasoning/tool steps into a single assistant
+        // message, producing a "clustered" layout where every thinking block sits before
+        // every tool_use block (e.g. [thinking, thinking, …, tool_use, tool_use, …]) instead
+        // of the valid interleaved ordering (thinking -> tool_use -> thinking -> tool_use …).
+        // Anthropic rejects that turn with a 400 ("`thinking` … blocks … cannot be modified")
+        // because the signed thinking sequence is out of order — preserving it is exactly what
+        // triggers the failure. When the turn we would otherwise preserve is a clustered merge,
+        // drop the preservation so its thinking is stripped like every other stale turn.
+        // Stripping leaves the tool_use blocks (and the matching tool_result ids) untouched,
+        // which keeps the request valid, and clean interleaved turns are still preserved so the
+        // show-thinking behaviour is unaffected.
+        if let preserve = preserveThinkingAtIndex,
+           let contentRange = messageInfos[preserve].contentRange,
+           isClusteredThinkingMerge(in: json, contentRange: contentRange) {
+            preserveThinkingAtIndex = nil
+        }
+
         var replacements: [Replacement] = []
 
         for (index, info) in messageInfos.enumerated() {
@@ -117,6 +135,38 @@ struct ClaudeThinkingBlockSanitizer {
             return nil
         }
         return index
+    }
+
+    // A "clustered thinking merge" is an assistant turn where two or more thinking
+    // (or redacted_thinking) blocks all appear before the first tool_use block. Valid
+    // extended-thinking turns interleave each thinking block with the tool_use it produced
+    // (thinking -> tool_use -> thinking -> tool_use …); a single leading thinking block
+    // followed by parallel tool_use blocks is also valid. Only the clustered shape — produced
+    // when Droid squashes multiple reasoning/tool steps into one message — reorders the signed
+    // thinking sequence and is rejected by Anthropic. The `>= 2` check keeps the common
+    // single-thinking-then-parallel-tools turn untouched.
+    private static func isClusteredThinkingMerge(in json: String,
+                                                 contentRange: Range<String.Index>) -> Bool {
+        guard let blocks = arrayElementRanges(in: json, arrayRange: contentRange) else {
+            return false
+        }
+
+        var thinkingCount = 0
+        var lastThinkingIndex = -1
+        var firstToolUseIndex = Int.max
+        for (index, block) in blocks.enumerated() {
+            guard let type = objectStringField(in: json, objectRange: block, key: "type") else {
+                continue
+            }
+            if removableThinkingTypes.contains(type) {
+                thinkingCount += 1
+                lastThinkingIndex = index
+            } else if type == "tool_use" {
+                firstToolUseIndex = min(firstToolUseIndex, index)
+            }
+        }
+
+        return thinkingCount >= 2 && firstToolUseIndex != Int.max && lastThinkingIndex < firstToolUseIndex
     }
 
     private static func contentHasAnyToolResult(in json: String, range: Range<String.Index>) -> Bool {
