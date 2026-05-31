@@ -95,6 +95,88 @@ final class ClaudeThinkingBlockSanitizerTests: XCTestCase {
         XCTAssertEqual(roles, ["user", "assistant", "user"])
     }
 
+    // Droid sometimes merges several reasoning/tool steps into one assistant message, leaving
+    // every thinking block clustered before every tool_use block. That turn is itself malformed,
+    // so even though it is the latest assistant turn before a tool_result-only user turn it must
+    // NOT be preserved — its thinking has to be stripped. The tool_use blocks (and the matching
+    // tool_result ids) must survive so the request stays valid.
+    func testStripsClusteredThinkingInLatestAssistantTurn() {
+        let request = """
+        {"model":"claude-sonnet-4-6","messages":[{"role":"assistant","content":[{"type":"thinking","signature":"sigA","thinking":"first"},{"type":"thinking","signature":"sigB","thinking":"second"},{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"cmd":"pwd"}},{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file":"a"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"},{"type":"tool_result","tool_use_id":"toolu_2","content":"ok"}]}]}
+        """
+
+        let sanitized = ClaudeThinkingBlockSanitizer.sanitize(request)
+
+        XCTAssertFalse(sanitized.contains("\"type\":\"thinking\""))
+        XCTAssertFalse(sanitized.contains("\"signature\":\"sigA\""))
+        XCTAssertFalse(sanitized.contains("\"signature\":\"sigB\""))
+        // tool_use blocks and their tool_result references are untouched.
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_use\",\"id\":\"toolu_1\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_use\",\"id\":\"toolu_2\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\""))
+        XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(sanitized.utf8)))
+        XCTAssertEqual(roleSequence(sanitized), ["assistant", "user"])
+    }
+
+    // Same clustered shape, but with a text block sitting between the clustered thinking blocks
+    // and the tool_use blocks — mirrors the real failing layout (e.g. [thinking, thinking, text,
+    // tool_use, …]). The interposed text must not stop the clustered turn from being stripped.
+    func testStripsClusteredThinkingWithInterposedTextBlock() {
+        let request = """
+        {"model":"claude-sonnet-4-6","messages":[{"role":"assistant","content":[{"type":"thinking","signature":"sigA","thinking":"first"},{"type":"thinking","signature":"sigB","thinking":"second"},{"type":"text","text":"working on it"},{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"cmd":"pwd"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"}]}]}
+        """
+
+        let sanitized = ClaudeThinkingBlockSanitizer.sanitize(request)
+
+        XCTAssertFalse(sanitized.contains("\"type\":\"thinking\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"text\",\"text\":\"working on it\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_use\",\"id\":\"toolu_1\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_result\",\"tool_use_id\":\"toolu_1\""))
+        XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(sanitized.utf8)))
+    }
+
+    // redacted_thinking clusters the same way and must also be stripped.
+    func testStripsClusteredRedactedThinkingInLatestAssistantTurn() {
+        let request = """
+        {"model":"claude-sonnet-4-6","messages":[{"role":"assistant","content":[{"type":"redacted_thinking","data":"first"},{"type":"redacted_thinking","data":"second"},{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"cmd":"pwd"}},{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file":"a"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"},{"type":"tool_result","tool_use_id":"toolu_2","content":"ok"}]}]}
+        """
+
+        let sanitized = ClaudeThinkingBlockSanitizer.sanitize(request)
+
+        XCTAssertFalse(sanitized.contains("\"type\":\"redacted_thinking\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_use\",\"id\":\"toolu_1\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_use\",\"id\":\"toolu_2\""))
+        XCTAssertTrue(sanitized.contains("\"type\":\"tool_result\",\"tool_use_id\":\"toolu_2\""))
+        XCTAssertNotNil(try? JSONSerialization.jsonObject(with: Data(sanitized.utf8)))
+    }
+
+    // The 200 case from the report: two thinking blocks that are correctly interleaved with
+    // their tool_use blocks (thinking -> tool_use -> thinking -> tool_use). This is a valid
+    // signed sequence and must be preserved untouched even though it has >= 2 thinking blocks.
+    func testPreservesInterleavedThinkingInLatestAssistantTurn() {
+        let request = """
+        {"model":"claude-sonnet-4-6","messages":[{"role":"assistant","content":[{"type":"thinking","signature":"sigA","thinking":"first"},{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"cmd":"pwd"}},{"type":"thinking","signature":"sigB","thinking":"second"},{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file":"a"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"},{"type":"tool_result","tool_use_id":"toolu_2","content":"ok"}]}]}
+        """
+
+        let sanitized = ClaudeThinkingBlockSanitizer.sanitize(request)
+
+        XCTAssertEqual(sanitized, request)
+    }
+
+    // A single leading thinking block followed by parallel tool_use blocks is a normal, valid
+    // shape. The `>= 2` thinking guard means it must stay preserved (not mistaken for a cluster).
+    func testPreservesSingleLeadingThinkingBeforeParallelToolUse() {
+        let request = """
+        {"model":"claude-sonnet-4-6","messages":[{"role":"assistant","content":[{"type":"thinking","signature":"sig","thinking":"plan"},{"type":"tool_use","id":"toolu_1","name":"Bash","input":{"cmd":"pwd"}},{"type":"tool_use","id":"toolu_2","name":"Read","input":{"file":"a"}},{"type":"tool_use","id":"toolu_3","name":"Read","input":{"file":"b"}}]},{"role":"user","content":[{"type":"tool_result","tool_use_id":"toolu_1","content":"ok"},{"type":"tool_result","tool_use_id":"toolu_2","content":"ok"},{"type":"tool_result","tool_use_id":"toolu_3","content":"ok"}]}]}
+        """
+
+        let sanitized = ClaudeThinkingBlockSanitizer.sanitize(request)
+
+        XCTAssertEqual(sanitized, request)
+        XCTAssertTrue(sanitized.contains("\"thinking\":\"plan\""))
+    }
+
     private func roleSequence(_ json: String) -> [String] {
         guard let data = json.data(using: .utf8),
               let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
