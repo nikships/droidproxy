@@ -11,6 +11,9 @@ import Network
    request enables thinking, so Claude emits visible thinking blocks.
  - Injects `service_tier: "priority"` for OpenAI Responses API requests on the user-enabled
    GPT 5.x fast-mode models (these toggles are independent of reasoning effort).
+ - Converts Sonnet 4.6 to classic extended thinking (`thinking:{type:enabled,budget_tokens}`)
+   when Droid selects the `max` reasoning effort, since Sonnet's adaptive thinking rejects
+   `output_config.effort:max` upstream. Other effort levels pass through as adaptive.
  - Rewrites Gemini `/v1/responses` to `/v1/chat/completions` since the backend does not
    support Gemini via the Responses API endpoint.
 
@@ -315,7 +318,7 @@ class ThinkingProxy {
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
-            if let result = rewriteDroidProxyModelAlias(jsonString: modifiedBody, fields: requestFields) {
+            if let result = applySonnetMaxThinking(jsonString: modifiedBody, fields: requestFields) {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)
             }
@@ -437,10 +440,6 @@ class ThinkingProxy {
         value.split(separator: ",").map { String($0) }
     }
 
-    private static let droidProxyModelAliases: [String: String] = [
-        "droidproxy-claude-sonnet-4-6": "claude-sonnet-4-6"
-    ]
-
     private static let antigravityModelAliases: [String: String] = [
         "ag-c46s-thinking": "claude-sonnet-4-6",
         "ag-c46o-thinking": "claude-opus-4-6-thinking"
@@ -450,22 +449,81 @@ class ThinkingProxy {
         "cursor-composer-2.5": "composer-2.5"
     ]
 
-    static func rewriteDroidProxyModelAlias(in jsonString: String) -> String {
+    // Sonnet 4.6 max-thinking. Sonnet's adaptive thinking rejects
+    // `output_config.effort:max` upstream (HTTP 400 "level max not supported"),
+    // so when Droid selects the `max` effort we convert the request to classic
+    // extended thinking (`thinking:{type:enabled,budget_tokens}`), which the
+    // backend accepts. Lower efforts pass through as adaptive untouched.
+    // budget_tokens must be strictly less than max_tokens, so we also pin
+    // max_tokens to the model's output ceiling.
+    private static let sonnetMaxThinkingModel = "claude-sonnet-4-6"
+    private static let sonnetMaxThinkingMaxTokens = 64000
+    private static let sonnetMaxThinkingBudgetTokens = 63999
+
+    /// Test entry point for the Sonnet 4.6 max-thinking transform.
+    static func applySonnetMaxThinking(in jsonString: String) -> String {
         let proxy = ThinkingProxy()
         let fields = proxy.inspectRequestJSONFields(in: jsonString)
-        return proxy.rewriteDroidProxyModelAlias(jsonString: jsonString, fields: fields) ?? jsonString
+        return proxy.applySonnetMaxThinking(jsonString: jsonString, fields: fields) ?? jsonString
     }
 
-    private func rewriteDroidProxyModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
-        guard let model = fields?.model,
-              let modelLocation = fields?.modelLocation,
-              let backendModel = Self.droidProxyModelAliases[model] else {
+    /// When a Sonnet 4.6 request asks for `output_config.effort == "max"`, rewrite
+    /// its `thinking` field to classic extended thinking and pin `max_tokens` so
+    /// the budget fits. Returns nil when the request is not Sonnet 4.6 or is not
+    /// requesting max effort, so the caller can skip re-inspection and lower
+    /// efforts forward unchanged. Edits are surgical (in-place value replacement /
+    /// single insertion) to preserve JSON key ordering, which Anthropic's prompt
+    /// cache is sensitive to.
+    private func applySonnetMaxThinking(jsonString: String, fields: RequestJSONFields?) -> String? {
+        guard fields?.model == Self.sonnetMaxThinkingModel,
+              sonnetRequestsMaxEffort(in: jsonString) else {
             return nil
         }
 
+        let thinkingValue = "{\"type\":\"enabled\",\"budget_tokens\":\(Self.sonnetMaxThinkingBudgetTokens)}"
         var result = jsonString
-        result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
-        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (DroidProxy alias)")
+
+        if let thinkingLocation = fields?.thinkingLocation {
+            result.replaceSubrange(thinkingLocation.valueRange, with: thinkingValue)
+        } else if let modelLocation = fields?.modelLocation {
+            result.insert(contentsOf: ",\"thinking\":\(thinkingValue)", at: modelLocation.pairRange.upperBound)
+        } else {
+            return nil
+        }
+
+        // The edit above shifted indices, so re-scan to locate max_tokens/model.
+        result = pinSonnetMaxThinkingMaxTokens(in: result)
+
+        ThinkingProxy.fileLog("SONNET MAX THINKING: effort=max -> classic extended thinking budget_tokens=\(Self.sonnetMaxThinkingBudgetTokens) max_tokens=\(Self.sonnetMaxThinkingMaxTokens)")
+        return result
+    }
+
+    /// True when the request's `output_config.effort` is `"max"`. Scoped to the
+    /// Sonnet 4.6 path so non-Sonnet requests never pay for the extra
+    /// `output_config` scan (which would otherwise defeat the routing scan's
+    /// early-exit before the large `messages` array).
+    private func sonnetRequestsMaxEffort(in jsonString: String) -> Bool {
+        guard let outputConfig = findTopLevelFieldLocations(in: jsonString, keys: ["output_config"])?["output_config"],
+              let effort = objectStringField(in: jsonString, objectRange: outputConfig.valueRange, key: "effort")?.value else {
+            return false
+        }
+        return effort == "max"
+    }
+
+    /// Pins `max_tokens` to the Sonnet output ceiling so it stays strictly above
+    /// the thinking budget. Replaces the value in place if present, otherwise
+    /// injects it right after `model`.
+    private func pinSonnetMaxThinkingMaxTokens(in jsonString: String) -> String {
+        guard let locations = findTopLevelFieldLocations(in: jsonString, keys: ["max_tokens", "model"]) else {
+            return jsonString
+        }
+
+        var result = jsonString
+        if let maxTokensLocation = locations["max_tokens"] {
+            result.replaceSubrange(maxTokensLocation.valueRange, with: "\(Self.sonnetMaxThinkingMaxTokens)")
+        } else if let modelLocation = locations["model"] {
+            result.insert(contentsOf: ",\"max_tokens\":\(Self.sonnetMaxThinkingMaxTokens)", at: modelLocation.pairRange.upperBound)
+        }
         return result
     }
 
