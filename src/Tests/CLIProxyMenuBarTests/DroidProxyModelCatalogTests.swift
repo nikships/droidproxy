@@ -5,6 +5,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
     func testSonnet46SettingsExposeExplicitReasoningEffortsIncludingMax() throws {
         let sonnet = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:sonnet-4-6"))
 
+        XCTAssertEqual(sonnet["model"] as? String, "droidproxy-claude-sonnet-4-6")
         XCTAssertEqual(sonnet["enableThinking"] as? Bool, true)
         XCTAssertEqual(sonnet["reasoningEffort"] as? String, "high")
         XCTAssertEqual(sonnet["defaultReasoningEffort"] as? String, "high")

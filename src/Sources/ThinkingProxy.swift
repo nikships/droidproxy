@@ -315,6 +315,10 @@ class ThinkingProxy {
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
+            if let result = rewriteDroidProxyModelAlias(jsonString: modifiedBody, fields: requestFields) {
+                modifiedBody = result
+                requestFields = inspectRequestJSONFields(in: modifiedBody)
+            }
             if let result = rewriteAntigravityModelAlias(jsonString: modifiedBody, fields: requestFields) {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)
@@ -433,6 +437,10 @@ class ThinkingProxy {
         value.split(separator: ",").map { String($0) }
     }
 
+    private static let droidProxyModelAliases: [String: String] = [
+        "droidproxy-claude-sonnet-4-6": "claude-sonnet-4-6"
+    ]
+
     private static let antigravityModelAliases: [String: String] = [
         "ag-c46s-thinking": "claude-sonnet-4-6",
         "ag-c46o-thinking": "claude-opus-4-6-thinking"
@@ -441,6 +449,25 @@ class ThinkingProxy {
     private static let cursorModelAliases: [String: String] = [
         "cursor-composer-2.5": "composer-2.5"
     ]
+
+    static func rewriteDroidProxyModelAlias(in jsonString: String) -> String {
+        let proxy = ThinkingProxy()
+        let fields = proxy.inspectRequestJSONFields(in: jsonString)
+        return proxy.rewriteDroidProxyModelAlias(jsonString: jsonString, fields: fields) ?? jsonString
+    }
+
+    private func rewriteDroidProxyModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
+        guard let model = fields?.model,
+              let modelLocation = fields?.modelLocation,
+              let backendModel = Self.droidProxyModelAliases[model] else {
+            return nil
+        }
+
+        var result = jsonString
+        result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (DroidProxy alias)")
+        return result
+    }
 
     private func rewriteAntigravityModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
         guard let model = fields?.model,

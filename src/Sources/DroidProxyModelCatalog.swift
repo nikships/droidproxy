@@ -15,6 +15,7 @@ struct DroidProxyThinkingLevel: Equatable {
 
 struct DroidProxyModelDefinition: Equatable {
     let baseModel: String
+    let settingsModel: String?
     let idSlug: String
     let displayName: String
     let maxOutputTokens: Int
@@ -24,6 +25,30 @@ struct DroidProxyModelDefinition: Equatable {
     let kind: DroidProxyModelKind
     let levels: [DroidProxyThinkingLevel]
     let defaultLevelValue: String
+
+    init(baseModel: String,
+         settingsModel: String? = nil,
+         idSlug: String,
+         displayName: String,
+         maxOutputTokens: Int,
+         provider: String,
+         providerKey: String,
+         baseURL: String,
+         kind: DroidProxyModelKind,
+         levels: [DroidProxyThinkingLevel],
+         defaultLevelValue: String) {
+        self.baseModel = baseModel
+        self.settingsModel = settingsModel
+        self.idSlug = idSlug
+        self.displayName = displayName
+        self.maxOutputTokens = maxOutputTokens
+        self.provider = provider
+        self.providerKey = providerKey
+        self.baseURL = baseURL
+        self.kind = kind
+        self.levels = levels
+        self.defaultLevelValue = defaultLevelValue
+    }
 
     var simpleID: String {
         "custom:droidproxy:\(idSlug)"
@@ -44,7 +69,7 @@ struct DroidProxyModelDefinition: Equatable {
     /// infer supported effort levels from built-in model defaults.
     var settingsEntry: [String: Any] {
         var entry: [String: Any] = [
-            "model": baseModel,
+            "model": settingsModel ?? baseModel,
             "id": simpleID,
             "baseUrl": baseURL,
             "apiKey": "dummy-not-used",
@@ -111,6 +136,7 @@ enum DroidProxyModelCatalog {
             ),
             DroidProxyModelDefinition(
                 baseModel: "claude-sonnet-4-6",
+                settingsModel: "droidproxy-claude-sonnet-4-6",
                 idSlug: "sonnet-4-6",
                 displayName: "Sonnet 4.6",
                 maxOutputTokens: 64000,
