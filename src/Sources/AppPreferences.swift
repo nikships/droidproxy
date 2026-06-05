@@ -1,8 +1,8 @@
 import Foundation
 
 enum AppPreferences {
-    static let gpt54FastModeKey = "*************"
-    static let gpt55FastModeKey = "*************"
+    static let gpt54FastModeKey = "gpt54FastMode"
+    static let gpt55FastModeKey = "gpt55FastMode"
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"
     static let bindAddressKey = "bindAddress"
