@@ -25,6 +25,28 @@ struct DroidProxyModelDefinition: Equatable {
     let levels: [DroidProxyThinkingLevel]
     let defaultLevelValue: String
 
+    init(baseModel: String,
+         idSlug: String,
+         displayName: String,
+         maxOutputTokens: Int,
+         provider: String,
+         providerKey: String,
+         baseURL: String,
+         kind: DroidProxyModelKind,
+         levels: [DroidProxyThinkingLevel],
+         defaultLevelValue: String) {
+        self.baseModel = baseModel
+        self.idSlug = idSlug
+        self.displayName = displayName
+        self.maxOutputTokens = maxOutputTokens
+        self.provider = provider
+        self.providerKey = providerKey
+        self.baseURL = baseURL
+        self.kind = kind
+        self.levels = levels
+        self.defaultLevelValue = defaultLevelValue
+    }
+
     var simpleID: String {
         "custom:droidproxy:\(idSlug)"
     }
@@ -70,7 +92,10 @@ enum DroidProxyModelCatalog {
     private static let max = DroidProxyThinkingLevel(value: "max", displayName: "Max")
 
     private static let claudeAdvancedLevels = [low, medium, high, xhigh, max]
-    private static let claudeClassicLevels = [low, medium, high, max]
+    // Sonnet 4.6 exposes max in Droid's selector. Its adaptive thinking rejects
+    // output_config.effort:max upstream, so ThinkingProxy auto-converts a max
+    // request to classic extended thinking; lower efforts pass through adaptive.
+    private static let claudeSonnetLevels = [low, medium, high, max]
     private static let codexLevels = [low, medium, high, xhigh]
 
     private static func antigravityModel(
@@ -118,7 +143,7 @@ enum DroidProxyModelCatalog {
                 providerKey: "claude",
                 baseURL: "http://localhost:8317",
                 kind: .claudeAdaptive,
-                levels: claudeClassicLevels,
+                levels: claudeSonnetLevels,
                 defaultLevelValue: "high"
             ),
 
