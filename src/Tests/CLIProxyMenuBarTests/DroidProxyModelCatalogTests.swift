@@ -2,7 +2,7 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class DroidProxyModelCatalogTests: XCTestCase {
-    func testSonnet46SettingsExposeExplicitReasoningEffortsIncludingMax() {
+    func testSonnet46SettingsExposeExplicitReasoningEffortsIncludingMax() throws {
         let sonnet = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:sonnet-4-6"))
 
         XCTAssertEqual(sonnet["enableThinking"] as? Bool, true)
