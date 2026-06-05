@@ -830,8 +830,6 @@ class ThinkingProxy {
             guard AppPreferences.gpt54FastMode else { return nil }
         case "gpt-5.5":
             guard AppPreferences.gpt55FastMode else { return nil }
-        case "gpt-5.3-codex":
-            guard AppPreferences.gpt53CodexFastMode else { return nil }
         default:
             return nil
         }

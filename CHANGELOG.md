@@ -7,12 +7,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
-- **GPT 5.2 model** -- New Codex model exposed end-to-end: per-model reasoning effort picker (`low` / `medium` / `high` / `xhigh`, default `high`), Fast Mode toggle (`service_tier=priority` on `/v1/responses` and `/api/v1/responses`), and Factory custom-models entry `custom:droidproxy:gpt-5.2`. Click Apply Factory Models again after upgrading to provision it into `~/.factory/settings.json`.
 - **Gemini provider support** -- OAuth login, credential monitoring, provider enable/disable, and service icon in Settings UI
 - **Gemini thinking level controls** -- Per-model thinking level pickers for Gemini 3.1 Pro (`low` / `medium` / `high`) and Gemini 3 Flash (`minimal` / `low` / `medium` / `high`)
 - **Gemini Factory custom models** -- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` added to one-click Factory model provisioning
 
 ### Removed
+- **GPT 5.2 and GPT 5.3 Codex removed** -- Both models have been sunset in Codex for ChatGPT subscriptions (see [OpenAI Community](https://community.openai.com/t/gpt-5-2-and-gpt-5-3-codex-have-been-sunset-in-codex-with-chatgpt-subscriptions/1382273)). They are no longer registered in the DroidProxy catalog or the Fast Mode UI. Re-applying Factory models will prune the old `custom:droidproxy:gpt-5.2` and `custom:droidproxy:gpt-5.3-codex` entries from `~/.factory/settings.json`.
 - **Amp CLI routing removed** -- The leftover Amp integration (the `/auth/cli-login` redirect, `/provider/*` rewrite, `ampcode.com` management forwarding, and Amp provider response normalization in `ThinkingProxy`, plus the `amp-upstream-url` / `amp-restrict-management-to-localhost` keys in the bundled `config.yaml`) has been removed. It was non-functional and unused.
 - **Challenger plugin removed** -- The Challenger droids (Opus / GPT / Gemini), the Settings "Challenger Plugin" Apply button, and the bundled `.factory/droids/challenger-*.md` + `.factory/commands/challenge-*.md` files have all been removed. Any previously installed copies under `~/.factory/droids/` and `~/.factory/commands/` should be deleted manually if you no longer want them.
 

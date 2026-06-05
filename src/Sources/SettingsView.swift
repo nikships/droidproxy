@@ -330,7 +330,6 @@ struct SettingsView: View {
     @StateObject private var authManager = AuthManager()
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
-    @AppStorage(AppPreferences.gpt53CodexFastModeKey) private var gpt53CodexFastMode = AppPreferences.defaultGpt53CodexFastMode
     @AppStorage(AppPreferences.gpt54FastModeKey) private var gpt54FastMode = AppPreferences.defaultGpt54FastMode
     @AppStorage(AppPreferences.gpt55FastModeKey) private var gpt55FastMode = AppPreferences.defaultGpt55FastMode
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
@@ -766,11 +765,6 @@ struct SettingsView: View {
                                 }
                             }
                             if codexFastModeExpanded {
-                                codexFastModeToggleRow(
-                                    "GPT 5.3 Codex",
-                                    isOn: $gpt53CodexFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.3 Codex Responses API requests (Codex fast mode)"
-                                )
                                 codexFastModeToggleRow(
                                     "GPT 5.4",
                                     isOn: $gpt54FastMode,
