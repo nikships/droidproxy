@@ -38,9 +38,10 @@ struct DroidProxyModelDefinition: Equatable {
         }
     }
 
-    /// Settings entry for Factory's custom model schema. Droid 0.133 accepts a
-    /// single default `reasoningEffort` here; it derives selectable levels from
-    /// known base model IDs when it can.
+    /// Settings entry for Factory's custom model schema.
+    ///
+    /// Keep all reasoning metadata explicit so Droid/Factory does not need to
+    /// infer supported effort levels from built-in model defaults.
     var settingsEntry: [String: Any] {
         var entry: [String: Any] = [
             "model": baseModel,
@@ -54,6 +55,8 @@ struct DroidProxyModelDefinition: Equatable {
         ]
         guard !levels.isEmpty else { return entry }
         entry["enableThinking"] = true
+        entry["supportedReasoningEfforts"] = levels.map(\.value)
+        entry["defaultReasoningEffort"] = defaultLevelValue
         entry["reasoningEffort"] = levels.count == 1 ? levels[0].value : defaultLevelValue
         return entry
     }
