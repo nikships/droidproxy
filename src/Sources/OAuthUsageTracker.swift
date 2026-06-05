@@ -247,7 +247,7 @@ final class OAuthUsageTracker: ObservableObject {
         )
     }
 
-    nonisolated private static func parseClaudeWindows(_ data: Data) -> [OAuthUsageWindow] {
+    nonisolated static func parseClaudeWindows(_ data: Data) -> [OAuthUsageWindow] {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return []
         }
@@ -268,7 +268,7 @@ final class OAuthUsageTracker: ObservableObject {
                   let utilization = numberValue(dict["utilization"]) else {
                 continue
             }
-            let usedPercent = utilization <= 1 ? utilization * 100 : utilization
+            let usedPercent = utilization
             let resetsAtStr = dict["resets_at"] as? String
             let resetDate = resetsAtStr.flatMap(parseISO8601Date)
             let resetText = resetDate.map(resetText(for:)) ?? resetsAtStr
