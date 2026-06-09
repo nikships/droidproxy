@@ -2,15 +2,23 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class DroidProxyModelCatalogTests: XCTestCase {
-    func testFable5MatchesOpus48EffortLevels() throws {
-        let fable = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:fable-5"))
+    func testMythos5MatchesOpus48EffortLevels() throws {
+        let mythos = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:mythos-5"))
 
-        XCTAssertEqual(fable["model"] as? String, "claude-fable-5")
-        XCTAssertEqual(fable["enableThinking"] as? Bool, true)
-        XCTAssertEqual(fable["reasoningEffort"] as? String, "xhigh")
-        XCTAssertEqual(fable["defaultReasoningEffort"] as? String, "xhigh")
-        XCTAssertEqual(fable["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
-        XCTAssertEqual(fable["maxOutputTokens"] as? Int, 128000)
+        XCTAssertEqual(mythos["model"] as? String, "claude-mythos-5")
+        XCTAssertEqual(mythos["displayName"] as? String, "DroidProxy: Mythos 5")
+        XCTAssertEqual(mythos["enableThinking"] as? Bool, true)
+        XCTAssertEqual(mythos["reasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(mythos["defaultReasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(mythos["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+        XCTAssertEqual(mythos["maxOutputTokens"] as? Int, 128000)
+    }
+
+    func testMythos5RemapsToFable5Upstream() {
+        let body = "{\"model\":\"claude-mythos-5\",\"max_tokens\":1000}"
+        let rewritten = ThinkingProxy.rewriteUpstreamModelAlias(in: body)
+        XCTAssertTrue(rewritten.contains("\"model\":\"claude-fable-5\""))
+        XCTAssertFalse(rewritten.contains("claude-mythos-5"))
     }
 
     func testSonnet46UsesNativeModelIDAndExposesMax() throws {

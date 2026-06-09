@@ -318,6 +318,10 @@ class ThinkingProxy {
 
         if method == "POST" && !bodyString.isEmpty {
             ThinkingProxy.fileLog("INCOMING REQUEST: \(method) \(rewrittenPath)")
+            if let result = rewriteUpstreamModelAlias(jsonString: modifiedBody, fields: requestFields) {
+                modifiedBody = result
+                requestFields = inspectRequestJSONFields(in: modifiedBody)
+            }
             if let result = applySonnetMaxThinking(jsonString: modifiedBody, fields: requestFields) {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)
@@ -449,6 +453,14 @@ class ThinkingProxy {
         "cursor-composer-2.5": "composer-2.5"
     ]
 
+    // Upstream model remaps applied to every provider. The droid-facing model
+    // name differs from the model name the upstream API expects, so we rewrite
+    // the `model` field in-place before forwarding (e.g. the Droid-facing
+    // `claude-mythos-5` hits Anthropic as `claude-fable-5`).
+    private static let upstreamModelAliases: [String: String] = [
+        "claude-mythos-5": "claude-fable-5"
+    ]
+
     // Sonnet 4.6 max-thinking. Sonnet's adaptive thinking rejects
     // `output_config.effort:max` upstream (HTTP 400 "level max not supported"),
     // so when Droid selects the `max` effort we convert the request to classic
@@ -524,6 +536,26 @@ class ThinkingProxy {
         } else if let modelLocation = locations["model"] {
             result.insert(contentsOf: ",\"max_tokens\":\(Self.sonnetMaxThinkingMaxTokens)", at: modelLocation.pairRange.upperBound)
         }
+        return result
+    }
+
+    /// Test entry point for the upstream model-alias rewrite.
+    static func rewriteUpstreamModelAlias(in jsonString: String) -> String {
+        let proxy = ThinkingProxy()
+        let fields = proxy.inspectRequestJSONFields(in: jsonString)
+        return proxy.rewriteUpstreamModelAlias(jsonString: jsonString, fields: fields) ?? jsonString
+    }
+
+    private func rewriteUpstreamModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
+        guard let model = fields?.model,
+              let modelLocation = fields?.modelLocation,
+              let upstreamModel = Self.upstreamModelAliases[model] else {
+            return nil
+        }
+
+        var result = jsonString
+        result.replaceSubrange(modelLocation.valueRange, with: "\"\(upstreamModel)\"")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(upstreamModel) (upstream alias)")
         return result
     }
 

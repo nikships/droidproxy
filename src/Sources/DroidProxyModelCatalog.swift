@@ -123,9 +123,9 @@ enum DroidProxyModelCatalog {
     static var definitions: [DroidProxyModelDefinition] {
         var list = [
             DroidProxyModelDefinition(
-                baseModel: "claude-fable-5",
-                idSlug: "fable-5",
-                displayName: "Fable 5",
+                baseModel: "claude-mythos-5",
+                idSlug: "mythos-5",
+                displayName: "Mythos 5",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "claude",
