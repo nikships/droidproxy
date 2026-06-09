@@ -7,6 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Added
+- **Claude Fable 5** -- Anthropic's newest flagship (`claude-fable-5`) is registered as Factory custom model `custom:droidproxy:fable-5` with the same effort levels as Opus 4.8 (`low` / `medium` / `high` / `xhigh` / `max`, default `xhigh`) and a 128k output-token ceiling.
 - **Gemini provider support** -- OAuth login, credential monitoring, provider enable/disable, and service icon in Settings UI
 - **Gemini thinking level controls** -- Per-model thinking level pickers for Gemini 3.1 Pro (`low` / `medium` / `high`) and Gemini 3 Flash (`minimal` / `low` / `medium` / `high`)
 - **Gemini Factory custom models** -- `gemini-3.1-pro-preview` and `gemini-3-flash-preview` added to one-click Factory model provisioning
