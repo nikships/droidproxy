@@ -1,6 +1,14 @@
 const models = [
   {
     icon: '/assets/icon-claude.png',
+    name: 'Claude Fable 5',
+    id: 'fable-5',
+    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    max: '128,000',
+    provider: 'Anthropic',
+  },
+  {
+    icon: '/assets/icon-claude.png',
     name: 'Claude Opus 4.8',
     id: 'opus-4-8',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
