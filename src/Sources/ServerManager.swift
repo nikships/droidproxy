@@ -74,7 +74,8 @@ class ServerManager: ObservableObject {
         .codex: "codex",
         .antigravity: "antigravity",
         .kimi: "kimi",
-        .cursor: "cursor"
+        .cursor: "cursor",
+        .grok: "grok"
     ]
 
     init() {

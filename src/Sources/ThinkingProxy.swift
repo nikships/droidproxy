@@ -1,5 +1,6 @@
 import Foundation
 import Network
+import CryptoKit
 
 /**
  A lightweight HTTP proxy that forwards Claude / Codex / Gemini / Kimi requests to the
@@ -342,6 +343,32 @@ class ThinkingProxy {
                     requestFields = inspectRequestJSONFields(in: modifiedBody)
                 }
                 forwardToCursor(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
+                return
+            }
+            if isGrokModel(requestFields) {
+                guard BETA_FLAG else {
+                    NSLog("[ThinkingProxy] Warning: Grok model requested but Beta mode is disabled.")
+                    sendError(to: connection, statusCode: 400, message: "Grok provider is a beta feature. Please enable Beta mode in DroidProxy settings.")
+                    return
+                }
+                guard isGrokEnabled() else {
+                    NSLog("[ThinkingProxy] Warning: Grok model requested but the provider is disabled in settings.")
+                    sendError(to: connection, statusCode: 400, message: "Grok provider is disabled in DroidProxy settings.")
+                    return
+                }
+                let grokModel = requestFields?.model ?? ""
+                let grokBody = modifiedBody
+                let grokPath = rewrittenPath
+                GrokAuth.ensureValidAccessToken { [weak self] result in
+                    guard let self = self else { return }
+                    switch result {
+                    case .success(let token):
+                        self.forwardToGrok(model: grokModel, token: token, method: method, path: grokPath, version: httpVersion, headers: headers, body: grokBody, originalConnection: connection)
+                    case .failure(let error):
+                        NSLog("[ThinkingProxy] Grok auth failed: %@", error.localizedDescription)
+                        self.sendError(to: connection, statusCode: 401, message: "Grok authentication required. Log in to Grok in DroidProxy settings. (\(error.localizedDescription))")
+                    }
+                }
                 return
             }
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath, fields: requestFields) {
@@ -1155,7 +1182,7 @@ class ThinkingProxy {
                             targetConnection.cancel()
                             originalConnection.cancel()
                         } else {
-                            self.receiveCursorResponse(from: targetConnection, originalConnection: originalConnection)
+                            self.relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection)
                         }
                     }))
                 }
@@ -1173,7 +1200,7 @@ class ThinkingProxy {
         targetConnection.start(queue: .global(qos: .userInitiated))
     }
 
-    private func receiveCursorResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
+    private func relayUpstreamResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
 
@@ -1199,9 +1226,119 @@ class ThinkingProxy {
                 if isComplete {
                     self.finishStreaming(target: targetConnection, client: originalConnection)
                 } else {
-                    self.receiveCursorResponse(from: targetConnection, originalConnection: originalConnection)
+                    self.relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection)
                 }
             }))
         }
+    }
+
+    // MARK: - Grok CLI API Proxying
+
+    private func isGrokModel(_ requestFields: RequestJSONFields?) -> Bool {
+        guard let model = requestFields?.model else {
+            return false
+        }
+        return model.hasPrefix("grok-")
+    }
+
+    private func isGrokEnabled() -> Bool {
+        if let saved = UserDefaults.standard.dictionary(forKey: "enabledProviders") as? [String: Bool] {
+            return saved["grok"] ?? true
+        }
+        return true
+    }
+
+    private func forwardToGrok(model: String, token: String, method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
+        let convID = Self.grokConversationID(forBody: body)
+        let tlsOptions = NWProtocolTLS.Options()
+        let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
+
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(GrokAuth.apiHost), port: 443)
+        let targetConnection = NWConnection(to: endpoint, using: parameters)
+
+        targetConnection.stateUpdateHandler = { [weak self] state in
+            guard let self = self else { return }
+            switch state {
+            case .ready:
+                var forwardedRequest = "\(method) \(path) \(version)\r\n"
+                let excludedHeaders: Set<String> = ["host", "content-length", "connection", "transfer-encoding", "authorization", "x-xai-token-auth", "x-grok-client-identifier", "x-grok-client-version", "x-grok-model-override", "x-grok-conv-id"]
+                for (name, value) in headers {
+                    if !excludedHeaders.contains(name.lowercased()) {
+                        forwardedRequest += "\(name): \(value)\r\n"
+                    }
+                }
+
+                forwardedRequest += "Host: \(GrokAuth.apiHost)\r\n"
+                forwardedRequest += "Authorization: Bearer \(token)\r\n"
+                forwardedRequest += "x-xai-token-auth: \(GrokAuth.tokenAuthHeader)\r\n"
+                forwardedRequest += "x-grok-client-identifier: \(GrokAuth.clientIdentifier)\r\n"
+                forwardedRequest += "x-grok-client-version: \(GrokAuth.clientVersion)\r\n"
+                forwardedRequest += "x-grok-model-override: \(model)\r\n"
+                if let convID = convID {
+                    forwardedRequest += "x-grok-conv-id: \(convID)\r\n"
+                }
+                forwardedRequest += "Connection: close\r\n"
+                forwardedRequest += "Content-Length: \(body.utf8.count)\r\n\r\n"
+                forwardedRequest += body
+
+                if let requestData = forwardedRequest.data(using: .utf8) {
+                    targetConnection.send(content: requestData, completion: .contentProcessed({ error in
+                        if let error = error {
+                            NSLog("[ThinkingProxy] Send error to \(GrokAuth.apiHost): \(error)")
+                            targetConnection.cancel()
+                            originalConnection.cancel()
+                        } else {
+                            self.relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection)
+                        }
+                    }))
+                }
+
+            case .failed(let error):
+                NSLog("[ThinkingProxy] Connection to \(GrokAuth.apiHost) failed: \(error)")
+                self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Could not connect to \(GrokAuth.apiHost)")
+                targetConnection.cancel()
+
+            default:
+                break
+            }
+        }
+
+        targetConnection.start(queue: .global(qos: .userInitiated))
+    }
+
+    /// Derives a stable per-conversation id for the `x-grok-conv-id` affinity
+    /// header. cli-chat-proxy only reuses its prompt cache when a conversation's
+    /// turns land on the same backend server, which this header controls — without
+    /// it, Composer 2.5 re-bills the full prompt every turn (verified: ~0 vs ~100%
+    /// cached prompt tokens). The first message and first user message are replayed
+    /// verbatim on every turn, so hashing them is stable across a conversation and
+    /// distinct between conversations.
+    static func grokConversationID(forBody body: String) -> String? {
+        guard let data = body.data(using: .utf8),
+              let obj = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let messages = obj["messages"] as? [[String: Any]],
+              let first = messages.first else {
+            return nil
+        }
+        var anchor = ((first["role"] as? String) ?? "") + "\u{1}" + grokMessageText(first["content"])
+        if let firstUser = messages.first(where: { ($0["role"] as? String) == "user" }) {
+            anchor += "\u{1}user\u{1}" + grokMessageText(firstUser["content"])
+        }
+        guard !anchor.isEmpty else { return nil }
+        return sha256Hex(anchor)
+    }
+
+    /// Flattens an OpenAI chat `content` value (string or array of text parts) to
+    /// a plain string for hashing.
+    private static func grokMessageText(_ content: Any?) -> String {
+        if let text = content as? String { return text }
+        if let parts = content as? [[String: Any]] {
+            return parts.compactMap { $0["text"] as? String }.joined(separator: " ")
+        }
+        return ""
+    }
+
+    private static func sha256Hex(_ string: String) -> String {
+        SHA256.hash(data: Data(string.utf8)).map { String(format: "%02x", $0) }.joined()
     }
 }

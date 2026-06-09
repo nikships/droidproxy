@@ -6,6 +6,7 @@ enum DroidProxyModelKind {
     case kimi
     case antigravity
     case cursor
+    case grok
 }
 
 struct DroidProxyThinkingLevel: Equatable {
@@ -55,6 +56,8 @@ struct DroidProxyModelDefinition: Equatable {
         switch kind {
         case .antigravity:
             return "Antigravity: \(displayName)"
+        case .grok:
+            return "Grok CLI: \(displayName)"
         default:
             return displayName
         }
@@ -270,6 +273,30 @@ enum DroidProxyModelCatalog {
                     kind: .cursor,
                     levels: [high],
                     defaultLevelValue: "high"
+                ),
+                DroidProxyModelDefinition(
+                    baseModel: "grok-composer-2.5-fast",
+                    idSlug: "grok-composer-2.5-fast",
+                    displayName: "Composer 2.5",
+                    maxOutputTokens: 30000,
+                    provider: "generic-chat-completion-api",
+                    providerKey: "grok",
+                    baseURL: "http://localhost:8317/v1",
+                    kind: .grok,
+                    levels: [],
+                    defaultLevelValue: ""
+                ),
+                DroidProxyModelDefinition(
+                    baseModel: "grok-build",
+                    idSlug: "grok-build",
+                    displayName: "Grok Build",
+                    maxOutputTokens: 30000,
+                    provider: "generic-chat-completion-api",
+                    providerKey: "grok",
+                    baseURL: "http://localhost:8317/v1",
+                    kind: .grok,
+                    levels: [],
+                    defaultLevelValue: ""
                 )
             ])
         }
