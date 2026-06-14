@@ -41,6 +41,7 @@ website/.firebase/
 # Reference / context material
 context/
 .agent/
+.factory/video/
 
 # Graphify per-file extraction cache (regenerated each run)
 graphify-out/cache/

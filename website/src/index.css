@@ -243,6 +243,35 @@ section { padding: 88px 0; border-bottom: 1px solid var(--border); }
 }
 
 /* Use cases */
+.showcase-video-section {
+  background: var(--bg-alt);
+}
+.showcase-video-card {
+  position: relative;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  background: var(--surface);
+  overflow: hidden;
+  box-shadow:
+    0 1px 0 oklch(100% 0 0 / 0.03) inset,
+    0 30px 70px -35px oklch(0% 0 0 / 0.8);
+}
+.showcase-video-card::before {
+  content: '';
+  position: absolute;
+  inset: -1px;
+  border-radius: inherit;
+  pointer-events: none;
+  box-shadow: 0 0 0 1px var(--accent-line) inset;
+  opacity: 0.55;
+}
+.showcase-video {
+  display: block;
+  width: 100%;
+  aspect-ratio: 16 / 9;
+  background: #000;
+}
+
 .usecase-grid {
   display: grid;
   grid-template-columns: repeat(3, 1fr);

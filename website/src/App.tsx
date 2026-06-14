@@ -1,5 +1,6 @@
 import Navbar from './components/Navbar'
 import HeroSection from './components/HeroSection'
+import ShowcaseVideoSection from './components/ShowcaseVideoSection'
 import LogosStrip from './components/LogosStrip'
 import UseCasesSection from './components/UseCasesSection'
 import HowItWorksSection from './components/HowItWorksSection'
@@ -16,6 +17,7 @@ function App() {
       <Navbar />
       <main>
         <HeroSection />
+        <ShowcaseVideoSection />
         <LogosStrip />
         <UseCasesSection />
         <HowItWorksSection />
