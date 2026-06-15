@@ -1,36 +1,29 @@
-# DroidProxy Windows
+# DroidProxy Windows WIP
 
-GPT-only Windows wrapper for [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI), built for Factory custom models.
+Small Electron-based Windows wrapper for the bundled `cli-proxy-api.exe`.
 
-## What it does
+## Scope
 
-- Starts and stops a bundled Windows `cli-proxy-api.exe`.
-- Opens the Codex/GPT OAuth login flow.
-- Shows Codex OAuth usage windows from the ChatGPT usage endpoint.
-- Lets you configure host, port, request timeout, retries, and logging in the UI.
-- Applies GPT-only custom models to `%USERPROFILE%\.factory\settings.json` with a timestamped backup.
+- Runs the local API proxy on Windows.
+- Supports Codex/GPT OAuth login and usage display.
+- Applies GPT-only DroidProxy custom models to Factory settings.
+- Keeps Windows-specific work isolated from the macOS Swift app in `../src`.
 
-## Run from source
+## Development
 
 ```powershell
 npm install
 npm start
 ```
 
-## Build a portable Windows app
+Run a syntax check before committing:
 
 ```powershell
-npm install
-npm run build:win
+npm run check
 ```
 
-The portable app is written to `dist/`.
+Build the portable Windows app with:
 
-## Factory models
-
-The **Apply to Factory** button writes only GPT models:
-
-- `custom:droidproxy:gpt-5.4`
-- `custom:droidproxy:gpt-5.5`
-
-Both point at `http://<host>:<port>/v1` and use `provider: "openai"`.
+```powershell
+npm run build:win
+```
