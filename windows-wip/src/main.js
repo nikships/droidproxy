@@ -395,13 +395,13 @@ function applyFactoryModels() {
 
 function createWindow() {
   mainWindow = new BrowserWindow({
-    width: 920,
-    height: 720,
-    minWidth: 760,
-    minHeight: 620,
+    width: 520,
+    height: 820,
+    minWidth: 420,
+    minHeight: 640,
     title: APP_NAME,
     icon: getResourcePath("icon.png"),
-    backgroundColor: "#101316",
+    backgroundColor: "#0b0e11",
     webPreferences: {
       preload: path.join(__dirname, "preload.js"),
       contextIsolation: true,

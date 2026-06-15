@@ -2,15 +2,10 @@ const api = window.droidProxy;
 
 const elements = {
   proxyStatus: document.querySelector("#proxy-status"),
+  serverDot: document.querySelector("#server-dot"),
+  toggleServer: document.querySelector("#toggle-server-btn"),
   endpoint: document.querySelector("#endpoint-code"),
-  host: document.querySelector("#host-input"),
-  port: document.querySelector("#port-input"),
-  timeout: document.querySelector("#timeout-input"),
-  retry: document.querySelector("#retry-input"),
-  model: document.querySelector("#model-select"),
-  maxOutput: document.querySelector("#max-output-input"),
-  reasoning: document.querySelector("#reasoning-select"),
-  thinking: document.querySelector("#thinking-input"),
+  copyEndpoint: document.querySelector("#copy-endpoint-btn"),
   debug: document.querySelector("#debug-input"),
   accounts: document.querySelector("#accounts-list"),
   usage: document.querySelector("#usage-list"),
@@ -32,39 +27,27 @@ function showToast(message) {
 }
 
 function setSettingsForm(settings) {
-  elements.host.value = settings.host;
-  elements.port.value = settings.port;
-  elements.timeout.value = settings.requestTimeout;
-  elements.retry.value = settings.requestRetry;
-  elements.model.value = settings.model;
-  elements.maxOutput.value = settings.maxOutputTokens;
-  elements.reasoning.value = settings.reasoningEffort;
-  elements.thinking.checked = settings.enableThinking;
   elements.debug.checked = settings.debug;
   renderEndpoint(settings);
-}
-
-function readSettingsForm() {
-  return {
-    host: elements.host.value,
-    port: Number(elements.port.value),
-    requestTimeout: elements.timeout.value,
-    requestRetry: Number(elements.retry.value),
-    model: elements.model.value,
-    maxOutputTokens: Number(elements.maxOutput.value),
-    reasoningEffort: elements.reasoning.value,
-    enableThinking: elements.thinking.checked,
-    debug: elements.debug.checked
-  };
 }
 
 function renderEndpoint(settings) {
   elements.endpoint.textContent = `http://${settings.host}:${settings.port}/v1`;
 }
 
+async function saveDebugLogging() {
+  try {
+    await api.saveSettings({ debug: elements.debug.checked });
+    showToast("Logging setting saved.");
+  } catch (error) {
+    showToast(error.message || String(error));
+  }
+}
+
 function renderProxyState(state) {
-  elements.proxyStatus.textContent = state.running ? `Running on PID ${state.pid}` : "Stopped";
-  elements.proxyStatus.classList.toggle("running", state.running);
+  const running = state.running;
+  elements.proxyStatus.textContent = running ? `Running · PID ${state.pid}` : "Stopped";
+  elements.serverDot.classList.toggle("running", running);
   elements.endpoint.textContent = state.baseUrl;
 }
 
@@ -153,24 +136,26 @@ async function refreshUsage() {
   }
 }
 
-document.querySelector("#save-settings-btn").addEventListener("click", async () => {
-  const saved = await api.saveSettings(readSettingsForm());
-  setSettingsForm(saved);
-  renderProxyState(await api.proxyState());
-  renderFactoryStatus(await api.factoryStatus());
-  showToast("Configuration saved. Restart the proxy if it is already running.");
-});
-
-document.querySelector("#start-btn").addEventListener("click", async () => {
+async function toggleServer() {
   try {
-    renderProxyState(await api.startProxy());
+    const state = await api.proxyState();
+    renderProxyState(state.running ? await api.stopProxy() : await api.startProxy());
   } catch (error) {
     showToast(error.message || String(error));
   }
-});
+}
 
-document.querySelector("#stop-btn").addEventListener("click", async () => {
-  renderProxyState(await api.stopProxy());
+elements.toggleServer.addEventListener("click", toggleServer);
+
+elements.debug.addEventListener("change", saveDebugLogging);
+
+elements.copyEndpoint.addEventListener("click", async () => {
+  try {
+    await navigator.clipboard.writeText(elements.endpoint.textContent);
+    showToast("Endpoint copied to clipboard.");
+  } catch (error) {
+    showToast("Could not copy endpoint.");
+  }
 });
 
 document.querySelector("#login-btn").addEventListener("click", async () => {

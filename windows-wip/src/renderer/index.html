@@ -8,121 +8,117 @@
   </head>
   <body>
     <main class="app-shell">
-      <header class="topbar">
-        <div>
-          <h1>DroidProxy Windows</h1>
-          <p>GPT-only Factory bridge</p>
+      <header class="brand">
+        <div class="brand-mark">
+          <img src="../../resources/icon.png" alt="DroidProxy" width="42" height="42" />
         </div>
-        <div class="status-pill" id="proxy-status">Stopped</div>
+        <div class="brand-text">
+          <h1>DroidProxy</h1>
+          <p>Windows bridge</p>
+        </div>
       </header>
 
-      <section class="grid">
-        <section class="panel span-2">
-          <div class="panel-title">
-            <h2>Proxy</h2>
-            <div class="actions">
-              <button id="start-btn" class="primary">Start</button>
-              <button id="stop-btn">Stop</button>
-            </div>
-          </div>
-          <div class="settings-grid">
-            <label>
-              Host
-              <input id="host-input" autocomplete="off" />
-            </label>
-            <label>
-              Port
-              <input id="port-input" type="number" min="1024" max="65535" />
-            </label>
-            <label>
-              Timeout
-              <input id="timeout-input" autocomplete="off" />
-            </label>
-            <label>
-              Retries
-              <input id="retry-input" type="number" min="0" max="10" />
-            </label>
-            <label>
-              Factory model
-              <select id="model-select">
-                <option value="gpt-5.5">GPT 5.5</option>
-                <option value="gpt-5.4">GPT 5.4</option>
-              </select>
-            </label>
-            <label>
-              Max output tokens
-              <input id="max-output-input" type="number" min="1024" step="1024" />
-            </label>
-            <label>
-              Reasoning
-              <select id="reasoning-select">
-                <option value="low">Low</option>
-                <option value="medium">Medium</option>
-                <option value="high">High</option>
-                <option value="xhigh">xHigh</option>
-              </select>
-            </label>
-            <label class="check-row">
-              <input id="thinking-input" type="checkbox" />
-              Enable Factory thinking controls
-            </label>
-            <label class="check-row">
-              <input id="debug-input" type="checkbox" />
-              Debug logging
-            </label>
-          </div>
-          <div class="actions align-right">
-            <button id="save-settings-btn" class="primary">Save configuration</button>
-          </div>
-        </section>
+      <section class="section-row">
+        <div class="section-label">
+          <span>Server status</span>
+        </div>
+        <div class="section-control">
+          <button id="toggle-server-btn" class="pill">
+            <span id="server-dot" class="status-dot"></span>
+            <span id="proxy-status">Stopped</span>
+          </button>
+        </div>
+      </section>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Codex OAuth</h2>
-            <button id="login-btn" class="primary">Connect</button>
-          </div>
-          <div id="accounts-list" class="list muted">No Codex account found.</div>
-          <div class="actions">
-            <button id="refresh-accounts-btn">Refresh</button>
-            <button id="auth-folder-btn">Open auth folder</button>
-          </div>
-        </section>
+      <section class="section-row">
+        <div class="section-label">
+          <span>Codex OAuth</span>
+        </div>
+        <div class="section-control">
+          <button id="login-btn" class="primary small">Connect</button>
+        </div>
+      </section>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Usage Limits</h2>
-            <button id="refresh-usage-btn">Refresh</button>
-          </div>
-          <div id="usage-list" class="list muted">Connect Codex to display quota windows.</div>
-        </section>
+      <section class="section-card">
+        <div class="card-title">
+          <span>Connected accounts</span>
+          <button id="refresh-accounts-btn" class="icon-only" title="Refresh accounts">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-6-6c1.66 0 3.14.69 4.22 1.79L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+          </button>
+        </div>
+        <div id="accounts-list" class="list muted">No Codex account found.</div>
+      </section>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Factory</h2>
-            <div id="factory-status" class="mini-status">Not applied</div>
-          </div>
-          <p class="body-copy">Adds GPT-only DroidProxy custom models to Factory and backs up existing settings first.</p>
-          <div class="actions">
-            <button id="apply-factory-btn" class="primary">Apply to Factory</button>
-            <button id="factory-folder-btn">Open Factory folder</button>
-          </div>
-        </section>
+      <section class="section-card">
+        <div class="card-title">
+          <span>OAuth Quota Usage</span>
+          <button id="refresh-usage-btn" class="icon-only" title="Refresh usage">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-6-6c1.66 0 3.14.69 4.22 1.79L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+          </button>
+        </div>
+        <div id="usage-list" class="list muted">Connect Codex to display quota windows.</div>
+      </section>
 
-        <section class="panel">
-          <div class="panel-title">
-            <h2>Endpoint</h2>
-          </div>
-          <code id="endpoint-code">http://127.0.0.1:8317/v1</code>
-          <p class="body-copy">Factory custom models use this OpenAI-compatible base URL.</p>
-        </section>
+      <section class="section-row">
+        <div class="section-label">
+          <span>Factory custom models</span>
+          <span id="factory-status" class="mini-badge">Not applied</span>
+        </div>
+        <div class="section-control">
+          <button id="apply-factory-btn" class="primary small">Apply</button>
+        </div>
+      </section>
 
-        <section class="panel span-2">
-          <div class="panel-title">
-            <h2>Logs</h2>
-            <button id="clear-log-btn">Clear view</button>
-          </div>
-          <pre id="log-output"></pre>
-        </section>
+      <section class="section-row">
+        <div class="section-label">
+          <span>Logging</span>
+        </div>
+        <div class="section-control">
+          <label class="check-row">
+            <input id="debug-input" type="checkbox" />
+            Verbose logging
+          </label>
+        </div>
+      </section>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Endpoint</span>
+        </div>
+        <div class="section-control">
+          <button id="copy-endpoint-btn" class="small" title="Copy base URL">Copy</button>
+        </div>
+      </section>
+      <p class="endpoint-copy"><code id="endpoint-code">http://127.0.0.1:8317/v1</code></p>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Auth files</span>
+        </div>
+        <div class="section-control">
+          <button id="auth-folder-btn" class="small">Open folder</button>
+        </div>
+      </section>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Factory settings</span>
+        </div>
+        <div class="section-control">
+          <button id="factory-folder-btn" class="small">Open folder</button>
+        </div>
+      </section>
+
+      <section class="section-card logs">
+        <div class="card-title">
+          <span>Logs</span>
+          <button id="clear-log-btn" class="small">Clear view</button>
+        </div>
+        <pre id="log-output"></pre>
       </section>
     </main>
 
