@@ -38,6 +38,10 @@ website/node_modules/
 website/dist/
 website/.firebase/
 
+# Windows WIP app
+windows-wip/node_modules/
+windows-wip/dist/
+
 # Reference / context material
 context/
 .agent/

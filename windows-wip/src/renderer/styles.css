@@ -1,0 +1,276 @@
+:root {
+  color-scheme: dark;
+  --bg: #101316;
+  --panel: #181d21;
+  --panel-border: #2b3338;
+  --text: #eef3f2;
+  --muted: #9da9a8;
+  --accent: #48b695;
+  --accent-strong: #63d7ad;
+  --warning: #e7ae55;
+  --danger: #ef6d6d;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  background: var(--bg);
+  color: var(--text);
+  font-family: "Segoe UI", system-ui, sans-serif;
+}
+
+button,
+input,
+select {
+  font: inherit;
+}
+
+button {
+  min-height: 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 12px;
+  background: #20272c;
+  color: var(--text);
+  cursor: pointer;
+}
+
+button:hover {
+  border-color: #3b464d;
+  background: #263037;
+}
+
+button.primary {
+  border-color: #3bc797;
+  background: #17775d;
+}
+
+button.primary:hover {
+  background: #1f8d70;
+}
+
+input,
+select {
+  width: 100%;
+  min-height: 34px;
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 6px 8px;
+  background: #101518;
+  color: var(--text);
+}
+
+code,
+pre {
+  font-family: "Cascadia Mono", Consolas, monospace;
+}
+
+.app-shell {
+  max-width: 1180px;
+  margin: 0 auto;
+  padding: 28px;
+}
+
+.topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 18px;
+  margin-bottom: 20px;
+}
+
+h1,
+h2,
+p {
+  margin: 0;
+}
+
+h1 {
+  font-size: 28px;
+  font-weight: 650;
+}
+
+.topbar p,
+.muted,
+.body-copy {
+  color: var(--muted);
+}
+
+.status-pill,
+.mini-status {
+  border: 1px solid var(--panel-border);
+  border-radius: 999px;
+  padding: 6px 10px;
+  background: #1b2226;
+  color: var(--muted);
+  white-space: nowrap;
+}
+
+.status-pill.running,
+.mini-status.applied {
+  border-color: #2c9f7c;
+  color: var(--accent-strong);
+}
+
+.grid {
+  display: grid;
+  grid-template-columns: minmax(0, 1.3fr) minmax(300px, 0.7fr);
+  gap: 16px;
+}
+
+.panel {
+  border: 1px solid var(--panel-border);
+  border-radius: 8px;
+  padding: 16px;
+  background: var(--panel);
+}
+
+.span-2 {
+  grid-column: 1 / -1;
+}
+
+.panel-title {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  margin-bottom: 14px;
+}
+
+h2 {
+  font-size: 16px;
+  font-weight: 650;
+}
+
+.actions {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.align-right {
+  justify-content: flex-end;
+  margin-top: 14px;
+}
+
+.settings-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+}
+
+label {
+  display: grid;
+  gap: 6px;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.check-row {
+  display: flex;
+  align-items: center;
+  min-height: 34px;
+  gap: 8px;
+  color: var(--text);
+}
+
+.check-row input {
+  width: 16px;
+  min-height: 16px;
+}
+
+.list {
+  display: grid;
+  gap: 10px;
+  min-height: 58px;
+  margin-bottom: 12px;
+}
+
+.account,
+.usage-window {
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  padding: 10px;
+  background: #12171a;
+}
+
+.account strong,
+.usage-window strong {
+  display: block;
+  font-size: 13px;
+  margin-bottom: 4px;
+}
+
+.account span,
+.usage-window span {
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.bar {
+  width: 100%;
+  height: 8px;
+  overflow: hidden;
+  border-radius: 999px;
+  margin: 8px 0 6px;
+  background: #2b3338;
+}
+
+.bar-fill {
+  height: 100%;
+  border-radius: inherit;
+  background: var(--accent);
+}
+
+.bar-fill.low {
+  background: var(--warning);
+}
+
+#endpoint-code {
+  display: block;
+  overflow-wrap: anywhere;
+  margin-bottom: 10px;
+  color: var(--accent-strong);
+}
+
+#log-output {
+  height: 190px;
+  overflow: auto;
+  margin: 0;
+  padding: 12px;
+  border-radius: 6px;
+  background: #0b0f11;
+  color: #c8d0ce;
+  white-space: pre-wrap;
+}
+
+.toast {
+  position: fixed;
+  right: 24px;
+  bottom: 24px;
+  max-width: 520px;
+  border: 1px solid #365047;
+  border-radius: 8px;
+  padding: 12px 14px;
+  background: #14241f;
+  color: var(--text);
+  box-shadow: 0 18px 48px rgba(0, 0, 0, 0.35);
+}
+
+@media (max-width: 860px) {
+  .grid,
+  .settings-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .topbar,
+  .panel-title {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}
