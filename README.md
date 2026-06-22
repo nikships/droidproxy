@@ -6,9 +6,11 @@
 
 A native macOS menu bar app that proxies Claude Code, Codex, Gemini, and Kimi authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
 
-<p align="center">
-  <img src="droidproxy-simplifier.gif" alt="DroidProxy connects Factory Droid to existing subscriptions through a local macOS proxy" width="720">
-</p>
+
+
+https://github.com/user-attachments/assets/8bc180a3-0baf-473d-87c9-6aaacce302f2
+
+
 
 ## Download
 
