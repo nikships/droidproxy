@@ -81,12 +81,13 @@ What it no longer does (removed in the Droid-CLI-thinking refactor):
 
 ## Auth And Providers
 
-The current app/UI exposes four provider types:
+The current app/UI exposes five provider types:
 
 - `claude`
 - `codex`
 - `gemini`
 - `kimi`
+- `grok` (beta; Composer 2.5 / `grok-composer-2.5-fast` and Grok Build / `grok-build`, served from `cli-chat-proxy.grok.com`)
 
 Auth data lives in `~/.cli-proxy-api/` as JSON files. `AuthManager` scans that directory and reads fields like:
 
@@ -113,10 +114,11 @@ Behavior to know:
 | `src/Sources/main.swift` | NSApplication entry point that instantiates `AppDelegate` and calls `NSApplicationMain`. |
 | `src/Sources/AppDelegate.swift` | App lifecycle, menu bar UI, settings window, notifications, Sparkle updater, auth-directory watcher, startup ordering for the two local servers. |
 | `src/Sources/ServerManager.swift` | Starts/stops bundled `cli-proxy-api`, captures logs, merges config (including injecting the remote-management `allow-remote`/`secret-key` settings from UserDefaults), handles provider enable/disable, runs Claude/Codex/Gemini login commands, and kills orphaned backend processes. |
-| `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy that forwards requests to CLIProxyAPI. Rewrites the Anthropic-Beta header to drop `redact-thinking-2026-02-12` on Claude thinking requests, injects `service_tier=priority` on enabled Codex fast-mode models, rewrites OAuth Code Assist Gemini `/v1/responses` to `/v1/chat/completions`, and emits a `REQUEST REASONING` log line per request. Does not inject reasoning or thinking fields. |
-| `src/Sources/DroidProxyModelCatalog.swift` | Authoritative catalog of DroidProxy-exposed models. Each `DroidProxyModelDefinition` carries its supported `levels` plus a `defaultLevelValue`, and `settingsEntry` always embeds Factory's native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid CLI's per-session selector can expose the full level set. |
+| `src/Sources/ThinkingProxy.swift` | Raw TCP HTTP proxy that forwards requests to CLIProxyAPI. Rewrites the Anthropic-Beta header to drop `redact-thinking-2026-02-12` on Claude thinking requests, injects `service_tier=priority` on enabled Codex fast-mode models, rewrites OAuth Code Assist Gemini `/v1/responses` to `/v1/chat/completions`, and emits a `REQUEST REASONING` log line per request. Does not inject reasoning or thinking fields. Direct-forwards `cursor-` models to the Cursor proxy and `grok-` models (Composer 2.5) to `cli-chat-proxy.grok.com` with an xAI OAuth bearer plus `x-xai-token-auth`/`x-grok-*` headers (see `GrokAuth`); both paths are beta-gated. |
+| `src/Sources/DroidProxyModelCatalog.swift` | Authoritative catalog of DroidProxy-exposed models. Each `DroidProxyModelDefinition` carries its supported `levels` plus a `defaultLevelValue`, and `settingsEntry` always embeds Factory's native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid CLI's per-session selector can expose the full level set. Beta-gated entries include the Cursor and Grok CLI (Composer 2.5 / `grok-composer-2.5-fast` and Grok Build / `grok-build`) providers. |
 | `src/Sources/SettingsView.swift` | SwiftUI settings UI for server status, launch-at-login, provider toggles, auth flows, the Codex fast-mode (`service_tier=priority`) subsection, the Factory custom-models Apply button, OLED theme, background opacity, and remote-access settings. No thinking/reasoning selectors — those live in Droid CLI. |
 | `src/Sources/AuthStatus.swift` | `AuthManager`, account parsing, expiry detection, file deletion, and per-account disabled-state updates. |
+| `src/Sources/GrokAuth.swift` | xAI Grok CLI OAuth 2.0 device-flow login (RFC 8628 against `auth.x.ai`), access-token refresh, and credential storage (`~/.cli-proxy-api/grok-cli.json`, `type: grok-cli`). `ensureValidAccessToken` is called by `ThinkingProxy.forwardToGrok` to attach a fresh bearer token to Grok CLI model traffic (Composer 2.5 / `grok-composer-2.5-fast` and Grok Build / `grok-build`). |
 | `src/Sources/AppPreferences.swift` | UserDefaults-backed preferences: fast-mode toggles for GPT 5.3-codex/5.4/5.5; `allowRemote`, `secretKey`, `oledTheme`, `backgroundOpacity`, `verboseLogging`. No thinking-effort keys — reasoning is driven entirely by Droid CLI. |
 | `src/Sources/OAuthUsageTracker.swift` | Reads Codex/Claude OAuth quota windows for the "OAuth Quota Usage" section in `SettingsView`. Owns its own refresh button; there is no menu-bar usage display. |
 | `src/Sources/NotificationNames.swift` | Shared `Notification.Name` constants (`serverStatusChanged`, `authDirectoryChanged`). |
