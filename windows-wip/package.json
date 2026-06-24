@@ -1,0 +1,44 @@
+{
+  "name": "droidproxy-windows",
+  "version": "0.1.0",
+  "description": "GPT-only DroidProxy wrapper for Windows and Factory custom models.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "check": "node --check src/main.js && node --check src/preload.js && node --check src/renderer/app.js",
+    "build:win": "electron-builder --win portable"
+  },
+  "keywords": [
+    "droidproxy",
+    "factory",
+    "codex",
+    "gpt"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^39.8.5",
+    "electron-builder": "^26.0.12"
+  },
+  "build": {
+    "appId": "io.automaze.droidproxy.windows",
+    "productName": "DroidProxy Windows",
+    "files": [
+      "src/**/*",
+      "resources/**/*",
+      "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "resources",
+        "to": "resources"
+      }
+    ],
+    "win": {
+      "icon": "resources/icon.ico",
+      "target": [
+        "portable"
+      ]
+    }
+  }
+}

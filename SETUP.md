@@ -13,9 +13,20 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
 ```json
 "customModels": [
     {
+      "model": "claude-fable-5",
+      "id": "custom:droidproxy:fable-5",
+      "index": 0,
+      "baseUrl": "http://localhost:8317",
+      "apiKey": "dummy-not-used",
+      "displayName": "DroidProxy: Fable 5",
+      "maxOutputTokens": 128000,
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
       "model": "claude-opus-4-8",
       "id": "custom:droidproxy:opus-4-8",
-      "index": 0,
+      "index": 1,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Opus 4.8",
@@ -26,7 +37,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "claude-sonnet-4-6",
       "id": "custom:droidproxy:sonnet-4-6",
-      "index": 1,
+      "index": 2,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Sonnet 4.6",
@@ -37,7 +48,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gpt-5.4",
       "id": "custom:droidproxy:gpt-5.4",
-      "index": 2,
+      "index": 3,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 5.4",
@@ -48,7 +59,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gpt-5.5",
       "id": "custom:droidproxy:gpt-5.5",
-      "index": 3,
+      "index": 4,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 5.5",
@@ -59,7 +70,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gemini-3.1-pro-preview",
       "id": "custom:droidproxy:gemini-3.1-pro",
-      "index": 4,
+      "index": 5,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3.1 Pro",
@@ -70,7 +81,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gemini-3-flash-preview",
       "id": "custom:droidproxy:gemini-3-flash",
-      "index": 5,
+      "index": 6,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3 Flash",
@@ -87,6 +98,7 @@ Use the standard Claude, Codex, and Gemini model aliases in the `model` field. C
 
 Reasoning effort is selected per session in Droid CLI's model picker — DroidProxy registers each model with its native reasoning levels, so the level you pick in Droid is forwarded upstream unchanged. Supported levels per model:
 
+- Fable 5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Opus 4.8: `low`, `medium`, `high`, `xhigh`, or `max`
 - Sonnet 4.6: `low`, `medium`, `high`, or `max`
 - GPT 5.4: `low`, `medium`, `high`, or `xhigh`

@@ -1,0 +1,131 @@
+name: Issue Claim
+
+on:
+  issue_comment:
+    types: [created]
+
+permissions:
+  issues: write
+  contents: read
+
+jobs:
+  claim:
+    name: Claim or unclaim issue
+    if: ${{ github.event.issue.pull_request == null }}
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Handle claim command
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const body = context.payload.comment.body.trim().toLowerCase();
+            const command = body.match(/^\/(claim|unclaim)\b/)?.[1];
+
+            if (!command) {
+              return;
+            }
+
+            const owner = context.repo.owner;
+            const repo = context.repo.repo;
+            const issue_number = context.payload.issue.number;
+            const actor = context.payload.comment.user.login;
+            const association = context.payload.comment.author_association;
+            const maintainerAssociations = ["OWNER", "MEMBER", "COLLABORATOR"];
+            const isMaintainer = maintainerAssociations.includes(association);
+            const markerPrefix = "<!-- droidproxy-claim:";
+            const issueLabels = context.payload.issue.labels.map((label) => label.name);
+
+            if (context.payload.issue.state !== "open") {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `@${actor}, this issue is closed and cannot be claimed.`
+              });
+              return;
+            }
+
+            const comments = await github.paginate(github.rest.issues.listComments, {
+              owner,
+              repo,
+              issue_number,
+              per_page: 100
+            });
+
+            const latestClaim = comments
+              .filter((comment) => comment.user.type === "Bot" && comment.body.includes(markerPrefix))
+              .map((comment) => {
+                const match = comment.body.match(/<!-- droidproxy-claim:(claimed|unclaimed):([^:]+):/);
+                return match ? { state: match[1], user: match[2], created_at: comment.created_at } : null;
+              })
+              .filter(Boolean)
+              .sort((a, b) => new Date(b.created_at) - new Date(a.created_at))[0];
+
+            const activeClaim = latestClaim?.state === "claimed" ? latestClaim.user : null;
+
+            if (command === "claim") {
+              if (activeClaim && activeClaim !== actor) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body: `@${actor}, this issue is currently claimed by @${activeClaim}. If it looks stale, please ask a maintainer to release it.`
+                });
+                return;
+              }
+
+              if (activeClaim === actor) {
+                await github.rest.issues.createComment({
+                  owner,
+                  repo,
+                  issue_number,
+                  body: `@${actor}, you already claimed this issue.`
+                });
+                return;
+              }
+
+              const labelsToAdd = ["claimed"].filter((label) => !issueLabels.includes(label));
+              if (labelsToAdd.length > 0) {
+                await github.rest.issues.addLabels({ owner, repo, issue_number, labels: labelsToAdd });
+              }
+
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `<!-- droidproxy-claim:claimed:${actor}:${Date.now()} -->\n@${actor} has claimed this issue. Please open a PR from a fork when ready and link it back to this issue.`
+              });
+              return;
+            }
+
+            if (!activeClaim) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `@${actor}, this issue is not currently claimed.`
+              });
+              return;
+            }
+
+            if (activeClaim !== actor && !isMaintainer) {
+              await github.rest.issues.createComment({
+                owner,
+                repo,
+                issue_number,
+                body: `@${actor}, only @${activeClaim} or a maintainer can unclaim this issue.`
+              });
+              return;
+            }
+
+            if (issueLabels.includes("claimed")) {
+              await github.rest.issues.removeLabel({ owner, repo, issue_number, name: "claimed" });
+            }
+
+            await github.rest.issues.createComment({
+              owner,
+              repo,
+              issue_number,
+              body: `<!-- droidproxy-claim:unclaimed:${actor}:${Date.now()} -->\n@${actor} has released this issue for someone else to pick up.`
+            });

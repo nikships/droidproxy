@@ -1,0 +1,128 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>DroidProxy Windows</title>
+    <link rel="stylesheet" href="styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="brand">
+        <div class="brand-mark">
+          <img src="../../resources/icon.png" alt="DroidProxy" width="42" height="42" />
+        </div>
+        <div class="brand-text">
+          <h1>DroidProxy</h1>
+          <p>Windows bridge</p>
+        </div>
+      </header>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Server status</span>
+        </div>
+        <div class="section-control">
+          <button id="toggle-server-btn" class="pill">
+            <span id="server-dot" class="status-dot"></span>
+            <span id="proxy-status">Stopped</span>
+          </button>
+        </div>
+      </section>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Codex OAuth</span>
+        </div>
+        <div class="section-control">
+          <button id="login-btn" class="primary small">Connect</button>
+        </div>
+      </section>
+
+      <section class="section-card">
+        <div class="card-title">
+          <span>Connected accounts</span>
+          <button id="refresh-accounts-btn" class="icon-only" title="Refresh accounts">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-6-6c1.66 0 3.14.69 4.22 1.79L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+          </button>
+        </div>
+        <div id="accounts-list" class="list muted">No Codex account found.</div>
+      </section>
+
+      <section class="section-card">
+        <div class="card-title">
+          <span>OAuth Quota Usage</span>
+          <button id="refresh-usage-btn" class="icon-only" title="Refresh usage">
+            <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true">
+              <path fill="currentColor" d="M17.65 6.35A7.95 7.95 0 0 0 12 4a8 8 0 1 0 8 8h-2a6 6 0 1 1-6-6c1.66 0 3.14.69 4.22 1.79L13 11h7V4l-2.35 2.35z"/>
+            </svg>
+          </button>
+        </div>
+        <div id="usage-list" class="list muted">Connect Codex to display quota windows.</div>
+      </section>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Factory custom models</span>
+          <span id="factory-status" class="mini-badge">Not applied</span>
+        </div>
+        <div class="section-control">
+          <button id="apply-factory-btn" class="primary small">Apply</button>
+        </div>
+      </section>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Logging</span>
+        </div>
+        <div class="section-control">
+          <label class="check-row">
+            <input id="debug-input" type="checkbox" />
+            Verbose logging
+          </label>
+        </div>
+      </section>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Endpoint</span>
+        </div>
+        <div class="section-control">
+          <button id="copy-endpoint-btn" class="small" title="Copy base URL">Copy</button>
+        </div>
+      </section>
+      <p class="endpoint-copy"><code id="endpoint-code">http://127.0.0.1:8317/v1</code></p>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Auth files</span>
+        </div>
+        <div class="section-control">
+          <button id="auth-folder-btn" class="small">Open folder</button>
+        </div>
+      </section>
+
+      <section class="section-row">
+        <div class="section-label">
+          <span>Factory settings</span>
+        </div>
+        <div class="section-control">
+          <button id="factory-folder-btn" class="small">Open folder</button>
+        </div>
+      </section>
+
+      <section class="section-card logs">
+        <div class="card-title">
+          <span>Logs</span>
+          <button id="clear-log-btn" class="small">Clear view</button>
+        </div>
+        <pre id="log-output"></pre>
+      </section>
+    </main>
+
+    <div id="toast" class="toast" hidden></div>
+    <script src="app.js"></script>
+  </body>
+</html>

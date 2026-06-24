@@ -1,0 +1,40 @@
+# Generated into %USERPROFILE%\.cli-proxy-api\droidproxy-windows-config.yaml
+port: __PORT__
+host: __HOST__
+
+remote-management:
+  allow-remote: false
+  secret-key: ""
+
+auth-dir: "~/.cli-proxy-api"
+
+debug: __DEBUG__
+logging-to-file: __DEBUG__
+usage-statistics-enabled: true
+proxy-url: ""
+request-retry: __REQUEST_RETRY__
+request-timeout: "__REQUEST_TIMEOUT__"
+disable-cooling: true
+
+routing:
+  strategy: "round-robin"
+  session-affinity: true
+  session-affinity-ttl: "2h"
+
+quota-exceeded:
+  switch-project: true
+  switch-preview-model: true
+
+generative-language-api-key: []
+
+oauth-excluded-models:
+  claude:
+    - "*"
+  gemini:
+    - "*"
+  antigravity:
+    - "*"
+  kimi:
+    - "*"
+  cursor:
+    - "*"

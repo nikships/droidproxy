@@ -4,9 +4,19 @@ import { ArrowRightIcon } from './icons'
 const codePlain = `// What "Apply" writes for you — no need to touch this yourself.
 "customModels": [
   {
+    "model": "claude-fable-5",
+    "id": "custom:droidproxy:fable-5",
+    "index": 0,
+    "baseUrl": "http://localhost:8317",
+    "apiKey": "***",
+    "displayName": "DroidProxy: Fable 5",
+    "maxOutputTokens": 128000,
+    "provider": "anthropic"
+  },
+  {
     "model": "claude-opus-4-8",
     "id": "custom:droidproxy:opus-4-8",
-    "index": 0,
+    "index": 1,
     "baseUrl": "http://localhost:8317",
     "apiKey": "***",
     "displayName": "DroidProxy: Opus 4.8",
@@ -16,32 +26,32 @@ const codePlain = `// What "Apply" writes for you — no need to touch this your
   {
     "model": "claude-sonnet-4-6",
     "id": "custom:droidproxy:sonnet-4-6",
-    "index": 1,
+    "index": 2,
     "baseUrl": "http://localhost:8317",
     "apiKey": "***",
     "displayName": "DroidProxy: Sonnet 4.6",
     "maxOutputTokens": 64000,
     "provider": "anthropic"
-  },
-  {
-    "model": "gpt-5.5",
-    "id": "custom:droidproxy:gpt-5.5",
-    "index": 4,
-    "baseUrl": "http://localhost:8317/v1",
-    "apiKey": "***",
-    "displayName": "DroidProxy: GPT 5.5",
-    "maxOutputTokens": 128000,
-    "provider": "openai"
   }
-  // + GPT 5.2, GPT 5.3 Codex, GPT 5.4, Gemini, Kimi
+  // + GPT 5.4, GPT 5.5, Gemini, Kimi
 ]`
 
 const codeHtml = `<span class="c">// What "Apply" writes for you — no need to touch this yourself.</span>
 <span class="k">"customModels"</span>: [
   {
+    <span class="k">"model"</span>: <span class="s">"claude-fable-5"</span>,
+    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:fable-5"</span>,
+    <span class="k">"index"</span>: <span class="n">0</span>,
+    <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
+    <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
+    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Fable 5"</span>,
+    <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
+    <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
+  },
+  {
     <span class="k">"model"</span>: <span class="s">"claude-opus-4-8"</span>,
     <span class="k">"id"</span>: <span class="s">"custom:droidproxy:opus-4-8"</span>,
-    <span class="k">"index"</span>: <span class="n">0</span>,
+    <span class="k">"index"</span>: <span class="n">1</span>,
     <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
     <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Opus 4.8"</span>,
@@ -51,24 +61,14 @@ const codeHtml = `<span class="c">// What "Apply" writes for you — no need to 
   {
     <span class="k">"model"</span>: <span class="s">"claude-sonnet-4-6"</span>,
     <span class="k">"id"</span>: <span class="s">"custom:droidproxy:sonnet-4-6"</span>,
-    <span class="k">"index"</span>: <span class="n">1</span>,
+    <span class="k">"index"</span>: <span class="n">2</span>,
     <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
     <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Sonnet 4.6"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">64000</span>,
     <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
-  },
-  {
-    <span class="k">"model"</span>: <span class="s">"gpt-5.5"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:gpt-5.5"</span>,
-    <span class="k">"index"</span>: <span class="n">4</span>,
-    <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317/v1"</span>,
-    <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: GPT 5.5"</span>,
-    <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
-    <span class="k">"provider"</span>: <span class="s">"openai"</span>
   }
-  <span class="c">// + GPT 5.2, GPT 5.3 Codex, GPT 5.4, Gemini, Kimi</span>
+  <span class="c">// + GPT 5.4, GPT 5.5, Gemini, Kimi</span>
 ]`
 
 export default function InstallSection() {
