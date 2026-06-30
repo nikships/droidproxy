@@ -92,10 +92,6 @@ enum DroidProxyModelCatalog {
     private static let max = DroidProxyThinkingLevel(value: "max", displayName: "Max")
 
     private static let claudeAdvancedLevels = [low, medium, high, xhigh, max]
-    // Sonnet 4.6 exposes max in Droid's selector. Its adaptive thinking rejects
-    // output_config.effort:max upstream, so ThinkingProxy auto-converts a max
-    // request to classic extended thinking; lower efforts pass through adaptive.
-    private static let claudeSonnetLevels = [low, medium, high, max]
     private static let codexLevels = [low, medium, high, xhigh]
 
     private static func antigravityModel(
@@ -147,16 +143,16 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "claude-sonnet-4-6",
-                idSlug: "sonnet-4-6",
-                displayName: "Sonnet 4.6",
-                maxOutputTokens: 64000,
+                baseModel: "claude-sonnet-5",
+                idSlug: "sonnet-5",
+                displayName: "Sonnet 5",
+                maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "claude",
                 baseURL: "http://localhost:8317",
                 kind: .claudeAdaptive,
-                levels: claudeSonnetLevels,
-                defaultLevelValue: "high"
+                levels: claudeAdvancedLevels,
+                defaultLevelValue: "xhigh"
             ),
 
             DroidProxyModelDefinition(
