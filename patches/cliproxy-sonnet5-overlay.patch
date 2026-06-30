@@ -1,0 +1,113 @@
+diff --git a/internal/registry/model_updater.go b/internal/registry/model_updater.go
+index 4c398fb..2600c0c 100644
+--- a/internal/registry/model_updater.go
++++ b/internal/registry/model_updater.go
+@@ -121,6 +121,12 @@ func tryRefreshModels(ctx context.Context, label string) {
+ 		return
+ 	}
+ 
++	// Overlay embedded-only models the remote catalog has not published yet
++	// (e.g. a model that shipped before the upstream registry was updated).
++	// Once the remote catalog includes the model, the remote definition wins
++	// and this overlay becomes a no-op, so the bundled catalog auto-reverts.
++	mergeEmbeddedFallback(parsed)
++
+ 	// Detect changes before updating store.
+ 	changed := detectChangedProviders(oldData, parsed)
+ 
+@@ -315,6 +321,61 @@ func getModels() *staticModelsJSON {
+ 	return modelsCatalogStore.data
+ }
+ 
++// mergeEmbeddedFallback appends any embedded model definitions whose IDs are
++// absent from the remote catalog, per provider section. Remote definitions
++// always take precedence; embedded entries only fill gaps. This keeps a model
++// that shipped ahead of the upstream registry available until the registry
++// catches up, at which point the overlay is a no-op.
++func mergeEmbeddedFallback(remote *staticModelsJSON) {
++	if remote == nil {
++		return
++	}
++	var embedded staticModelsJSON
++	if err := json.Unmarshal(embeddedModelsJSON, &embedded); err != nil {
++		return
++	}
++
++	fill := func(remoteList, embeddedList []*ModelInfo) []*ModelInfo {
++		if len(embeddedList) == 0 {
++			return remoteList
++		}
++		present := make(map[string]struct{}, len(remoteList))
++		for _, m := range remoteList {
++			if m != nil {
++				present[strings.TrimSpace(m.ID)] = struct{}{}
++			}
++		}
++		for _, m := range embeddedList {
++			if m == nil {
++				continue
++			}
++			id := strings.TrimSpace(m.ID)
++			if id == "" {
++				continue
++			}
++			if _, ok := present[id]; ok {
++				continue
++			}
++			present[id] = struct{}{}
++			remoteList = append(remoteList, m)
++			log.Infof("model catalog: retaining embedded model %q absent from remote catalog", id)
++		}
++		return remoteList
++	}
++
++	remote.Claude = fill(remote.Claude, embedded.Claude)
++	remote.Gemini = fill(remote.Gemini, embedded.Gemini)
++	remote.Vertex = fill(remote.Vertex, embedded.Vertex)
++	remote.AIStudio = fill(remote.AIStudio, embedded.AIStudio)
++	remote.CodexFree = fill(remote.CodexFree, embedded.CodexFree)
++	remote.CodexTeam = fill(remote.CodexTeam, embedded.CodexTeam)
++	remote.CodexPlus = fill(remote.CodexPlus, embedded.CodexPlus)
++	remote.CodexPro = fill(remote.CodexPro, embedded.CodexPro)
++	remote.Kimi = fill(remote.Kimi, embedded.Kimi)
++	remote.Antigravity = fill(remote.Antigravity, embedded.Antigravity)
++	remote.XAI = fill(remote.XAI, embedded.XAI)
++}
++
+ func validateModelsCatalog(data *staticModelsJSON) error {
+ 	if data == nil {
+ 		return fmt.Errorf("catalog is nil")
+diff --git a/internal/registry/models/models.json b/internal/registry/models/models.json
+index 5725cae..cc1c190 100644
+--- a/internal/registry/models/models.json
++++ b/internal/registry/models/models.json
+@@ -51,6 +51,29 @@
+         ]
+       }
+     },
++    {
++      "id": "claude-sonnet-5",
++      "object": "model",
++      "created": 1782777600,
++      "owned_by": "anthropic",
++      "type": "claude",
++      "display_name": "Claude Sonnet 5",
++      "description": "Anthropic's most capable Sonnet-class model, with frontier performance across coding, agents, and professional work",
++      "context_length": 1000000,
++      "max_completion_tokens": 128000,
++      "thinking": {
++        "min": 1024,
++        "max": 128000,
++        "zero_allowed": true,
++        "levels": [
++          "low",
++          "medium",
++          "high",
++          "xhigh",
++          "max"
++        ]
++      }
++    },
+     {
+       "id": "claude-opus-4-6",
+       "object": "model",
