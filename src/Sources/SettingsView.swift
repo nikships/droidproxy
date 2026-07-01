@@ -344,16 +344,20 @@ struct SettingsView: View {
     @State private var authResultMessage = ""
     @State private var showingCursorApiKeyAlert = false
     @State private var cursorApiKey = ""
+    @State private var showingGrokDeviceAlert = false
+    @State private var grokDeviceUserCode = ""
+    @State private var grokLoginSession: GrokAuth.LoginSession?
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
     @State private var remoteManagementExpanded = false
     @State private var codexFastModeExpanded = true
-    private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
-    private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
-    private let antigravityEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
-    private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
-    private let cursorEffortSelectionColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
+    private let claudeToggleTintColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
+    private let codexToggleTintColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
+    private let antigravityToggleTintColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
+    private let kimiToggleTintColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
+    private let cursorToggleTintColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
+    private let grokToggleTintColor = Color(red: 0x6B/255, green: 0x72/255, blue: 0x80/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
     private var oauthUsageDashboard: some View {
@@ -738,13 +742,13 @@ struct SettingsView: View {
                     providerServiceRow(
                         .claude,
                         iconName: "icon-claude.png",
-                        toggleTint: claudeEffortSelectionColor
+                        toggleTint: claudeToggleTintColor
                     )
 
                     providerServiceRow(
                         .codex,
                         iconName: "icon-codex.png",
-                        toggleTint: codexEffortSelectionColor
+                        toggleTint: codexToggleTintColor
                     )
 
                     if serverManager.isProviderEnabled(.codex) {
@@ -783,22 +787,28 @@ struct SettingsView: View {
                     providerServiceRow(
                         .antigravity,
                         iconName: "icon-gemini.png",
-                        toggleTint: antigravityEffortSelectionColor,
+                        toggleTint: antigravityToggleTintColor,
                         helpText: "Uses your Antigravity subscription for the Antigravity-backed Gemini, Claude, and GPT-OSS models."
                     )
 
                     providerServiceRow(
                         .kimi,
                         iconName: "icon-kimi.svg",
-                        toggleTint: kimiEffortSelectionColor
+                        toggleTint: kimiToggleTintColor
                     )
 
                     if betaFlag {
                         providerServiceRow(
                             .cursor,
                             iconName: "icon-cursor.png",
-                            toggleTint: cursorEffortSelectionColor,
+                            toggleTint: cursorToggleTintColor,
                             helpText: "Enter your Cursor API Key (from https://cursor-api.standardagents.ai/) to proxy requests directly to Cursor."
+                        )
+                        providerServiceRow(
+                            .grok,
+                            iconName: "icon-grok.svg",
+                            toggleTint: grokToggleTintColor,
+                            helpText: "Log in with your Grok (SuperGrok / X Premium+) subscription to use Composer 2.5 and Grok Build via the Grok CLI endpoint."
                         )
                     }
                 }
@@ -909,6 +919,15 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Please enter your Cursor API Key. It will be saved under ~/.cli-proxy-api/cursor.json.")
+        }
+        .alert("Authorize Grok", isPresented: $showingGrokDeviceAlert) {
+            Button("Cancel", role: .cancel) {
+                grokLoginSession?.cancel()
+                grokLoginSession = nil
+                authenticatingService = nil
+            }
+        } message: {
+            Text("A browser window opened to approve DroidProxy with your Grok subscription.\n\nVerify this code matches: \(grokDeviceUserCode)\n\nWaiting for approval…")
         }
     }
 
@@ -1027,6 +1046,11 @@ struct SettingsView: View {
             return
         }
 
+        if serviceType == .grok {
+            startGrokLogin()
+            return
+        }
+
         authenticatingService = serviceType
         NSLog("[SettingsView] Starting %@ authentication", serviceType.displayName)
         
@@ -1037,6 +1061,7 @@ struct SettingsView: View {
         case .antigravity: command = .antigravityLogin
         case .kimi: command = .kimiLogin
         case .cursor: return // handled by the early-return above; defensive
+        case .grok: return // handled by the startGrokLogin early-return above; defensive
         }
         
         serverManager.runAuthCommand(command) { success, output in
@@ -1066,7 +1091,37 @@ struct SettingsView: View {
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .cursor:
             return "✓ Successfully saved Cursor API Key."
+        case .grok:
+            return "✓ Successfully connected Grok CLI (Composer 2.5 and Grok Build)."
         }
+    }
+
+    private func startGrokLogin() {
+        authenticatingService = .grok
+        grokDeviceUserCode = ""
+        grokLoginSession = GrokAuth.startDeviceLogin(onPrompt: { auth in
+            DispatchQueue.main.async {
+                self.grokDeviceUserCode = auth.userCode
+                self.showingGrokDeviceAlert = true
+            }
+        }, completion: { result in
+            DispatchQueue.main.async {
+                self.authenticatingService = nil
+                self.grokLoginSession = nil
+                self.showingGrokDeviceAlert = false
+                switch result {
+                case .success:
+                    self.authManager.checkAuthStatus()
+                    NotificationCenter.default.post(name: .authDirectoryChanged, object: nil)
+                    self.authResultMessage = "✓ Successfully connected Grok CLI (Composer 2.5 and Grok Build)."
+                    self.showingAuthResult = true
+                case .failure(let error):
+                    if case GrokAuth.GrokAuthError.cancelled = error { return }
+                    self.authResultMessage = "Grok login failed: \(error.localizedDescription)"
+                    self.showingAuthResult = true
+                }
+            }
+        })
     }
 
     private func saveCursorApiKey(_ apiKey: String) {

@@ -23,6 +23,46 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(sonnet["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
     }
 
+    func testComposer25RegisteredUnderGrokProviderInBeta() throws {
+        let original = BETA_FLAG
+        BETA_FLAG = true
+        defer { BETA_FLAG = original }
+
+        let grok = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-composer-2.5-fast"))
+
+        // Composer 2.5 is served via the Grok CLI endpoint as a generic
+        // chat-completion model. ThinkingProxy routes any "grok-" model to
+        // cli-chat-proxy.grok.com, so the upstream model id must keep that prefix.
+        let model = try XCTUnwrap(grok["model"] as? String)
+        XCTAssertEqual(model, "grok-composer-2.5-fast")
+        XCTAssertTrue(model.hasPrefix("grok-"))
+        XCTAssertEqual(grok["provider"] as? String, "generic-chat-completion-api")
+        XCTAssertEqual(grok["baseUrl"] as? String, "http://localhost:8317/v1")
+        XCTAssertEqual(grok["displayName"] as? String, "DroidProxy: Grok CLI: Composer 2.5")
+        // Composer 2.5 is non-reasoning, so no thinking metadata is emitted.
+        XCTAssertNil(grok["enableThinking"])
+    }
+
+    func testGrokBuildRegisteredUnderGrokProviderInBeta() throws {
+        let original = BETA_FLAG
+        BETA_FLAG = true
+        defer { BETA_FLAG = original }
+
+        let grok = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-build"))
+
+        // grok-build is the second model the Grok CLI endpoint serves; it routes
+        // through the same "grok-" passthrough in ThinkingProxy as Composer 2.5.
+        let model = try XCTUnwrap(grok["model"] as? String)
+        XCTAssertEqual(model, "grok-build")
+        XCTAssertTrue(model.hasPrefix("grok-"))
+        XCTAssertEqual(grok["provider"] as? String, "generic-chat-completion-api")
+        XCTAssertEqual(grok["baseUrl"] as? String, "http://localhost:8317/v1")
+        XCTAssertEqual(grok["displayName"] as? String, "DroidProxy: Grok CLI: Grok Build")
+        // The endpoint exposes no reasoning.effort for grok-build (levels: []),
+        // so no thinking metadata is emitted.
+        XCTAssertNil(grok["enableThinking"])
+    }
+
     private func settingsEntry(id: String) -> [String: Any]? {
         DroidProxyModelCatalog
             .settingsModels()

@@ -69,6 +69,7 @@ src/
 │   ├── SettingsView.swift           # SwiftUI settings UI
 │   ├── DroidProxyModelCatalog.swift # Authoritative catalog of exposed Factory models
 │   ├── AuthStatus.swift             # AuthManager: account parsing, expiry, enable/disable
+│   ├── GrokAuth.swift               # xAI Grok CLI OAuth device flow + token refresh (Composer 2.5)
 │   ├── AuthDirectoryMonitor.swift   # Debounced watcher on ~/.cli-proxy-api
 │   ├── AuthPaths.swift              # Auth directory location constant
 │   ├── AppPreferences.swift         # UserDefaults-backed preferences
@@ -87,6 +88,7 @@ src/
 │       ├── icon-gemini.png          # Gemini service icon
 │       ├── icon-cursor.png          # Cursor service icon
 │       ├── icon-kimi.svg            # Kimi service icon
+│       ├── icon-grok.svg            # Grok service icon
 │       └── glyph.png                # App glyph
 ├── Package.swift
 ├── Package.resolved
