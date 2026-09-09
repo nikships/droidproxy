@@ -46,7 +46,7 @@ mkdir -p ~/.factory/skills
 cp -R skills/gpt-image ~/.factory/skills/
 ```
 
-See [`skills/gpt-image/SKILL.md`](skills/gpt-image/SKILL.md). With DroidProxy running and Codex connected, the skill posts to `http://localhost:8317/v1/images/generations` (`gpt-image-2`); CLIProxyAPI injects your Codex bearer. Selecting a DroidProxy GPT chat model does not generate images.
+See [`skills/gpt-image/SKILL.md`](skills/gpt-image/SKILL.md). With DroidProxy running and Codex connected, the skill posts to `http://localhost:8317/v1/images/generations` (`gpt-image-2.5-flare` or `gpt-image-2.5-sunburst`); CLIProxyAPI injects your Codex bearer. Selecting a DroidProxy GPT chat model does not generate images.
 
 ## 2. Configure Factory
 
