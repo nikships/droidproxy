@@ -1,21 +1,28 @@
 ---
 name: gpt-image
-version: 1.1.0
+version: 2.0.0
 description: |
-  Generate or edit images via GPT Image 2 (gpt-image-2) through DroidProxy
-  Codex OAuth (no OPENAI_API_KEY). Use when the user asks to generate,
-  create, draw, or edit an image with GPT, OpenAI, Codex, gpt-image, or
-  DALL-E, including transparent PNGs, and DroidProxy Codex OAuth is
-  available. Prefer this over inventing image URLs or base64. If they
-  name Grok or Imagine, use grok-imagine instead.
+  Generate or edit images via GPT Image 2.5 Flare or Sunburst through
+  DroidProxy Codex OAuth (no OPENAI_API_KEY). Use when the user asks to
+  generate, create, draw, or edit an image with GPT, OpenAI, Codex,
+  gpt-image, or DALL-E, including transparent PNGs, and DroidProxy Codex
+  OAuth is available. Prefer this over inventing image URLs or base64. If
+  they name Grok or Imagine, use grok-imagine instead.
 ---
 
-# GPT Image 2 (via DroidProxy Codex)
+# GPT Image 2.5 (via DroidProxy Codex)
 
 POST `http://localhost:8317/v1/images/generations` (or `/edits`) with
-`Authorization: Bearer dummy-not-used`. Always send `model: gpt-image-2`.
-Never send a chat id (`gpt-5.*`). Never use an `OPENAI_API_KEY`. Chat
+`Authorization: Bearer dummy-not-used`. Send only `gpt-image-2.5-flare` or
+`gpt-image-2.5-sunburst`. Never send an older image model, a dated snapshot,
+or a chat id (`gpt-*` without `image`). Never use an `OPENAI_API_KEY`. Chat
 models on `:8317` do not generate images.
+
+Default to **Flare** for fast, high-quality everyday generation. Use
+**Sunburst** when the user prioritizes demanding quality, editing precision,
+or subject preservation over latency. If Sunburst meets the requirements,
+prefer Flare only after it produces acceptable results on the same prompt,
+references, dimensions, and quality setting.
 
 Use this for generating or editing visual assets, not for understanding an
 image the user already attached.
@@ -23,15 +30,15 @@ image the user already attached.
 ## Generate
 
 Requests often take 15–70s. Use `--max-time 180`. Default `quality` to
-`low`; raise it only when the user asks (or for small chart text).
+`auto`; select a higher explicit setting only to meet a quality requirement.
 
 ```bash
 RESP=$(curl -sS --max-time 180 http://localhost:8317/v1/images/generations \
   -H "Content-Type: application/json" \
   -H "Authorization: Bearer dummy-not-used" \
   -d "$(jq -n --arg p "A red balloon on a wooden table, soft natural light" \
-    '{model:"gpt-image-2", prompt:$p, size:"1024x1024", quality:"low",
-      response_format:"b64_json"}')")
+    '{model:"gpt-image-2.5-flare", prompt:$p, size:"1024x1024",
+      quality:"auto"}')")
 
 if B64=$(printf '%s' "$RESP" | jq -er '.data[0].b64_json' 2>/dev/null); then
   printf '%s' "$B64" | base64 -d > out.png
@@ -58,8 +65,8 @@ SRC_FILE=$(mktemp)
 REQ=$(mktemp)
 printf 'data:image/png;base64,%s' "$(base64 -i ./photo.png)" > "$SRC_FILE"
 jq -n --arg p "Make it blue-tinted studio lighting" --rawfile u "$SRC_FILE" \
-  '{model:"gpt-image-2", prompt:$p, images:[{image_url:$u}], quality:"low",
-    response_format:"b64_json"}' > "$REQ"
+  '{model:"gpt-image-2.5-sunburst", prompt:$p, images:[{image_url:$u}],
+    quality:"auto"}' > "$REQ"
 
 RESP=$(curl -sS --max-time 180 http://localhost:8317/v1/images/edits \
   -H "Content-Type: application/json" \
@@ -83,9 +90,16 @@ to replace. Chain edits by feeding each output back as the next
 ## Prompting
 
 If the user gives a detailed prompt or asks you to use theirs, use it
-verbatim. Otherwise: subject → action/pose → setting → style → composition
-→ lighting/mood → key details. One scene. State what to include, not what
-to exclude. For edits, describe only what changes and what must stay.
+verbatim. Otherwise define the intended result, then describe the subject,
+action/pose, setting, style, composition, lighting/mood, visible details, and
+constraints. For complex work, use labeled sections. Keep requirements easy
+to read rather than relying on special prompt syntax.
+
+Quote required text exactly, specify its placement and typography, ask for no
+extra text, and verify spelling and legibility. For edits, say “change only X”
+and explicitly list what must stay the same. Identify each reference image by
+number and role (subject, style, clothing, or background). Make one change per
+edit and restate critical preservation constraints on every turn.
 
 Ground named people, brands, places, and “current/latest” facts with a web
 search first. For a named real person, edit from a real reference photo —
@@ -95,12 +109,11 @@ do not generate the likeness from text alone.
 
 | Field | Values | Notes |
 |---|---|---|
-| `model` | `gpt-image-2` | Always this id. Send `gpt-image-1.5` only if the user asks. |
+| `model` | `gpt-image-2.5-flare`, `gpt-image-2.5-sunburst` | Flare by default; Sunburst for demanding quality or precise edits. No other model ids. |
 | `prompt` | string | Required on generate and edit. |
-| `size` | `1024x1024`, `1024x1536`, `1536x1024` | Hint only. Codex OAuth often ignores it. |
-| `quality` | `low`, `medium`, `high` | Default `low`. Do not send `hd`, `standard`, or `auto`. Codex may still return `medium`. |
-| `response_format` | `b64_json` | Always send this when saving to disk. |
-| `n` | integer | Default 1. Same-prompt variations use `n`, not parallel calls. |
+| `size` | `auto` or `WIDTHxHEIGHT` | Each edge ≤3840 and divisible by 16; aspect ratio ≤3:1; 655,360–8,294,400 total pixels. Above 2560×1440 is experimental. |
+| `quality` | `auto`, `low`, `medium`, `high`, `xhigh`, `max` | Default `auto`. Compare one setting at a time; use `xhigh`/`max` only for an unmet quality requirement. Never send `hd` or `standard`. |
+| `n` | 1–10 | Default 1. Same-prompt variations use `n`, not parallel calls. |
 | `background` | `auto`, `opaque`, `transparent` | `transparent` needs `output_format` `png` or `webp`. |
 | `output_format` | `png`, `jpeg`, `webp` | Send `png` for transparency. |
 | `output_compression` | 0–100 | JPEG/WebP only. Omit unless asked. |
@@ -114,6 +127,7 @@ do not generate the likeness from text alone.
  "output_format": "png", "quality": "low", "size": "1536x1024", "usage": {}}
 ```
 
+GPT Image 2.5 always returns base64, so do not send `response_format`.
 `.data[0]` is only `b64_json` — no `url`, no `mime_type`. Pick the file
 extension from top-level `output_format` when present, otherwise from the
 decoded magic bytes (`PNG` / `JFIF` / `RIFF…WEBP`).
@@ -146,7 +160,7 @@ on an isolated subject and say so explicitly:
 - Preserve natural transparency, refraction, and fine material edges (glass, ribbon, fibers)
 
 Size by use: icons/stickers `1024x1024`, product shots `1024x1536`, charts
-`1536x1024`. Raise `quality` to `high` when the asset has small text.
+`1536x1024`. Compare `medium` or `high` when the asset has small text.
 Expect the returned pixel size to differ; that's not a failure.
 
 **Products / campaign cutouts.** One object. No scene. Ask for fully
@@ -187,10 +201,15 @@ near-black mark on a dark header is invisible. Say what you did.
 | `auth_not_found` / no auth for `codex` | Codex not connected, or the account is Free. Settings → Connect Codex. Image gen requires Plus/Pro. |
 | `usage_limit_reached` (`plan_type`, `resets_in_seconds`) | Quota exhausted. Tell the user when it resets. Do not retry in a loop. |
 | 401 after a long idle | OAuth session dead — Settings → Connect Codex |
-| 400 unsupported model | You sent a chat id. Use `gpt-image-2`. |
+| 400 unsupported model | Use `gpt-image-2.5-flare` or `gpt-image-2.5-sunburst`; no other model is supported. |
 | `jq: Argument list too long` | You put a data URL in `jq --arg`. Use `--rawfile` as in Edit. |
 | Response `size`/`quality` ≠ request | Not a failure. Save the image. Do not retry. |
 
 On `moderation_blocked`, stop. Don't retry and don't paraphrase the prompt
 to evade the filter. Report the API's own message. Never invent image
 content or a URL for a request that failed.
+
+## Sources
+
+- [GPT Image 2.5 prompting guide](https://developers.openai.com/api/docs/guides/image-prompting)
+- [Image generation guide](https://developers.openai.com/api/docs/guides/image-generation)
