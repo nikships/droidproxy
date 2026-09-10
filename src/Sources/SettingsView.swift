@@ -353,6 +353,7 @@ struct SettingsView: View {
     @State private var junieApiKey = ""
     @State private var grokLoginSession: GrokAuth.LoginSession?
     @State private var grokUserCode: String?
+    @State private var clineLoginSession: ClineAuth.LoginSession?
     @State private var copilotDeviceCode: String?
     @State private var copilotVerificationURL: URL?
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
@@ -370,6 +371,7 @@ struct SettingsView: View {
     private let cursorEffortSelectionColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
     private let junieEffortSelectionColor = Color(red: 0x48/255, green: 0xE0/255, blue: 0x54/255)
     private let grokEffortSelectionColor = Color(red: 0x1D/255, green: 0x9B/255, blue: 0xF0/255)
+    private let clineEffortSelectionColor = Color(red: 0xF5/255, green: 0xA6/255, blue: 0x23/255)
     private let copilotSelectionColor = Color(red: 0x77/255, green: 0xB9/255, blue: 0xFF/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
@@ -862,6 +864,13 @@ struct SettingsView: View {
                         iconName: "icon-grok.svg",
                         toggleTint: grokEffortSelectionColor,
                         helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.6 via api.x.ai (supported tiers; no xAI API key)."
+                    )
+
+                    providerServiceRow(
+                        .cline,
+                        iconName: "icon-cline.svg",
+                        toggleTint: clineEffortSelectionColor,
+                        helpText: "Log in with your Cline account (Google/GitHub/email) to use Cline's limited-time free models via api.cline.bot. The free list rotates; models can stop working when Cline retires them."
                     )
 
                     if serverManager.isProviderEnabled(.grok) {
@@ -1464,6 +1473,11 @@ struct SettingsView: View {
             return
         }
 
+        if serviceType == .cline {
+            startClineOAuthLogin()
+            return
+        }
+
         if serviceType == .copilot {
             startCopilotAuthentication()
             return
@@ -1482,6 +1496,7 @@ struct SettingsView: View {
         case .junie: return // handled by the early-return above; defensive
         case .grok: return // handled by the early-return above; defensive
         case .copilot: return // handled by the early-return above; defensive
+        case .cline: return // handled by the early-return above; defensive
         }
         
         serverManager.runAuthCommand(command) { success, output in
@@ -1517,6 +1532,8 @@ struct SettingsView: View {
             return "🌐 Browser opened for Grok (xAI) authentication.\n\nApprove access for SuperGrok / X Premium+, then DroidProxy will save credentials automatically."
         case .copilot:
             return "🌐 GitHub Copilot sign-in started."
+        case .cline:
+            return "🌐 Browser opened for Cline sign-in.\n\nComplete SSO with Google/GitHub/Microsoft/email; DroidProxy captures the callback and saves credentials automatically."
         }
     }
 
@@ -1576,6 +1593,55 @@ struct SettingsView: View {
         )
         sessionRef.value = session
         grokLoginSession = session
+    }
+
+    private func startClineOAuthLogin() {
+        clineLoginSession?.cancel()
+        // Drop the old reference immediately so a stale `.cancelled` completion
+        // cannot identity-match and clobber the replacement session.
+        clineLoginSession = nil
+        authenticatingService = .cline
+        NSLog("[SettingsView] Starting Cline browser OAuth login")
+
+        final class SessionRef {
+            var value: ClineAuth.LoginSession?
+        }
+        let sessionRef = SessionRef()
+
+        let session = ClineAuth.startBrowserLogin(
+            onAuthURL: { _ in
+                DispatchQueue.main.async {
+                    guard self.clineLoginSession === sessionRef.value else { return }
+                    self.authResultMessage = "🌐 Browser opened for Cline sign-in.\n\nComplete SSO (Google/GitHub/Microsoft/email). DroidProxy captures the callback on 127.0.0.1:31234 automatically.\n\nWaiting for sign-in…"
+                    self.showingAuthResult = true
+                }
+            },
+            completion: { result in
+                DispatchQueue.main.async {
+                    // Ignore stale completions from a cancelled/replaced session.
+                    guard self.clineLoginSession === sessionRef.value else { return }
+                    switch result {
+                    case .success(let creds):
+                        self.authenticatingService = nil
+                        self.clineLoginSession = nil
+                        self.authManager.checkAuthStatus()
+                        let who = creds.email ?? "cline-user"
+                        self.authResultMessage = "✓ Connected to Cline as \(who).\n\nSelect the DroidProxy: Cline free models in Droid with `/model`. The free list rotates; models can stop working when Cline retires them."
+                        self.showingAuthResult = true
+                    case .failure(.cancelled):
+                        // Replaced session already cleared `clineLoginSession` above.
+                        break
+                    case .failure(let error):
+                        self.authenticatingService = nil
+                        self.clineLoginSession = nil
+                        self.authResultMessage = "Cline login failed: \(error.localizedDescription)"
+                        self.showingAuthResult = true
+                    }
+                }
+            }
+        )
+        sessionRef.value = session
+        clineLoginSession = session
     }
 
     private func saveCursorApiKey(_ apiKey: String) {
@@ -1721,7 +1787,10 @@ struct SettingsView: View {
         }
 
         let enabledModels = enabledFactorySettingsModels()
-        let startIndex = models.count
+        // Factory requires `index` to be unique across ALL customModels entries.
+        // models.count is not safe: removed third-party models leave index holes
+        // (e.g. survivors {0,2,4} with count 3 → count-based start would collide).
+        let startIndex = DroidProxyModelCatalog.nextAvailableIndex(in: models)
         for (offset, var model) in enabledModels.enumerated() {
             model["index"] = startIndex + offset
             models.append(model)

@@ -353,6 +353,15 @@ class ThinkingProxy {
                 forwardToJunie(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
                 return
             }
+            if isClineModel(requestFields) {
+                guard isClineEnabled() else {
+                    NSLog("[ThinkingProxy] Warning: Cline model requested but the provider is disabled in settings.")
+                    sendError(to: connection, statusCode: 400, message: "Cline provider is disabled in DroidProxy settings.")
+                    return
+                }
+                forwardToCline(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
+                return
+            }
             if isGrokModel(requestFields) {
                 guard isGrokEnabled() else {
                     NSLog("[ThinkingProxy] Warning: Grok model requested but the provider is disabled in settings.")
@@ -1302,6 +1311,322 @@ class ThinkingProxy {
     private func receiveJunieResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
         relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection, label: "Junie")
     }
+
+    // MARK: - Cline Free Models (account OAuth → api.cline.bot)
+    //
+    // Cline's free models are only served to extension/CLI *account* tokens — an
+    // app.cline.bot API key cannot use them — so ThinkingProxy forwards to
+    // api.cline.bot with the OAuth bearer from ~/.cli-proxy-api/cline.json plus
+    // the identity headers the official VS Code extension sends.
+    //
+    // Upstream quirk: non-streaming JSON responses come wrapped in a top-level
+    // `{"data": {...}}` envelope that Factory's generic OpenAI adapter cannot
+    // parse, while streaming SSE chunks are standard unwrapped
+    // `chat.completion.chunk` objects. We therefore relay SSE incrementally and
+    // buffer only non-streaming responses so the envelope can be stripped.
+
+    /// Cline free models use OpenRouter-style slugs (`kwaipilot/kat-coder-pro`).
+    /// Matched against the catalog rather than the shape of the ID so a user's
+    /// own namespaced custom model pointed at this proxy is not claimed here.
+    static func isClineModel(_ model: String?) -> Bool {
+        guard let model else { return false }
+        return DroidProxyModelCatalog.clineBaseModels.contains(model)
+    }
+
+    private func isClineModel(_ requestFields: RequestJSONFields?) -> Bool {
+        Self.isClineModel(requestFields?.model)
+    }
+
+    private func isClineEnabled() -> Bool {
+        if let saved = UserDefaults.standard.dictionary(forKey: "enabledProviders") as? [String: Bool] {
+            return saved["cline"] ?? true
+        }
+        return true
+    }
+
+    /// Normalize a client path for api.cline.bot: everything lives under `/api/v1`.
+    static func clineUpstreamPath(_ path: String) -> String {
+        let pathOnly: String
+        let query: String
+        if let q = path.firstIndex(of: "?") {
+            pathOnly = String(path[..<q])
+            query = String(path[q...])
+        } else {
+            pathOnly = path
+            query = ""
+        }
+
+        var normalized = pathOnly
+        if normalized.hasPrefix("/api/v1/") || normalized == "/api/v1" {
+            // already correct
+        } else if normalized.hasPrefix("/v1/") || normalized == "/v1" {
+            normalized = "/api/v1/" + String(normalized.dropFirst("/v1/".count))
+        } else if normalized.hasPrefix("/") {
+            normalized = "/api/v1" + normalized
+        } else if !normalized.isEmpty {
+            normalized = "/api/v1/" + normalized
+        } else {
+            normalized = "/api/v1"
+        }
+        return normalized + query
+    }
+
+    private func forwardToCline(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
+        ClineAuth.ensureValidAccessToken { [weak self] result in
+            guard let self = self else { return }
+            switch result {
+            case .failure(let error):
+                NSLog("[ThinkingProxy] Cline auth error: %@", error.localizedDescription)
+                switch error {
+                case .notLoggedIn:
+                    self.sendError(to: originalConnection, statusCode: 401, message: "Not logged in to Cline. Connect Cline in DroidProxy settings.")
+                case .reauthRequired:
+                    self.sendError(to: originalConnection, statusCode: 401, message: error.localizedDescription)
+                default:
+                    self.sendError(to: originalConnection, statusCode: 502, message: "Cline authentication failed: \(error.localizedDescription)")
+                }
+            case .success(let bearerValue):
+                self.sendClineUpstream(
+                    method: method,
+                    path: path,
+                    version: version,
+                    headers: headers,
+                    body: body,
+                    bearerValue: bearerValue,
+                    originalConnection: originalConnection
+                )
+            }
+        }
+    }
+
+    private func sendClineUpstream(
+        method: String,
+        path: String,
+        version: String,
+        headers: [(String, String)],
+        body: String,
+        bearerValue: String,
+        originalConnection: NWConnection
+    ) {
+        let tlsOptions = NWProtocolTLS.Options()
+        let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
+        let host = ClineAuth.apiHost
+        let upstreamPath = Self.clineUpstreamPath(path)
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: 443)
+        let targetConnection = NWConnection(to: endpoint, using: parameters)
+
+        targetConnection.stateUpdateHandler = { [weak self] state in
+            guard let self = self else { return }
+            switch state {
+            case .ready:
+                var forwardedRequest = "\(method) \(upstreamPath) \(version)\r\n"
+                for (name, value) in headers where !ClineAuth.excludedUpstreamHeaderNames.contains(name.lowercased()) {
+                    forwardedRequest += "\(name): \(value)\r\n"
+                }
+
+                forwardedRequest += "Host: \(host)\r\n"
+                forwardedRequest += "Authorization: Bearer \(bearerValue)\r\n"
+                for (name, value) in ClineAuth.completionHeaders(taskID: ClineAuth.ClineTaskID.generate()) {
+                    forwardedRequest += "\(name): \(value)\r\n"
+                }
+                forwardedRequest += "Content-Type: application/json\r\n"
+                forwardedRequest += "Accept-Encoding: identity\r\n"
+                forwardedRequest += "Connection: close\r\n"
+                forwardedRequest += "Content-Length: \(body.utf8.count)\r\n\r\n"
+                forwardedRequest += body
+
+                ThinkingProxy.fileLog("FORWARD CLINE: \(method) \(upstreamPath) -> \(host)")
+
+                if let requestData = forwardedRequest.data(using: .utf8) {
+                    targetConnection.send(content: requestData, completion: .contentProcessed({ error in
+                        if let error = error {
+                            NSLog("[ThinkingProxy] Send error to \(host): \(error)")
+                            targetConnection.cancel()
+                            originalConnection.cancel()
+                        } else {
+                            self.receiveClineResponse(from: targetConnection, originalConnection: originalConnection)
+                        }
+                    }))
+                } else {
+                    NSLog("[ThinkingProxy] Failed to encode Cline upstream request as UTF-8")
+                    self.sendError(to: originalConnection, statusCode: 500, message: "Failed to encode Cline request.")
+                    targetConnection.cancel()
+                }
+
+            case .failed(let error):
+                NSLog("[ThinkingProxy] Connection to \(host) failed: \(error)")
+                self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Could not connect to \(host)")
+                targetConnection.cancel()
+
+            default:
+                break
+            }
+        }
+
+        targetConnection.start(queue: .global(qos: .userInitiated))
+    }
+
+    /// Upper bound for buffered non-streaming Cline rewriting.
+    private static let clineRewriteBufferLimit = 16 * 1024 * 1024
+
+    /// Relays a Cline response. Once the response headers are known we either:
+    /// pass streaming (`text/event-stream`) and non-200 bodies straight through,
+    /// or keep buffering a 200 non-streaming body until complete and strip the
+    /// upstream's `{"data": ...}` envelope before sending it on.
+    private func receiveClineResponse(
+        from targetConnection: NWConnection,
+        originalConnection: NWConnection,
+        buffered: Data = Data()
+    ) {
+        targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
+            guard let self = self else { return }
+
+            if let error {
+                NSLog("[ThinkingProxy] Receive Cline response error: \(error)")
+                if !buffered.isEmpty {
+                    originalConnection.send(content: buffered, completion: .contentProcessed({ _ in
+                        self.finishStreaming(target: targetConnection, client: originalConnection)
+                    }))
+                } else {
+                    targetConnection.cancel()
+                    originalConnection.cancel()
+                }
+                return
+            }
+
+            var next = buffered
+            if let data, !data.isEmpty {
+                next.append(data)
+            }
+
+            // Headers not fully arrived yet → keep buffering.
+            guard let headerEnd = next.range(of: Data([13, 10, 13, 10])) else {
+                if isComplete {
+                    self.sendUnwrappedClineBody(next, to: originalConnection, target: targetConnection)
+                } else if next.count > Self.clineRewriteBufferLimit {
+                    ThinkingProxy.fileLog("CLINE REWRITE ABORTED: headers exceeded limit; relaying unchanged")
+                    self.flushThenRelayCline(next, target: targetConnection, original: originalConnection)
+                } else {
+                    self.receiveClineResponse(from: targetConnection, originalConnection: originalConnection, buffered: next)
+                }
+                return
+            }
+
+            let headInfo = Self.parseResponseHead(next[..<headerEnd.lowerBound])
+            let isStreamingResponse = headInfo.contentType.contains("text/event-stream")
+            let isErrorStatus = headInfo.statusCode != 200
+
+            if isStreamingResponse || isErrorStatus {
+                // Streaming chunks are plain OpenAI chunks; errors pass through verbatim.
+                // Flush what we have, then chain straight-through relaying for the rest.
+                self.flushThenRelayCline(next, target: targetConnection, original: originalConnection)
+                return
+            }
+
+            // Non-streaming success: accumulate the whole body, then unwrap.
+            if !isComplete {
+                if next.count > Self.clineRewriteBufferLimit {
+                    ThinkingProxy.fileLog("CLINE REWRITE ABORTED: response exceeded \(Self.clineRewriteBufferLimit) bytes; relaying unchanged")
+                    self.flushThenRelayCline(next, target: targetConnection, original: originalConnection)
+                    return
+                }
+                self.receiveClineResponse(from: targetConnection, originalConnection: originalConnection, buffered: next)
+                return
+            }
+            self.sendUnwrappedClineBody(next, to: originalConnection, target: targetConnection)
+        }
+    }
+
+    private struct ClineResponseHeadInfo {
+        let statusCode: Int
+        let contentType: String
+    }
+
+    private static func parseResponseHead(_ headData: Data) -> ClineResponseHeadInfo {
+        guard let head = String(data: headData, encoding: .utf8) else {
+            return ClineResponseHeadInfo(statusCode: 0, contentType: "")
+        }
+        var lines = head.components(separatedBy: "\r\n")
+        let statusLine = lines.first ?? ""
+        let statusCode = Int(statusLine.split(separator: " ").dropFirst().first ?? "") ?? 0
+
+        var contentType = ""
+        lines.removeFirst()
+        for line in lines where line.lowercased().hasPrefix("content-type:") {
+            contentType = line.dropFirst("content-type:".count).trimmingCharacters(in: .whitespaces).lowercased()
+            break
+        }
+        return ClineResponseHeadInfo(statusCode: statusCode, contentType: contentType)
+    }
+
+    /// Sends already-received bytes, then continues straight-through relaying of
+    /// whatever remains on the upstream connection (used for SSE and error bodies).
+    private func flushThenRelayCline(_ flushed: Data, target targetConnection: NWConnection, original originalConnection: NWConnection) {
+        originalConnection.send(content: flushed, completion: .contentProcessed({ sendError in
+            if let sendError {
+                NSLog("[ThinkingProxy] Send Cline passthrough error: \(sendError)")
+            }
+            self.relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection, label: "Cline")
+        }))
+    }
+
+    /// Sends a non-streaming 200 Cline response with the `{"data": ...}` wrapper
+    /// removed when present; otherwise relays the raw bytes unchanged.
+    private func sendUnwrappedClineBody(
+        _ raw: Data,
+        to originalConnection: NWConnection,
+        target targetConnection: NWConnection
+    ) {
+        guard let headerEnd = raw.range(of: Data([13, 10, 13, 10])),
+              let head = String(data: raw[..<headerEnd.lowerBound], encoding: .utf8),
+              let bodyString = String(data: raw[headerEnd.upperBound...], encoding: .utf8),
+              let locations = findTopLevelFieldLocations(in: bodyString, keys: ["data"]),
+              let dataLocation = locations["data"],
+              bodyString[dataLocation.valueRange.lowerBound] == "{" else {
+            ThinkingProxy.fileLog("CLINE UNWRAP SKIPPED: response did not contain a parseable data envelope")
+            originalConnection.send(content: raw, completion: .contentProcessed({ _ in
+                self.finishStreaming(target: targetConnection, client: originalConnection)
+            }))
+            return
+        }
+
+        let unwrappedBody = bodyString[dataLocation.valueRange]
+        let newHead = Self.replaceContentLength(in: head, value: unwrappedBody.utf8.count)
+        var out = newHead.data(using: .utf8) ?? Data()
+        out.append(Data([13, 10, 13, 10]))
+        out.append(unwrappedBody.data(using: .utf8) ?? Data())
+
+        ThinkingProxy.fileLog("REWROTE CLINE RESPONSE: stripped {\"data\"} wrapper from non-streaming reply")
+
+        originalConnection.send(content: out, completion: .contentProcessed({ sendError in
+            if let sendError {
+                NSLog("[ThinkingProxy] Send Cline rewritten response error: \(sendError)")
+            }
+            self.finishStreaming(target: targetConnection, client: originalConnection)
+        }))
+    }
+
+    /// Rewrites (or appends) the `Content-Length` header inside a response head.
+    static func replaceContentLength(in head: String, value: Int) -> String {
+        var lines = head.components(separatedBy: "\r\n")
+        guard !lines.isEmpty else { return head }
+        let statusLine = lines.removeFirst()
+        var replaced = false
+        var kept: [String] = []
+        for line in lines {
+            if line.lowercased().hasPrefix("content-length:") {
+                kept.append("Content-Length: \(value)")
+                replaced = true
+            } else {
+                kept.append(line)
+            }
+        }
+        if !replaced {
+            kept.append("Content-Length: \(value)")
+        }
+        return ([statusLine] + kept).joined(separator: "\r\n")
+    }
+
 
     // MARK: - Grok (OAuth → api.x.ai)
     //

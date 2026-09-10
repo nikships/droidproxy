@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="UTF-8" standalone="no"?>
+<svg width="100%" height="100%" viewBox="0 0 48 48" version="1.1" xmlns="http://www.w3.org/2000/svg" xml:space="preserve" style="fill-rule:evenodd;clip-rule:evenodd;stroke-linejoin:round;stroke-miterlimit:2;">
+    <!-- Cline: rounded-square badge with an open "C" arc -->
+    <path d="M24 4C12.954 4 4 12.954 4 24C4 35.046 12.954 44 24 44L44 44L44 36L26 36C17.163 36 12 31.385 12 24C12 16.615 17.163 12 26 12L44 12L44 4L24 4Z" style="fill:rgb(245,166,35);fill-rule:nonzero;"/>
+</svg>

@@ -9,6 +9,7 @@ enum DroidProxyModelKind {
     case junie
     case grok
     case copilot
+    case cline
 }
 
 struct DroidProxyThinkingLevel: Equatable {
@@ -414,6 +415,39 @@ enum DroidProxyModelCatalog {
                 kind: .grok,
                 levels: codexLevels,
                 defaultLevelValue: "high"
+            ),
+
+            // Cline free-model promos (api.cline.bot), gated on Cline account OAuth.
+            // The free list rotates; these entries mirror Cline's own current
+            // fallback list. baseModel is the OpenRouter-style upstream slug, and
+            // ThinkingProxy matches these slugs exactly to detect Cline traffic.
+            DroidProxyModelDefinition(
+                baseModel: "kwaipilot/kat-coder-pro",
+                idSlug: "cline-kat-coder-pro",
+                displayName: "Cline Kat Coder Pro (Free)",
+                maxOutputTokens: 65536,
+                maxContextLimit: 256_000,
+                provider: "generic-chat-completion-api",
+                providerKey: "cline",
+                baseURL: "http://localhost:8317/v1",
+                kind: .cline,
+                levels: [high],
+                defaultLevelValue: "high",
+                noImageSupport: true
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "arcee-ai/trinity-large-preview:free",
+                idSlug: "cline-trinity-large",
+                displayName: "Cline Trinity Large (Free)",
+                maxOutputTokens: 65536,
+                maxContextLimit: 256_000,
+                provider: "generic-chat-completion-api",
+                providerKey: "cline",
+                baseURL: "http://localhost:8317/v1",
+                kind: .cline,
+                levels: [high],
+                defaultLevelValue: "high",
+                noImageSupport: true
             )
         ]
 
@@ -487,6 +521,28 @@ enum DroidProxyModelCatalog {
 
     static var allSettingsIDs: Set<String> {
         Set(definitions.map(\.simpleID))
+    }
+
+    /// Upstream slugs of the Cline free models, used by ThinkingProxy to claim
+    /// Cline traffic. Matching the catalog exactly keeps unrelated namespaced
+    /// custom models (e.g. a user's own `openai/gpt-4o` entry pointed at
+    /// `localhost:8317`) from being misrouted to api.cline.bot.
+    static var clineBaseModels: Set<String> {
+        Set(definitions.filter { $0.kind == .cline }.map(\.baseModel))
+    }
+
+    /// Smallest safe starting `index` for appending new entries to Factory's
+    /// `customModels` array. Factory treats `index` as a required unique int, so
+    /// the start must be strictly greater than every existing index — including
+    /// holes left by removed third-party models, which makes `models.count`
+    /// unsafe (survivors {0,2,4} after removals have count 3 but max index 4).
+    static func nextAvailableIndex(in models: [[String: Any]]) -> Int {
+        let existing = models.compactMap { entry -> Int? in
+            if let n = entry["index"] as? Int { return n }
+            if let n = (entry["index"] as? NSNumber)?.intValue { return n }
+            return nil
+        }
+        return (existing.max() ?? -1) + 1
     }
 
 }

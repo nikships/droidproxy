@@ -136,6 +136,74 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(ids, ["custom:droidproxy:grok-4.6"])
     }
 
+    func testClineFreeModelsUseUpstreamSlugsAndGenericProvider() throws {
+        let kat = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:cline-kat-coder-pro"))
+        XCTAssertEqual(kat["model"] as? String, "kwaipilot/kat-coder-pro")
+        XCTAssertEqual(kat["provider"] as? String, "generic-chat-completion-api")
+        XCTAssertEqual(kat["baseUrl"] as? String, "http://localhost:8317/v1")
+        XCTAssertEqual(kat["displayName"] as? String, "DroidProxy: Cline Kat Coder Pro (Free)")
+        XCTAssertEqual(kat["supportedReasoningEfforts"] as? [String], ["high"])
+        XCTAssertEqual(kat["maxContextLimit"] as? Int, 256_000)
+        XCTAssertEqual(kat["noImageSupport"] as? Bool, true)
+
+        let trinity = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:cline-trinity-large"))
+        XCTAssertEqual(trinity["model"] as? String, "arcee-ai/trinity-large-preview:free")
+        XCTAssertEqual(trinity["maxContextLimit"] as? Int, 256_000)
+    }
+
+    func testNextAvailableIndexSkipsExistingIndicesIncludingHoles() {
+        // Survivors of removals keep sparse indices; count-based allocation would
+        // collide. Allocation must be max(existing)+1.
+        let models: [[String: Any]] = [
+            ["id": "a", "index": 0],
+            ["id": "b", "index": 2],
+            ["id": "c", "index": 4],
+        ]
+        XCTAssertEqual(DroidProxyModelCatalog.nextAvailableIndex(in: models), 5)
+
+        // Missing index fields are ignored, not treated as 0.
+        let mixed: [[String: Any]] = [
+            ["id": "d"],
+            ["id": "e", "index": 7],
+        ]
+        XCTAssertEqual(DroidProxyModelCatalog.nextAvailableIndex(in: mixed), 8)
+
+        // Empty / index-less arrays start at zero.
+        XCTAssertEqual(DroidProxyModelCatalog.nextAvailableIndex(in: []), 0)
+        XCTAssertEqual(DroidProxyModelCatalog.nextAvailableIndex(in: [["id": "f"]]), 0)
+
+        // JSONSerialization numbers arrive as NSNumber and must still be seen.
+        let fromJSON = (try? JSONSerialization.data(withJSONObject: [["index": 12]]))
+            .flatMap { try? JSONSerialization.jsonObject(with: $0) as? [[String: Any]] } ?? []
+        XCTAssertEqual(DroidProxyModelCatalog.nextAvailableIndex(in: fromJSON), 13)
+    }
+
+    func testClineProviderModelsAreRegistered() {
+        let clineModels = DroidProxyModelCatalog.settingsModels { $0 == "cline" }
+        let ids = Set(clineModels.compactMap { $0["id"] as? String })
+        XCTAssertEqual(
+            ids,
+            Set(["custom:droidproxy:cline-kat-coder-pro", "custom:droidproxy:cline-trinity-large"])
+        )
+    }
+
+    func testClineModelDetectionMatchesCatalogSlugsOnly() {
+        XCTAssertEqual(
+            DroidProxyModelCatalog.clineBaseModels,
+            Set(["kwaipilot/kat-coder-pro", "arcee-ai/trinity-large-preview:free"])
+        )
+
+        XCTAssertTrue(ThinkingProxy.isClineModel("kwaipilot/kat-coder-pro"))
+        XCTAssertTrue(ThinkingProxy.isClineModel("arcee-ai/trinity-large-preview:free"))
+
+        // A user's own namespaced custom model pointed at :8317 must not be
+        // claimed as Cline traffic.
+        XCTAssertFalse(ThinkingProxy.isClineModel("openai/gpt-4o"))
+        XCTAssertFalse(ThinkingProxy.isClineModel("kwaipilot/kat-coder-pro-unknown"))
+        XCTAssertFalse(ThinkingProxy.isClineModel("claude-opus-5"))
+        XCTAssertFalse(ThinkingProxy.isClineModel(nil))
+    }
+
     func testGrokContextLimitsMatchXAIDocs() throws {
         let grok46 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-4.6"))
 
