@@ -46,6 +46,30 @@ enum GrokNativeToolCallRewriter {
     // MARK: - Parse
 
     static func parse(_ text: String) -> ParsedMarkup? {
+        let raw: ParsedMarkup?
+        if let markup = parseFactoryMarkup(text) {
+            raw = markup
+        } else {
+            raw = parseJSONFunctionCall(text)
+        }
+        guard let raw else { return nil }
+        let calls = dedupeConsecutive(raw.calls)
+        guard !calls.isEmpty else { return nil }
+        return ParsedMarkup(prefix: raw.prefix, calls: calls)
+    }
+
+    /// SSE/CLI stream parsers often repeat the same JSON object. Collapse
+    /// consecutive identical calls so Droid does not run Create twice.
+    private static func dedupeConsecutive(_ calls: [NativeCall]) -> [NativeCall] {
+        var out: [NativeCall] = []
+        for call in calls {
+            if let last = out.last, last == call { continue }
+            out.append(call)
+        }
+        return out
+    }
+
+    private static func parseFactoryMarkup(_ text: String) -> ParsedMarkup? {
         guard let beginRange = text.range(of: callsBegin) else {
             return nil
         }
@@ -89,6 +113,240 @@ enum GrokNativeToolCallRewriter {
             return nil
         }
         return ParsedMarkup(prefix: prefix, calls: calls)
+    }
+
+    /// Composer (and some Grok turns) emit a fenced `{"name","arguments"}`
+    /// object instead of Factory markup. Lift that into the same parse result.
+    /// Sequential JSON objects (Write then Delete) are collected in order.
+    static func parseJSONFunctionCall(_ text: String) -> ParsedMarkup? {
+        var calls: [NativeCall] = []
+        var prefix = ""
+        var rest = text.trimmingCharacters(in: .whitespacesAndNewlines)
+        var capturedPrefix = false
+        while let extracted = extractJSONValue(from: rest) {
+            guard extracted.remainder.count < rest.count else { break }
+            let more = nativeCalls(fromJSON: extracted.value)
+            if more.isEmpty {
+                rest = extracted.remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+                continue
+            }
+            if !capturedPrefix {
+                prefix = extracted.prefix
+                capturedPrefix = true
+            }
+            calls.append(contentsOf: more)
+            rest = extracted.remainder.trimmingCharacters(in: .whitespacesAndNewlines)
+            if rest.isEmpty { break }
+        }
+        guard !calls.isEmpty else {
+            return nil
+        }
+        return ParsedMarkup(prefix: prefix, calls: calls)
+    }
+
+    private static func extractJSONValue(from text: String) -> (prefix: String, value: Any, remainder: String)? {
+        var body = text
+        var prefix = ""
+        var remainderAfterFence: String?
+        if let fence = firstCodeFence(in: text) {
+            prefix = String(text[..<fence.range.lowerBound])
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            body = fence.body
+            remainderAfterFence = String(text[fence.range.upperBound...])
+        }
+        let startIndex = body.firstIndex(where: { $0 == "{" || $0 == "[" })
+        guard let start = startIndex else { return nil }
+        if fencePrefixIsEmpty(prefix), start > body.startIndex {
+            prefix = String(body[..<start]).trimmingCharacters(in: .whitespacesAndNewlines)
+        }
+        guard let jsonSlice = matchingJSONSlice(in: body, from: start),
+              let data = String(jsonSlice).data(using: .utf8),
+              let value = try? JSONSerialization.jsonObject(with: data) else {
+            return nil
+        }
+        let remainder: String
+        if let remainderAfterFence {
+            remainder = remainderAfterFence
+        } else {
+            remainder = String(body[jsonSlice.endIndex...])
+        }
+        return (prefix, value, remainder)
+    }
+
+    private static func fencePrefixIsEmpty(_ prefix: String) -> Bool {
+        prefix.isEmpty
+    }
+
+    private static func firstCodeFence(in text: String) -> (range: Range<String.Index>, body: String)? {
+        guard let opener = text.range(of: "```") else { return nil }
+        var cursor = opener.upperBound
+        if text[cursor...].hasPrefix("json") {
+            cursor = text.index(cursor, offsetBy: 4)
+        }
+        if cursor < text.endIndex, text[cursor].isNewline {
+            cursor = text.index(after: cursor)
+        }
+        guard let closer = text.range(of: "```", range: cursor..<text.endIndex) else {
+            return nil
+        }
+        let body = String(text[cursor..<closer.lowerBound])
+            .trimmingCharacters(in: .whitespacesAndNewlines)
+        return (opener.lowerBound..<closer.upperBound, body)
+    }
+
+    private static func matchingJSONSlice(in text: String, from start: String.Index) -> Substring? {
+        var depth = 0
+        var inString = false
+        var escape = false
+        var index = start
+        while index < text.endIndex {
+            let ch = text[index]
+            if inString {
+                if escape {
+                    escape = false
+                } else if ch == "\\" {
+                    escape = true
+                } else if ch == "\"" {
+                    inString = false
+                }
+            } else {
+                switch ch {
+                case "\"":
+                    inString = true
+                case "{", "[":
+                    depth += 1
+                case "}", "]":
+                    depth -= 1
+                    if depth == 0 {
+                        return text[start...index]
+                    }
+                default:
+                    break
+                }
+            }
+            index = text.index(after: index)
+        }
+        return nil
+    }
+
+    private static func nativeCalls(fromJSON value: Any) -> [NativeCall] {
+        if let object = value as? [String: Any], let call = nativeCall(from: object) {
+            return [call]
+        }
+        if let array = value as? [Any] {
+            return array.compactMap { item in
+                guard let object = item as? [String: Any] else { return nil }
+                return nativeCall(from: object)
+            }
+        }
+        return []
+    }
+
+    private static func nativeCall(from object: [String: Any]) -> NativeCall? {
+        if object["choices"] != nil || object["id"] != nil && object["object"] != nil {
+            return nil
+        }
+        var name = object["name"] as? String
+        if name == nil, let tool = object["tool"] as? String {
+            name = tool
+        }
+        var arguments: [String: Any]?
+        if let nested = object["function"] as? [String: Any] {
+            if name == nil {
+                name = nested["name"] as? String
+            }
+            arguments = jsonObjectArguments(nested["arguments"])
+        }
+        if arguments == nil {
+            arguments = jsonObjectArguments(object["arguments"])
+        }
+        guard let name, isToolName(name) else { return nil }
+        if let arguments, !arguments.isEmpty {
+            return canonicalize(name: name, arguments: arguments)
+        }
+        var rest = object
+        rest.removeValue(forKey: "name")
+        rest.removeValue(forKey: "tool")
+        rest.removeValue(forKey: "type")
+        rest.removeValue(forKey: "function")
+        rest.removeValue(forKey: "id")
+        guard !rest.isEmpty else { return nil }
+        return canonicalize(name: name, arguments: rest)
+    }
+
+    /// Droid's file tools are Create/Edit/Execute. Cursor/Grok emit Write/Delete.
+    static func canonicalize(name: String, arguments: [String: Any]) -> NativeCall {
+        var args = arguments
+        if name == "Write" || name == "write" || name == "Create" {
+            remapString(&args, dest: "file_path", aliases: ["file_path", "path", "filePath", "filename"])
+            remapString(&args, dest: "content", aliases: ["content", "contents", "body", "text"])
+            var create: [String: Any] = [:]
+            if let path = args["file_path"] { create["file_path"] = path }
+            if let content = args["content"] { create["content"] = content }
+            return NativeCall(name: "Create", arguments: create.isEmpty ? args : create)
+        }
+        if name == "Delete" || name == "delete" || name == "Remove" {
+            remapString(&args, dest: "path", aliases: ["path", "file_path", "filePath", "filename"])
+            if let path = args["path"] as? String, !path.isEmpty {
+                return NativeCall(name: "Execute", arguments: [
+                    "command": "rm -f \(shellSingleQuote(path))",
+                    "summary": "Delete \(path)"
+                ])
+            }
+        }
+        if args["path"] == nil {
+            for alias in ["file_path", "filePath", "filename"] {
+                if let value = args[alias] as? String, !value.isEmpty {
+                    args["path"] = value
+                    break
+                }
+            }
+        }
+        if args["contents"] == nil {
+            for alias in ["content", "body", "text"] {
+                if let value = args[alias] as? String {
+                    args["contents"] = value
+                    break
+                }
+            }
+        }
+        return NativeCall(name: name, arguments: args)
+    }
+
+    private static func remapString(_ args: inout [String: Any], dest: String, aliases: [String]) {
+        if let existing = args[dest] as? String, !existing.isEmpty {
+            return
+        }
+        for alias in aliases {
+            if let value = args[alias] as? String, !value.isEmpty {
+                args[dest] = value
+                return
+            }
+        }
+    }
+
+    private static func shellSingleQuote(_ path: String) -> String {
+        "'" + path.replacingOccurrences(of: "'", with: "'\\''") + "'"
+    }
+
+    private static func jsonObjectArguments(_ raw: Any?) -> [String: Any]? {
+        if let object = raw as? [String: Any] {
+            return object
+        }
+        if let text = raw as? String,
+           let data = text.data(using: .utf8),
+           let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
+            return object
+        }
+        return nil
+    }
+
+    private static func isToolName(_ name: String) -> Bool {
+        guard name.count <= 64, name.range(of: "^[A-Za-z][A-Za-z0-9_]*$", options: .regularExpression) != nil else {
+            return false
+        }
+        let blocked: Set<String> = ["object", "choices", "message", "assistant", "system", "user"]
+        return !blocked.contains(name.lowercased())
     }
 
     private struct OneCall {
@@ -156,7 +414,7 @@ enum GrokNativeToolCallRewriter {
             cursor = valueEnd
         }
 
-        return OneCall(call: NativeCall(name: name, arguments: arguments), end: cursor)
+        return OneCall(call: canonicalize(name: name, arguments: arguments), end: cursor)
     }
 
     // MARK: - Chat completion / SSE / HTTP

@@ -327,7 +327,6 @@ class ThinkingProxy {
                     sendError(to: connection, statusCode: 401, message: blocker.errorMessage)
                     return
                 }
-                let catalogModel = requestFields?.model
                 if let result = rewriteCursorModelAlias(jsonString: modifiedBody, fields: requestFields) {
                     modifiedBody = result
                     requestFields = inspectRequestJSONFields(in: modifiedBody)
@@ -336,11 +335,11 @@ class ThinkingProxy {
                     modifiedBody = stripped
                     requestFields = inspectRequestJSONFields(in: modifiedBody)
                 }
-                // Check catalog id (`cursor-grok-4.6`) and upstream id so alias
-                // rewrite cannot drop the native-markup buffer.
-                let rewriteGrokNativeToolCalls =
-                    GrokNativeToolCallRewriter.shouldRewrite(model: catalogModel)
-                    || GrokNativeToolCallRewriter.shouldRewrite(model: requestFields?.model)
+                if let bridged = CursorClientToolBridge.inject(into: modifiedBody) {
+                    modifiedBody = bridged
+                }
+                // Always lift Factory markup / JSON function calls into OpenAI
+                // tool_calls so Droid executes them. Cursor CLI must not.
                 forwardToCursor(
                     method: method,
                     path: rewrittenPath,
@@ -348,7 +347,7 @@ class ThinkingProxy {
                     headers: headers,
                     body: modifiedBody,
                     originalConnection: connection,
-                    rewriteGrokNativeToolCalls: rewriteGrokNativeToolCalls
+                    rewriteGrokNativeToolCalls: true
                 )
                 return
             }
@@ -402,6 +401,9 @@ class ThinkingProxy {
                         ThinkingProxy.fileLog(
                             "REWRITE MODEL: \(model) -> \(backendModel) (Grok Fast Mode → Cursor Agent CLI)"
                         )
+                    }
+                    if let bridged = CursorClientToolBridge.inject(into: modifiedBody) {
+                        modifiedBody = bridged
                     }
                     forwardToCursor(
                         method: method,

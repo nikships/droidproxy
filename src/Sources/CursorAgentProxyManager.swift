@@ -424,7 +424,12 @@ final class CursorAgentProxyManager: ObservableObject {
         // `~/.cursor` so the proxy does **not** fake `HOME` (that makes
         // `agent login` fail). ACP is off: `agent acp` exited 1 here;
         // `agent --print` is the working path. Stdin keeps large Droid
-        // prompts off argv.
+        // prompts off argv. Ask + chat-only is not enough: `agent --print`
+        // still has Write/Shell, and absolute paths escape the temp cwd.
+        // `CursorAgentSandboxWrapper` forces `--sandbox enabled`. Ask mode's
+        // default personality refuses to act; ThinkingProxy prepends
+        // `CursorClientToolBridge` so the model emits Factory tool markup
+        // instead of "Ask mode is on." Droid executes the tools.
         environment["CURSOR_BRIDGE_CHAT_ONLY_WORKSPACE"] = "true"
         environment["CURSOR_BRIDGE_MODE"] = "ask"
         environment["CURSOR_BRIDGE_USE_ACP"] = "false"
@@ -438,7 +443,12 @@ final class CursorAgentProxyManager: ObservableObject {
         environment.removeValue(forKey: "CURSOR_BRIDGE_ACP_SKIP_AUTHENTICATE")
 
         if let agentURL = agentExecutableURL() {
-            environment["CURSOR_AGENT_BIN"] = agentURL.path
+            environment["CURSOR_AGENT_REAL_BIN"] = agentURL.path
+            if let wrapped = CursorAgentSandboxWrapper.install(realAgent: agentURL) {
+                environment["CURSOR_AGENT_BIN"] = wrapped.path
+            } else {
+                environment["CURSOR_AGENT_BIN"] = agentURL.path
+            }
         }
 
         let nodeBin = npxURL.deletingLastPathComponent().path

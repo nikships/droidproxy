@@ -101,6 +101,22 @@ final class GrokNativeToolCallRewriterTests: XCTestCase {
         XCTAssertEqual(parsed.calls[0].arguments["summary"] as? String, "Print working directory")
     }
 
+    func testRemapsFactoryWriteMarkupToCreate() throws {
+        let text = """
+        <|tool_calls_begin|><|tool_call_begin|>
+        Write
+        <|tool_sep|>path
+        /tmp/ping.txt
+        <|tool_sep|>contents
+        hello-from-droid-tool-test
+        <|tool_call_end|><|tool_calls_end|>
+        """
+        let parsed = try XCTUnwrap(GrokNativeToolCallRewriter.parse(text))
+        XCTAssertEqual(parsed.calls[0].name, "Create")
+        XCTAssertEqual(parsed.calls[0].arguments["file_path"] as? String, "/tmp/ping.txt")
+        XCTAssertEqual(parsed.calls[0].arguments["content"] as? String, "hello-from-droid-tool-test")
+    }
+
     func testParsesTruncatedCallMissingEndTags() throws {
         let text = """
         keep going<|tool_calls_begin|><|tool_call_begin|>
@@ -142,6 +158,80 @@ final class GrokNativeToolCallRewriterTests: XCTestCase {
         let args = try XCTUnwrap(function["arguments"] as? String)
         let parsed = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(args.utf8)) as? [String: Any])
         XCTAssertEqual(parsed["file_path"] as? String, "/tmp/a.swift")
+    }
+
+    func testParsesFencedJSONWriteCall() throws {
+        let text = """
+        ```json
+        {"name":"Write","arguments":{"path":"/tmp/droidproxy-composer-markup.txt","contents":"hello-composer"}}
+        ```
+        """
+        let parsed = try XCTUnwrap(GrokNativeToolCallRewriter.parse(text))
+        XCTAssertEqual(parsed.calls.count, 1)
+        XCTAssertEqual(parsed.calls[0].name, "Create")
+        XCTAssertEqual(parsed.calls[0].arguments["file_path"] as? String, "/tmp/droidproxy-composer-markup.txt")
+        XCTAssertEqual(parsed.calls[0].arguments["content"] as? String, "hello-composer")
+    }
+
+    func testParsesJSONWriteFilePathAlias() throws {
+        let text = """
+        ```json
+        {"name":"Write","arguments":{"file_path":"/tmp/x.txt","content":"hi"}}
+        ```
+        """
+        let parsed = try XCTUnwrap(GrokNativeToolCallRewriter.parse(text))
+        XCTAssertEqual(parsed.calls[0].name, "Create")
+        XCTAssertEqual(parsed.calls[0].arguments["file_path"] as? String, "/tmp/x.txt")
+        XCTAssertEqual(parsed.calls[0].arguments["content"] as? String, "hi")
+    }
+
+    func testParsesBareJSONFunctionCall() throws {
+        let text = #"here {"name":"Delete","arguments":{"path":"/tmp/x.txt"}}"#
+        let parsed = try XCTUnwrap(GrokNativeToolCallRewriter.parse(text))
+        XCTAssertEqual(parsed.prefix, "here")
+        XCTAssertEqual(parsed.calls[0].name, "Execute")
+        XCTAssertEqual(parsed.calls[0].arguments["command"] as? String, "rm -f '/tmp/x.txt'")
+    }
+
+    func testParsesSequentialJSONWriteThenDelete() throws {
+        let text = """
+        ```json
+        {"name":"Write","arguments":{"path":"/tmp/ping.txt","contents":"hello"}}
+        ```
+        ```json
+        {"name":"Delete","arguments":{"path":"/tmp/ping.txt"}}
+        ```
+        """
+        let parsed = try XCTUnwrap(GrokNativeToolCallRewriter.parse(text))
+        XCTAssertEqual(parsed.calls.count, 2)
+        XCTAssertEqual(parsed.calls[0].name, "Create")
+        XCTAssertEqual(parsed.calls[0].arguments["content"] as? String, "hello")
+        XCTAssertEqual(parsed.calls[1].name, "Execute")
+        XCTAssertEqual(parsed.calls[1].arguments["command"] as? String, "rm -f '/tmp/ping.txt'")
+    }
+
+    func testDedupesRepeatedJSONWriteCall() throws {
+        let text = """
+        {"name":"Write","arguments":{"path":"/tmp/ping.txt","contents":"hello"}}
+        {"name":"Write","arguments":{"path":"/tmp/ping.txt","contents":"hello"}}
+        """
+        let parsed = try XCTUnwrap(GrokNativeToolCallRewriter.parse(text))
+        XCTAssertEqual(parsed.calls.count, 1)
+        XCTAssertEqual(parsed.calls[0].name, "Create")
+    }
+
+    func testJSONRewriteLiftsIntoOpenAIToolCalls() throws {
+        let body = """
+        {"choices":[{"message":{"role":"assistant","content":"```json\\n{\\"name\\":\\"Write\\",\\"arguments\\":{\\"path\\":\\"/tmp/a.txt\\",\\"contents\\":\\"hi\\"}}\\n```"},"finish_reason":"stop"}]}
+        """
+        let rewritten = try XCTUnwrap(GrokNativeToolCallRewriter.rewriteChatCompletionJSON(body))
+        let root = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(rewritten.utf8)) as? [String: Any])
+        let choice = try XCTUnwrap((root["choices"] as? [[String: Any]])?.first)
+        XCTAssertEqual(choice["finish_reason"] as? String, "tool_calls")
+        let message = try XCTUnwrap(choice["message"] as? [String: Any])
+        let toolCalls = try XCTUnwrap(message["tool_calls"] as? [[String: Any]])
+        let function = try XCTUnwrap(toolCalls[0]["function"] as? [String: Any])
+        XCTAssertEqual(function["name"] as? String, "Create")
     }
 
     func testLeavesPlainTextUnchanged() {
