@@ -328,6 +328,7 @@ struct ServiceRow<ExtraContent: View>: View {
 struct SettingsView: View {
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var copilotGateway: CopilotGatewayManager
+    @ObservedObject var cursorAgentProxy: CursorAgentProxyManager
     @StateObject private var authManager = AuthManager()
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
@@ -336,6 +337,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.gpt56SolFastModeKey) private var gpt56SolFastMode = AppPreferences.defaultGpt56SolFastMode
     @AppStorage(AppPreferences.gpt6AstraFastModeKey) private var gpt6AstraFastMode = AppPreferences.defaultGpt6AstraFastMode
     @AppStorage(AppPreferences.grok46FastModeKey) private var grok46FastMode = AppPreferences.defaultGrok46FastMode
+    @AppStorage(AppPreferences.cursorFastModeKey) private var cursorFastMode = AppPreferences.defaultCursorFastMode
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.bindAddressKey) private var bindAddress = AppPreferences.defaultBindAddress
@@ -347,8 +349,6 @@ struct SettingsView: View {
     @State private var authenticatingService: ServiceType? = nil
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
-    @State private var showingCursorApiKeyAlert = false
-    @State private var cursorApiKey = ""
     @State private var showingJunieApiKeyAlert = false
     @State private var junieApiKey = ""
     @State private var grokLoginSession: GrokAuth.LoginSession?
@@ -361,6 +361,7 @@ struct SettingsView: View {
     @State private var remoteManagementExpanded = false
     @State private var codexFastModeExpanded = true
     @State private var grokFastModeExpanded = true
+    @State private var cursorFastModeExpanded = true
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
@@ -373,9 +374,10 @@ struct SettingsView: View {
     private let copilotSelectionColor = Color(red: 0x77/255, green: 0xB9/255, blue: 0xFF/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
-    init(serverManager: ServerManager, copilotGateway: CopilotGatewayManager) {
+    init(serverManager: ServerManager, copilotGateway: CopilotGatewayManager, cursorAgentProxy: CursorAgentProxyManager) {
         self.serverManager = serverManager
         self.copilotGateway = copilotGateway
+        self.cursorAgentProxy = cursorAgentProxy
         let selected = CopilotModelPreferences.selectedModelIDs
         _copilotModelSlots = State(
             initialValue: selected + Array(
@@ -885,7 +887,7 @@ struct SettingsView: View {
                                 codexFastModeToggleRow(
                                     "Grok 4.6",
                                     isOn: $grok46FastMode,
-                                    helpText: "Rewrites grok-4.6 → grok-4.6-fast via the Cursor API (api.x.ai has no grok-4.6-fast). Requires a Cursor API key under Beta → Cursor."
+                                    helpText: "Rewrites grok-4.6 → cursor-grok-4.6-fast via the local Cursor Agent CLI (api.x.ai has no grok-4.6-fast). Requires Beta → Cursor and `agent login`."
                                 )
                             }
                         }
@@ -897,8 +899,44 @@ struct SettingsView: View {
                             .cursor,
                             iconName: "icon-cursor.png",
                             toggleTint: cursorEffortSelectionColor,
-                            helpText: "Enter your Cursor API Key (from https://api-for-cursor.standardagents.ai/) to proxy requests directly to Cursor. Also powers Grok 4.6 Fast Mode."
+                            helpText: "Uses your local Cursor Agent CLI (`agent login`). Exposes Composer 2.5 and Grok 4.6 through cursor-api-proxy. Fast Mode and thinking levels are independent: Fast is this toggle, thinking is Droid's per-session effort selector.",
+                            onToggleEnabled: { enabled in
+                                if enabled {
+                                    cursorAgentProxy.start()
+                                } else {
+                                    cursorAgentProxy.stop()
+                                }
+                                factoryModelsInstalled = checkFactoryModelsInstalled()
+                            }
                         )
+                        if serverManager.isProviderEnabled(.cursor) {
+                            VStack(alignment: .leading, spacing: 6) {
+                                cursorProxyStatusRow()
+                                HStack(spacing: 4) {
+                                    Text("Fast Mode")
+                                        .font(.caption)
+                                        .foregroundColor(.secondary)
+                                    Image(systemName: cursorFastModeExpanded ? "chevron.down" : "chevron.right")
+                                        .font(.caption2)
+                                        .foregroundColor(.secondary)
+                                    Spacer()
+                                }
+                                .contentShape(Rectangle())
+                                .onTapGesture {
+                                    withAnimation(.easeInOut(duration: 0.2)) {
+                                        cursorFastModeExpanded.toggle()
+                                    }
+                                }
+                                if cursorFastModeExpanded {
+                                    codexFastModeToggleRow(
+                                        "Composer 2.5 + Grok 4.6",
+                                        isOn: $cursorFastMode,
+                                        helpText: "Appends -fast to Composer 2.5 and Cursor Grok 4.6. Independent of Droid thinking/reasoning effort."
+                                    )
+                                }
+                            }
+                            .padding(.leading, 28)
+                        }
                     }
                 }
                 .listRowBackground(glassRowBackground)
@@ -989,6 +1027,15 @@ struct SettingsView: View {
             startMonitoringAuthDirectory()
             factoryModelsInstalled = checkFactoryModelsInstalled()
             refreshOAuthUsage()
+            cursorAgentProxy.refreshLoginStatus()
+        }
+        .onChange(of: betaFlag) { enabled in
+            if enabled, serverManager.isProviderEnabled(.cursor) {
+                cursorAgentProxy.start()
+            } else if !enabled {
+                cursorAgentProxy.stop()
+            }
+            factoryModelsInstalled = checkFactoryModelsInstalled()
         }
         .onChange(of: codexUsageAccountSignature) { _ in
             refreshOAuthUsage()
@@ -1000,15 +1047,6 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(authResultMessage)
-        }
-        .alert("Add Cursor API Key", isPresented: $showingCursorApiKeyAlert) {
-            SecureField("Enter Cursor Key", text: $cursorApiKey)
-            Button("Save") {
-                saveCursorApiKey(cursorApiKey)
-            }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Please enter your Cursor API Key. It will be saved under ~/.cli-proxy-api/cursor.json.")
         }
         .alert("Add Junie API Key", isPresented: $showingJunieApiKeyAlert) {
             SecureField("Enter Junie Key", text: $junieApiKey)
@@ -1348,7 +1386,8 @@ struct SettingsView: View {
         _ serviceType: ServiceType,
         iconName: String,
         toggleTint: Color,
-        helpText: String? = nil
+        helpText: String? = nil,
+        onToggleEnabled: ((Bool) -> Void)? = nil
     ) -> some View {
         ServiceRow(
             serviceType: serviceType,
@@ -1361,7 +1400,10 @@ struct SettingsView: View {
             onConnect: { connectService(serviceType) },
             onDisconnect: { account in disconnectAccount(account) },
             onToggleDisabled: { account in toggleAccountDisabled(account) },
-            onToggleEnabled: { enabled in serverManager.setProviderEnabled(serviceType, enabled: enabled) },
+            onToggleEnabled: { enabled in
+                serverManager.setProviderEnabled(serviceType, enabled: enabled)
+                onToggleEnabled?(enabled)
+            },
             toggleTint: toggleTint,
             onExpandChange: { expanded in expandedRowCount += expanded ? 1 : -1 }
         ) { EmptyView() }
@@ -1448,8 +1490,7 @@ struct SettingsView: View {
     
     private func connectService(_ serviceType: ServiceType) {
         if serviceType == .cursor {
-            cursorApiKey = ""
-            showingCursorApiKeyAlert = true
+            startCursorAgentLogin()
             return
         }
 
@@ -1510,7 +1551,7 @@ struct SettingsView: View {
         case .kimi:
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
         case .cursor:
-            return "✓ Successfully saved Cursor API Key."
+            return "✓ Cursor Agent CLI is signed in."
         case .junie:
             return "✓ Successfully saved Junie API Key."
         case .grok:
@@ -1578,32 +1619,73 @@ struct SettingsView: View {
         grokLoginSession = session
     }
 
-    private func saveCursorApiKey(_ apiKey: String) {
-        guard !apiKey.isEmpty else { return }
-        
-        let fileURL = AuthPaths.authDirectory.appendingPathComponent("cursor.json")
-        let json: [String: Any] = [
-            "type": "cursor",
-            "email": "cursor-user",
-            "apiKey": apiKey,
-            "disabled": false
-        ]
-        
-        do {
-            try FileManager.default.createDirectory(at: AuthPaths.authDirectory, withIntermediateDirectories: true)
-            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
-            try data.write(to: fileURL)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
-            NSLog("[SettingsView] Saved Cursor API Key with secure permissions to \(fileURL.path)")
-            
-            authManager.checkAuthStatus()
+    private func startCursorAgentLogin() {
+        authenticatingService = .cursor
+        NSLog("[SettingsView] Starting Cursor Agent CLI login")
+        CursorAgentProxyManager.runAgentLogin { success, output in
+            self.authenticatingService = nil
+            self.authManager.checkAuthStatus()
+            self.cursorAgentProxy.refreshLoginStatus()
+            if success {
+                self.authResultMessage = "✓ Cursor Agent CLI signed in as \(CursorAgentProxyManager.currentLoginEmail() ?? "your account")."
+                if self.serverManager.isProviderEnabled(.cursor) {
+                    self.cursorAgentProxy.start()
+                }
+            } else {
+                let details = output.isEmpty
+                    ? "Install the Cursor Agent CLI and run `agent login` if the browser did not open."
+                    : output
+                self.authResultMessage = "Cursor CLI login failed.\n\nDetails: \(details)"
+            }
+            self.showingAuthResult = true
+        }
+    }
 
-            self.authResultMessage = "✓ Successfully added Cursor API Key."
-            self.showingAuthResult = true
-        } catch {
-            NSLog("[SettingsView] Failed to save Cursor API Key: \(error.localizedDescription)")
-            self.authResultMessage = "Failed to save Cursor API Key: \(error.localizedDescription)"
-            self.showingAuthResult = true
+    @ViewBuilder
+    private func cursorProxyStatusRow() -> some View {
+        HStack(spacing: 6) {
+            Circle()
+                .fill(cursorProxyStatusColor)
+                .frame(width: 8, height: 8)
+            Text(cursorProxyStatusText)
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            if case .failed = cursorAgentProxy.state {
+                Button("Retry") {
+                    cursorAgentProxy.start()
+                }
+                .droidGlassPlain()
+                .controlSize(.mini)
+            }
+        }
+    }
+
+    private var cursorProxyStatusColor: Color {
+        switch cursorAgentProxy.state {
+        case .running: return .green
+        case .starting: return .yellow
+        case .failed: return .red
+        case .idle: return .secondary
+        }
+    }
+
+    private var cursorProxyStatusText: String {
+        switch cursorAgentProxy.state {
+        case .running:
+            return "Cursor agent proxy on 127.0.0.1:\(CursorAgentProxyManager.proxyPort)"
+        case .starting:
+            return "Starting cursor-api-proxy…"
+        case .failed(let detail):
+            return detail
+        case .idle:
+            if CursorAgentProxyManager.isAgentAuthenticated {
+                return "Cursor CLI signed in. Enable the provider to start the proxy."
+            }
+            if CursorAgentProxyManager.isAgentInstalled {
+                return "Cursor CLI installed. Click Connect to run `agent login`."
+            }
+            return "Cursor Agent CLI not found on PATH."
         }
     }
 
@@ -1637,6 +1719,11 @@ struct SettingsView: View {
     }
 
     private func disconnectAccount(_ account: AuthAccount) {
+        if account.type == .cursor {
+            authResultMessage = "Cursor stays signed in via the Agent CLI. Disable the Cursor provider to stop routing, or run `agent logout` in a terminal to sign out of Cursor."
+            showingAuthResult = true
+            return
+        }
         let wasRunning = serverManager.isRunning
         
         // Stop server, delete file, restart
@@ -1669,7 +1756,9 @@ struct SettingsView: View {
     private static let legacyDroidProxyModelIds: Set<String> = [
         "custom:droidproxy:grok-4.5",
         "custom:droidproxy:cursor-grok-4.5",
-        "custom:droidproxy:cursor-grok-4.5-fast"
+        "custom:droidproxy:cursor-grok-4.5-fast",
+        "custom:droidproxy:cursor-grok-4.6-fast",
+        "custom:droidproxy:cursor-small"
     ]
 
     private func factorySettingsURL() -> URL {

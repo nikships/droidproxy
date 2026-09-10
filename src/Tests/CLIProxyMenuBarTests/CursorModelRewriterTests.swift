@@ -2,38 +2,41 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class CursorModelRewriterTests: XCTestCase {
-    func testAliasesMapCatalogIdsToUpstreamCursorModels() {
+    func testAliasesMapCatalogIdsToCursorAgentCLIModels() {
         XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("cursor-composer-2.5", grok46FastMode: false),
+            CursorModelRewriter.resolveUpstreamModel("cursor-composer-2.5", fastMode: false),
             "composer-2.5"
         )
         XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6", grok46FastMode: false),
-            "grok-4.6"
+            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6", fastMode: false),
+            "cursor-grok-4.6"
         )
         XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6-fast", grok46FastMode: false),
-            "grok-4.6-fast"
+            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6-fast", fastMode: false),
+            "cursor-grok-4.6-fast"
+        )
+        XCTAssertEqual(
+            CursorModelRewriter.resolveUpstreamModel("grok-4.6", fastMode: false),
+            "cursor-grok-4.6"
         )
     }
 
-    func testFastModeRewritesGrok46ToFast() {
+    func testFastModeAppendsFastSuffix() {
         XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6", grok46FastMode: true),
-            "grok-4.6-fast"
+            CursorModelRewriter.resolveUpstreamModel("cursor-composer-2.5", fastMode: true),
+            "composer-2.5-fast"
         )
         XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("grok-4.6", grok46FastMode: true),
-            "grok-4.6-fast"
-        )
-        // Explicit Fast catalog entry stays fast regardless of the checkbox.
-        XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6-fast", grok46FastMode: true),
-            "grok-4.6-fast"
+            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6", fastMode: true),
+            "cursor-grok-4.6-fast"
         )
         XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("cursor-composer-2.5", grok46FastMode: true),
-            "composer-2.5"
+            CursorModelRewriter.resolveUpstreamModel("grok-4.6", fastMode: true),
+            "cursor-grok-4.6-fast"
+        )
+        XCTAssertEqual(
+            CursorModelRewriter.resolveUpstreamModel("cursor-grok-4.6-fast", fastMode: true),
+            "cursor-grok-4.6-fast"
         )
     }
 
@@ -45,44 +48,53 @@ final class CursorModelRewriterTests: XCTestCase {
             CursorModelRewriter.shouldDivertGrokOAuthToCursorFast(model: "grok-4.6", grok46FastMode: false)
         )
         XCTAssertFalse(
-            CursorModelRewriter.shouldDivertGrokOAuthToCursorFast(model: "grok-4.5", grok46FastMode: true)
+            CursorModelRewriter.shouldDivertGrokOAuthToCursorFast(model: "gpt-5.6-sol", grok46FastMode: true)
         )
     }
 
-    func testCursorFastPathRequiresBetaCursorAndApiKey() {
+    func testCursorFastPathRequiresBetaCursorAndAgentLogin() {
         XCTAssertEqual(
             CursorModelRewriter.cursorFastPathBlocker(
-                betaEnabled: false, cursorEnabled: true, hasCursorApiKey: true
+                betaEnabled: false, cursorEnabled: true, agentLoggedIn: true
             ),
             .betaDisabled
         )
         XCTAssertEqual(
             CursorModelRewriter.cursorFastPathBlocker(
-                betaEnabled: true, cursorEnabled: false, hasCursorApiKey: true
+                betaEnabled: true, cursorEnabled: false, agentLoggedIn: true
             ),
             .cursorDisabled
         )
         XCTAssertEqual(
             CursorModelRewriter.cursorFastPathBlocker(
-                betaEnabled: true, cursorEnabled: true, hasCursorApiKey: false
+                betaEnabled: true, cursorEnabled: true, agentLoggedIn: false
             ),
-            .missingApiKey
+            .agentNotLoggedIn
         )
         XCTAssertNil(
             CursorModelRewriter.cursorFastPathBlocker(
-                betaEnabled: true, cursorEnabled: true, hasCursorApiKey: true
+                betaEnabled: true, cursorEnabled: true, agentLoggedIn: true
             )
         )
     }
 
+    func testComposerIgnoresReasoningEffort() {
+        XCTAssertTrue(CursorModelRewriter.ignoresReasoningEffort("cursor-composer-2.5"))
+        XCTAssertTrue(CursorModelRewriter.ignoresReasoningEffort("composer-2.5"))
+        XCTAssertTrue(CursorModelRewriter.ignoresReasoningEffort("composer-2.5-fast"))
+        XCTAssertFalse(CursorModelRewriter.ignoresReasoningEffort("cursor-grok-4.6"))
+        XCTAssertFalse(CursorModelRewriter.ignoresReasoningEffort("cursor-grok-4.6-fast"))
+    }
+
     func testUnknownCursorIdsPassThrough() {
         XCTAssertEqual(
-            CursorModelRewriter.resolveUpstreamModel("cursor-small", grok46FastMode: true),
-            "cursor-small"
+            CursorModelRewriter.resolveUpstreamModel("cursor-composer-3", fastMode: false),
+            "cursor-composer-3"
         )
     }
 
-    func testHostPointsAtCurrentStandardAgentsAPI() {
-        XCTAssertEqual(CursorModelRewriter.host, "api-for-cursor.standardagents.ai")
+    func testProxyListensOnLocalhostSidecarPort() {
+        XCTAssertEqual(CursorModelRewriter.host, "127.0.0.1")
+        XCTAssertEqual(CursorModelRewriter.port, 8320)
     }
 }

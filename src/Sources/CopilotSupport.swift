@@ -785,6 +785,12 @@ final class ProcessTranscript {
         return "\(lastLine) (exit code \(exitCode))"
     }
 
+    func snapshot() -> String {
+        lock.lock()
+        defer { lock.unlock() }
+        return buffer
+    }
+
     /// The last non-blank line of output with ANSI escapes stripped, so a
     /// failure can be reported with the reason the child process printed.
     func lastMeaningfulLine() -> String? {

@@ -2,7 +2,7 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class AppPreferencesFastModeDefaultsTests: XCTestCase {
-    /// Fast Mode is opt-in for every provider (Codex GPT + Grok). Absent keys
+    /// Fast Mode is opt-in for every provider (Codex GPT + Grok + Cursor). Absent keys
     /// must read as false so the Settings checkboxes start unchecked.
     func testAllFastModeDefaultsAreOff() {
         XCTAssertFalse(AppPreferences.defaultGpt56TerraFastMode)
@@ -10,6 +10,7 @@ final class AppPreferencesFastModeDefaultsTests: XCTestCase {
         XCTAssertFalse(AppPreferences.defaultGpt56SolFastMode)
         XCTAssertFalse(AppPreferences.defaultGpt6AstraFastMode)
         XCTAssertFalse(AppPreferences.defaultGrok46FastMode)
+        XCTAssertFalse(AppPreferences.defaultCursorFastMode)
     }
 
     func testUnsetFastModeKeysReadAsFalse() {
@@ -19,7 +20,8 @@ final class AppPreferencesFastModeDefaultsTests: XCTestCase {
             AppPreferences.gpt56LunaFastModeKey,
             AppPreferences.gpt56SolFastModeKey,
             AppPreferences.gpt6AstraFastModeKey,
-            AppPreferences.grok46FastModeKey
+            AppPreferences.grok46FastModeKey,
+            AppPreferences.cursorFastModeKey
         ]
         for key in keys {
             defaults.removeObject(forKey: key)
@@ -29,5 +31,6 @@ final class AppPreferencesFastModeDefaultsTests: XCTestCase {
         XCTAssertFalse(AppPreferences.gpt56SolFastMode)
         XCTAssertFalse(AppPreferences.gpt6AstraFastMode)
         XCTAssertFalse(AppPreferences.grok46FastMode)
+        XCTAssertFalse(AppPreferences.cursorFastMode)
     }
 }
