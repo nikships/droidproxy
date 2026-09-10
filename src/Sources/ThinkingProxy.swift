@@ -319,13 +319,25 @@ class ThinkingProxy {
                     sendError(to: connection, statusCode: 400, message: "Cursor provider is disabled in DroidProxy settings.")
                     return
                 }
+                if let blocker = CursorModelRewriter.cursorFastPathBlocker(
+                    betaEnabled: true,
+                    cursorEnabled: true,
+                    agentLoggedIn: CursorAgentProxyManager.isAgentAuthenticated
+                ) {
+                    sendError(to: connection, statusCode: 401, message: blocker.errorMessage)
+                    return
+                }
                 let catalogModel = requestFields?.model
                 if let result = rewriteCursorModelAlias(jsonString: modifiedBody, fields: requestFields) {
                     modifiedBody = result
                     requestFields = inspectRequestJSONFields(in: modifiedBody)
                 }
-                // Check catalog id (`cursor-grok-4.6`) and upstream id (`grok-4.6`)
-                // so alias rewrite cannot drop the native-markup buffer.
+                if let stripped = stripComposerReasoningFields(jsonString: modifiedBody, fields: requestFields) {
+                    modifiedBody = stripped
+                    requestFields = inspectRequestJSONFields(in: modifiedBody)
+                }
+                // Check catalog id (`cursor-grok-4.6`) and upstream id so alias
+                // rewrite cannot drop the native-markup buffer.
                 let rewriteGrokNativeToolCalls =
                     GrokNativeToolCallRewriter.shouldRewrite(model: catalogModel)
                     || GrokNativeToolCallRewriter.shouldRewrite(model: requestFields?.model)
@@ -360,7 +372,7 @@ class ThinkingProxy {
                     return
                 }
                 // Grok 4.6 Fast Mode: api.x.ai has no grok-4.6-fast. Divert to
-                // Cursor's hosted API when Fast Mode is on and Cursor is usable.
+                // the local Cursor Agent CLI proxy when Fast Mode is on.
                 if let model = requestFields?.model,
                    CursorModelRewriter.shouldDivertGrokOAuthToCursorFast(
                     model: model,
@@ -369,7 +381,7 @@ class ThinkingProxy {
                     if let blocker = CursorModelRewriter.cursorFastPathBlocker(
                         betaEnabled: BETA_FLAG,
                         cursorEnabled: isCursorEnabled(),
-                        hasCursorApiKey: loadCursorApiKey() != nil
+                        agentLoggedIn: CursorAgentProxyManager.isAgentAuthenticated
                     ) {
                         sendError(
                             to: connection,
@@ -378,13 +390,17 @@ class ThinkingProxy {
                         )
                         return
                     }
-                    if let modelLocation = requestFields?.modelLocation {
+                    let backendModel = CursorModelRewriter.resolveUpstreamModel(
+                        model,
+                        fastMode: true
+                    )
+                    if let modelLocation = requestFields?.modelLocation, backendModel != model {
                         modifiedBody.replaceSubrange(
                             modelLocation.valueRange,
-                            with: "\"\(CursorModelRewriter.grok46FastModel)\""
+                            with: "\"\(backendModel)\""
                         )
                         ThinkingProxy.fileLog(
-                            "REWRITE MODEL: \(model) -> \(CursorModelRewriter.grok46FastModel) (Grok Fast Mode → Cursor API)"
+                            "REWRITE MODEL: \(model) -> \(backendModel) (Grok Fast Mode → Cursor Agent CLI)"
                         )
                     }
                     forwardToCursor(
@@ -505,14 +521,64 @@ class ThinkingProxy {
 
         let backendModel = CursorModelRewriter.resolveUpstreamModel(
             model,
-            grok46FastMode: AppPreferences.grok46FastMode
+            fastMode: AppPreferences.cursorFastMode
         )
         guard backendModel != model else { return nil }
 
         var result = jsonString
         result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
-        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Cursor)")
+        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Cursor Agent CLI)")
         return result
+    }
+
+    /// Composer 2.5 has no thinking variants. Drop Droid's reasoning fields so
+    /// cursor-api-proxy does not 400 `unsupported_reasoning_effort`.
+    private func stripComposerReasoningFields(jsonString: String, fields: RequestJSONFields?) -> String? {
+        guard let model = fields?.model, CursorModelRewriter.ignoresReasoningEffort(model) else {
+            return nil
+        }
+        return removeTopLevelJSONFields(jsonString, keys: ["reasoning_effort", "reasoning"])
+    }
+
+    private func removeTopLevelJSONFields(_ jsonString: String, keys: Set<String>) -> String? {
+        guard let locations = findTopLevelFieldLocations(in: jsonString, keys: keys), !locations.isEmpty else {
+            return nil
+        }
+        var result = jsonString
+        let ordered = locations.values.sorted { $0.pairRange.lowerBound > $1.pairRange.lowerBound }
+        for location in ordered {
+            result.replaceSubrange(expandedFieldRemovalRange(in: result, location: location), with: "")
+        }
+        ThinkingProxy.fileLog("STRIPPED composer reasoning fields before Cursor Agent CLI")
+        return result
+    }
+
+    /// Include the neighboring comma so `"a":1,"b":2` stays valid JSON after a deletion.
+    private func expandedFieldRemovalRange(
+        in json: String,
+        location: TopLevelFieldLocation
+    ) -> Range<String.Index> {
+        var start = location.pairRange.lowerBound
+        var end = location.pairRange.upperBound
+
+        if let after = firstNonWhitespaceIndex(in: json, from: end, before: json.endIndex),
+           json[after] == "," {
+            return start..<json.index(after: after)
+        }
+
+        var probe = start
+        while probe > json.startIndex {
+            let previous = json.index(before: probe)
+            if json[previous].isWhitespace {
+                probe = previous
+                continue
+            }
+            if json[previous] == "," {
+                return previous..<end
+            }
+            break
+        }
+        return start..<end
     }
 
     private func objectStringField(in jsonString: String,
@@ -1048,8 +1114,12 @@ class ThinkingProxy {
         }))
     }
 
-    // MARK: - Cursor API Proxying
-    
+    // MARK: - Cursor Agent CLI proxying
+    //
+    // Cursor models are served by a localhost `cursor-api-proxy` sidecar
+    // (`127.0.0.1:8320`) that wraps the authenticated `agent` CLI. This replaces
+    // the previous TLS forward to `api-for-cursor.standardagents.ai`.
+
     private func isCursorModel(_ requestFields: RequestJSONFields?) -> Bool {
         guard let model = requestFields?.model else {
             return false
@@ -1064,25 +1134,6 @@ class ThinkingProxy {
         return true
     }
 
-    private func loadCursorApiKey() -> String? {
-        let authDir = AuthPaths.authDirectory
-        guard let files = try? FileManager.default.contentsOfDirectory(at: authDir, includingPropertiesForKeys: nil) else {
-            return nil
-        }
-        for file in files where file.pathExtension == "json" {
-            guard let data = try? Data(contentsOf: file),
-                  let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-                  let type = json["type"] as? String,
-                  type.lowercased() == "cursor",
-                  let apiKey = json["apiKey"] as? String,
-                  !(json["disabled"] as? Bool ?? false) else {
-                continue
-            }
-            return apiKey
-        }
-        return nil
-    }
-
     private func forwardToCursor(
         method: String,
         path: String,
@@ -1092,25 +1143,22 @@ class ThinkingProxy {
         originalConnection: NWConnection,
         rewriteGrokNativeToolCalls: Bool = false
     ) {
-        guard let apiKey = loadCursorApiKey() else {
-            NSLog("[ThinkingProxy] Error: No active Cursor API key found")
-            sendError(to: originalConnection, statusCode: 401, message: "No active Cursor API key found. Please add a Cursor key in DroidProxy settings.")
+        guard let port = NWEndpoint.Port(rawValue: CursorModelRewriter.port) else {
+            sendError(to: originalConnection, statusCode: 500, message: "Internal Server Error")
             return
         }
-        
-        let tlsOptions = NWProtocolTLS.Options()
-        let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
-        
         let cursorHost = CursorModelRewriter.host
-        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(cursorHost), port: 443)
-        let targetConnection = NWConnection(to: endpoint, using: parameters)
-        
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(cursorHost), port: port)
+        let targetConnection = NWConnection(to: endpoint, using: .tcp)
+
         targetConnection.stateUpdateHandler = { [weak self] state in
             guard let self = self else { return }
             switch state {
             case .ready:
                 var forwardedRequest = "\(method) \(path) \(version)\r\n"
-                var excludedHeaders: Set<String> = ["host", "content-length", "connection", "transfer-encoding", "authorization"]
+                var excludedHeaders: Set<String> = [
+                    "host", "content-length", "connection", "transfer-encoding", "authorization"
+                ]
                 if rewriteGrokNativeToolCalls {
                     excludedHeaders.insert("accept-encoding")
                 }
@@ -1119,20 +1167,19 @@ class ThinkingProxy {
                         forwardedRequest += "\(name): \(value)\r\n"
                     }
                 }
-                
-                forwardedRequest += "Host: \(cursorHost)\r\n"
-                forwardedRequest += "Authorization: Bearer \(apiKey)\r\n"
+
+                forwardedRequest += "Host: \(cursorHost):\(CursorModelRewriter.port)\r\n"
                 if rewriteGrokNativeToolCalls {
                     forwardedRequest += "Accept-Encoding: identity\r\n"
                 }
                 forwardedRequest += "Connection: close\r\n"
                 forwardedRequest += "Content-Length: \(body.utf8.count)\r\n\r\n"
                 forwardedRequest += body
-                
+
                 if let requestData = forwardedRequest.data(using: .utf8) {
                     targetConnection.send(content: requestData, completion: .contentProcessed({ error in
                         if let error = error {
-                            NSLog("[ThinkingProxy] Send error to %@: %@", cursorHost, "\(error)")
+                            NSLog("[ThinkingProxy] Send error to Cursor agent proxy: %@", "\(error)")
                             targetConnection.cancel()
                             originalConnection.cancel()
                         } else {
@@ -1144,17 +1191,21 @@ class ThinkingProxy {
                         }
                     }))
                 }
-                
+
             case .failed(let error):
-                NSLog("[ThinkingProxy] Connection to %@ failed: %@", cursorHost, "\(error)")
-                self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Could not connect to \(cursorHost)")
+                NSLog("[ThinkingProxy] Connection to Cursor agent proxy failed: %@", "\(error)")
+                self.sendError(
+                    to: originalConnection,
+                    statusCode: 502,
+                    message: "Bad Gateway - Cursor agent proxy is not running on \(cursorHost):\(CursorModelRewriter.port). Enable Beta → Cursor and wait for the local proxy to start."
+                )
                 targetConnection.cancel()
-                
+
             default:
                 break
             }
         }
-        
+
         targetConnection.start(queue: .global(qos: .userInitiated))
     }
 

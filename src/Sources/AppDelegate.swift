@@ -11,6 +11,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var serverManager: ServerManager!
     var thinkingProxy: ThinkingProxy!
     var copilotGateway: CopilotGatewayManager!
+    var cursorAgentProxy: CursorAgentProxyManager!
     private let notificationCenter = UNUserNotificationCenter.current()
     private let updaterController: SPUStandardUpdaterController
     private var authDirectoryMonitor: AuthDirectoryMonitor?
@@ -43,6 +44,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         serverManager = ServerManager()
         thinkingProxy = ThinkingProxy()
         copilotGateway = CopilotGatewayManager()
+        cursorAgentProxy = CursorAgentProxyManager()
 
         // Warm commonly used icons to avoid first-use disk hits
         preloadIcons()
@@ -54,6 +56,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         if copilotGateway.hasCredentials, serverManager.isProviderEnabled(.copilot) {
             copilotGateway.start()
         }
+        maybeStartCursorAgentProxy()
 
         // Register for notifications
         NotificationCenter.default.addObserver(
@@ -229,7 +232,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             self?.applyTheme(to: win)
         }
 
-        let contentView = SettingsView(serverManager: serverManager, copilotGateway: copilotGateway)
+        let contentView = SettingsView(
+            serverManager: serverManager,
+            copilotGateway: copilotGateway,
+            cursorAgentProxy: cursorAgentProxy
+        )
         window.contentView = NSHostingView(rootView: contentView)
 
         settingsWindow = window
@@ -270,6 +277,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                 DispatchQueue.main.async {
                     if success {
                         self?.updateMenuBarStatus()
+                        self?.maybeStartCursorAgentProxy()
                         // User always connects to 8317 (thinking proxy)
                         self?.showNotification(title: "Server Started", body: "DroidProxy is now running")
                     } else {
@@ -304,6 +312,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         // then shut down the CLIProxyAPI backend.
         thinkingProxy.stop()
         serverManager.stop()
+        cursorAgentProxy.stop()
         updateMenuBarStatus()
     }
 
@@ -313,6 +322,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         guard serverManager.isRunning else { return }
         thinkingProxy.stop()
         serverManager.stop()
+        cursorAgentProxy.stop()
+    }
+
+    func maybeStartCursorAgentProxy() {
+        let shouldRun = BETA_FLAG
+            && serverManager.isProviderEnabled(.cursor)
+            && CursorAgentProxyManager.isAgentAuthenticated
+        if shouldRun {
+            cursorAgentProxy.start()
+        } else {
+            cursorAgentProxy.stop()
+        }
     }
 
     @objc func copyServerURL() {
@@ -377,6 +398,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         // Stop servers and give cleanup a moment before actually terminating.
         stopServersIfRunning()
         copilotGateway.stop()
+        cursorAgentProxy.stop()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             NSApp.terminate(nil)
         }
@@ -390,11 +412,13 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         authDirectoryMonitor = nil
         stopServersIfRunning()
         copilotGateway.stop()
+        cursorAgentProxy.stop()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         stopServersIfRunning()
         copilotGateway.stop()
+        cursorAgentProxy.stop()
         return .terminateNow
     }
 

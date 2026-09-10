@@ -83,17 +83,17 @@ const models = [
     icon: '/assets/icon-cursor.png',
     name: 'Cursor Composer 2.5',
     id: 'cursor-composer-2.5',
-    levels: ['high'],
+    levels: [],
     max: '128,000',
-    provider: 'StandardAgents',
+    provider: 'Cursor CLI',
   },
   {
     icon: '/assets/icon-cursor.png',
-    name: 'Cursor Small',
-    id: 'cursor-small',
-    levels: ['high'],
-    max: '64,000',
-    provider: 'StandardAgents',
+    name: 'Cursor Grok 4.6',
+    id: 'cursor-grok-4.6',
+    levels: ['low', 'medium', 'high', 'xhigh'],
+    max: '128,000',
+    provider: 'Cursor CLI',
   },
 ]
 
@@ -131,9 +131,11 @@ export default function ModelsSection() {
                   </td>
                   <td>
                     <div className="levels">
-                      {m.levels.map((lvl) => (
-                        <span className={lvl === 'max' ? 'level max' : 'level'} key={lvl}>{lvl}</span>
-                      ))}
+                      {m.levels.length === 0
+                        ? <span className="level">fast toggle</span>
+                        : m.levels.map((lvl) => (
+                            <span className={lvl === 'max' ? 'level max' : 'level'} key={lvl}>{lvl}</span>
+                          ))}
                     </div>
                   </td>
                   <td className="ctx num">{m.max}<small>tok</small></td>

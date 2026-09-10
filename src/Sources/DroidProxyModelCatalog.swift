@@ -423,6 +423,11 @@ enum DroidProxyModelCatalog {
         list.append(contentsOf: CopilotModelPreferences.selectedModels.map(copilotModel))
 
         if BETA_FLAG {
+            // Composer 2.5 has no thinking-level variants in `agent --list-models`
+            // (`composer-2.5` / `composer-2.5-fast` only). Fast Mode is a Settings
+            // toggle that appends `-fast`. Grok 4.6 thinking is selected in Droid
+            // (`low` / `medium` / `high` / `xhigh`); cursor-api-proxy maps
+            // `reasoning_effort` onto `cursor-grok-4.6-{level}[-fast]`.
             list.append(contentsOf: [
                 DroidProxyModelDefinition(
                     baseModel: "cursor-composer-2.5",
@@ -433,7 +438,7 @@ enum DroidProxyModelCatalog {
                     providerKey: "cursor",
                     baseURL: "http://localhost:8317/v1",
                     kind: .cursor,
-                    levels: [high],
+                    levels: [],
                     defaultLevelValue: "high"
                 ),
                 DroidProxyModelDefinition(
@@ -445,31 +450,7 @@ enum DroidProxyModelCatalog {
                     providerKey: "cursor",
                     baseURL: "http://localhost:8317/v1",
                     kind: .cursor,
-                    levels: [high],
-                    defaultLevelValue: "high"
-                ),
-                DroidProxyModelDefinition(
-                    baseModel: "cursor-grok-4.6-fast",
-                    idSlug: "cursor-grok-4.6-fast",
-                    displayName: "Cursor Grok 4.6 Fast",
-                    maxOutputTokens: 128000,
-                    provider: "generic-chat-completion-api",
-                    providerKey: "cursor",
-                    baseURL: "http://localhost:8317/v1",
-                    kind: .cursor,
-                    levels: [high],
-                    defaultLevelValue: "high"
-                ),
-                DroidProxyModelDefinition(
-                    baseModel: "cursor-small",
-                    idSlug: "cursor-small",
-                    displayName: "Cursor Small",
-                    maxOutputTokens: 64000,
-                    provider: "generic-chat-completion-api",
-                    providerKey: "cursor",
-                    baseURL: "http://localhost:8317/v1",
-                    kind: .cursor,
-                    levels: [high],
+                    levels: [low, medium, high, xhigh],
                     defaultLevelValue: "high"
                 )
             ])

@@ -5,9 +5,11 @@ enum AppPreferences {
     static let gpt56SolFastModeKey = "gpt56SolFastMode"
     static let gpt56LunaFastModeKey = "gpt56LunaFastMode"
     static let gpt6AstraFastModeKey = "gpt6AstraFastMode"
-    /// Grok 4.6 Fast Mode (model-id rewrite to grok-4.6-fast via Cursor API).
+    /// Grok 4.6 Fast Mode (divert grok-4.6 to Cursor CLI `cursor-grok-4.6-fast`).
     /// Default is off — same opt-in pattern as Codex GPT Fast Mode keys.
     static let grok46FastModeKey = "grok46FastMode"
+    /// Cursor Fast Mode (append `-fast` to Composer 2.5 and Cursor Grok 4.6).
+    static let cursorFastModeKey = "cursorFastMode"
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"
     static let bindAddressKey = "bindAddress"
@@ -22,6 +24,7 @@ enum AppPreferences {
     static let defaultGpt56LunaFastMode = false
     static let defaultGpt6AstraFastMode = false
     static let defaultGrok46FastMode = false
+    static let defaultCursorFastMode = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
     static let defaultBindAddress = "127.0.0.1"
@@ -51,6 +54,10 @@ enum AppPreferences {
 
     static var grok46FastMode: Bool {
         UserDefaults.standard.bool(forKey: grok46FastModeKey)
+    }
+
+    static var cursorFastMode: Bool {
+        UserDefaults.standard.bool(forKey: cursorFastModeKey)
     }
 
     static var allowRemote: Bool {

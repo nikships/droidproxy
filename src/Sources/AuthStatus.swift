@@ -131,8 +131,27 @@ class AuthManager: ObservableObject {
         for file in files where file.pathExtension == "json" {
             NSLog("[AuthStatus] Checking file: %@", file.lastPathComponent)
             guard let account = parseAccount(from: file) else { continue }
+            if account.type == .cursor { continue }
             newAccounts[account.type]?.accounts.append(account)
             NSLog("[AuthStatus] Found %@ auth: %@", account.type.displayName, account.displayName)
+        }
+
+        if let email = CursorAgentProxyManager.currentLoginEmail() {
+            let marker = authDir.appendingPathComponent("cursor-cli.json")
+            newAccounts[.cursor]?.accounts.append(
+                AuthAccount(
+                    id: "cursor-cli",
+                    email: email,
+                    login: nil,
+                    type: .cursor,
+                    expired: nil,
+                    filePath: marker,
+                    isDisabled: false,
+                    organizationName: nil,
+                    claudeSeatLabel: nil
+                )
+            )
+            NSLog("[AuthStatus] Found Cursor CLI auth: %@", email)
         }
 
         DispatchQueue.main.async {
