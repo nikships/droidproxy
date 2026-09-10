@@ -65,6 +65,13 @@ final class CursorAgentProxyManager: ObservableObject {
         static let probeTimeout: TimeInterval = 3
     }
 
+    private enum AgentCLITiming {
+        static let statusTimeout: TimeInterval = 5
+        static let loginTimeout: TimeInterval = 600
+        static let pollInterval: TimeInterval = 0.05
+        static let terminateGrace: TimeInterval = 2
+    }
+
     @Published private(set) var state: CursorAgentProxyState = .idle
     @Published private(set) var lastError: String?
     @Published private(set) var loginEmail: String?
@@ -273,16 +280,25 @@ final class CursorAgentProxyManager: ObservableObject {
         process.arguments = ["status", "--format", "json"]
         process.environment = agentProbeEnvironment(agentURL: agentURL)
         let stdout = Pipe()
+        let stderr = Pipe()
         process.standardOutput = stdout
-        process.standardError = Pipe()
+        process.standardError = stderr
+        let stdoutTranscript = ProcessTranscript()
+        let stderrTranscript = ProcessTranscript()
+        attachDrain(to: [stdout], transcript: stdoutTranscript)
+        attachDrain(to: [stderr], transcript: stderrTranscript)
         do {
             try process.run()
-            process.waitUntilExit()
         } catch {
+            detachDrain(from: [stdout, stderr])
             return nil
         }
-        guard process.terminationStatus == 0 else { return nil }
-        let data = stdout.fileHandleForReading.readDataToEndOfFile()
+        let finished = waitForExit(process, timeout: AgentCLITiming.statusTimeout)
+        detachDrain(from: [stdout, stderr])
+        collectRemainingOutput(from: [stdout], into: stdoutTranscript)
+        collectRemainingOutput(from: [stderr], into: stderrTranscript)
+        guard finished, process.terminationStatus == 0 else { return nil }
+        let data = Data(stdoutTranscript.snapshot().utf8)
         guard let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
         }
@@ -311,22 +327,28 @@ final class CursorAgentProxyManager: ObservableObject {
             let stderr = Pipe()
             process.standardOutput = stdout
             process.standardError = stderr
+            let transcript = ProcessTranscript()
+            let pipes = [stdout, stderr]
+            attachDrain(to: pipes, transcript: transcript)
             do {
                 try process.run()
-                process.waitUntilExit()
             } catch {
+                detachDrain(from: pipes)
                 DispatchQueue.main.async {
                     completion(false, error.localizedDescription)
                 }
                 return
             }
-            let output = [
-                String(data: stdout.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8),
-                String(data: stderr.fileHandleForReading.readDataToEndOfFile(), encoding: .utf8)
-            ]
-            .compactMap { $0 }
-            .joined(separator: "\n")
-            .trimmingCharacters(in: .whitespacesAndNewlines)
+            let finished = waitForExit(process, timeout: AgentCLITiming.loginTimeout)
+            detachDrain(from: pipes)
+            collectRemainingOutput(from: pipes, into: transcript)
+            let output = transcript.snapshot().trimmingCharacters(in: .whitespacesAndNewlines)
+            if !finished {
+                DispatchQueue.main.async {
+                    completion(false, "Timed out waiting for `agent login`.")
+                }
+                return
+            }
             let success = process.terminationStatus == 0 && currentLoginEmail() != nil
             DispatchQueue.main.async {
                 completion(success, output)
@@ -441,6 +463,53 @@ final class CursorAgentProxyManager: ObservableObject {
             .filter { $0 != homeBin && $0 != agentBin }
         environment["PATH"] = ([agentBin, homeBin] + remaining).joined(separator: ":")
         return environment
+    }
+
+    private static func attachDrain(to pipes: [Pipe], transcript: ProcessTranscript) {
+        for pipe in pipes {
+            pipe.fileHandleForReading.readabilityHandler = { handle in
+                let data = handle.availableData
+                guard let text = String(data: data, encoding: .utf8), !text.isEmpty else { return }
+                transcript.append(text)
+            }
+        }
+    }
+
+    private static func detachDrain(from pipes: [Pipe]) {
+        for pipe in pipes {
+            pipe.fileHandleForReading.readabilityHandler = nil
+        }
+    }
+
+    private static func collectRemainingOutput(from pipes: [Pipe], into transcript: ProcessTranscript) {
+        for pipe in pipes {
+            let data = pipe.fileHandleForReading.readDataToEndOfFile()
+            guard let text = String(data: data, encoding: .utf8), !text.isEmpty else { continue }
+            transcript.append(text)
+        }
+    }
+
+    /// Returns `false` if the child had to be killed after `timeout`.
+    @discardableResult
+    private static func waitForExit(_ process: Process, timeout: TimeInterval) -> Bool {
+        let deadline = Date().addingTimeInterval(timeout)
+        while process.isRunning, Date() < deadline {
+            Thread.sleep(forTimeInterval: AgentCLITiming.pollInterval)
+        }
+        guard process.isRunning else { return true }
+        process.terminate()
+        let killDeadline = Date().addingTimeInterval(AgentCLITiming.terminateGrace)
+        while process.isRunning, Date() < killDeadline {
+            Thread.sleep(forTimeInterval: AgentCLITiming.pollInterval)
+        }
+        if process.isRunning {
+            _ = kill(process.processIdentifier, SIGKILL)
+            let reapDeadline = Date().addingTimeInterval(AgentCLITiming.terminateGrace)
+            while process.isRunning, Date() < reapDeadline {
+                Thread.sleep(forTimeInterval: AgentCLITiming.pollInterval)
+            }
+        }
+        return false
     }
 
     private func attachOutputPipes(

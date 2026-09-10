@@ -32,6 +32,13 @@ final class CopilotProcessTranscriptTests: XCTestCase {
         )
     }
 
+    func testSnapshotReturnsCapturedOutput() {
+        let transcript = ProcessTranscript()
+        transcript.append("hello\n")
+        transcript.append("world")
+        XCTAssertEqual(transcript.snapshot(), "hello\nworld")
+    }
+
     func testLastMeaningfulLineIgnoresTrailingBlankLines() {
         let transcript = ProcessTranscript()
         transcript.append("➜ Listening on: http://127.0.0.1:8319/\n")

@@ -136,26 +136,30 @@ class AuthManager: ObservableObject {
             NSLog("[AuthStatus] Found %@ auth: %@", account.type.displayName, account.displayName)
         }
 
-        if let email = CursorAgentProxyManager.currentLoginEmail() {
-            let marker = authDir.appendingPathComponent("cursor-cli.json")
-            newAccounts[.cursor]?.accounts.append(
-                AuthAccount(
-                    id: "cursor-cli",
-                    email: email,
-                    login: nil,
-                    type: .cursor,
-                    expired: nil,
-                    filePath: marker,
-                    isDisabled: false,
-                    organizationName: nil,
-                    claudeSeatLabel: nil
-                )
-            )
-            NSLog("[AuthStatus] Found Cursor CLI auth: %@", email)
-        }
-
-        DispatchQueue.main.async {
-            self.serviceAccounts = newAccounts
+        let scannedAccounts = newAccounts
+        DispatchQueue.global(qos: .userInitiated).async {
+            let email = CursorAgentProxyManager.currentLoginEmail()
+            DispatchQueue.main.async {
+                var accounts = scannedAccounts
+                if let email {
+                    let marker = authDir.appendingPathComponent("cursor-cli.json")
+                    accounts[.cursor]?.accounts.append(
+                        AuthAccount(
+                            id: "cursor-cli",
+                            email: email,
+                            login: nil,
+                            type: .cursor,
+                            expired: nil,
+                            filePath: marker,
+                            isDisabled: false,
+                            organizationName: nil,
+                            claudeSeatLabel: nil
+                        )
+                    )
+                    NSLog("[AuthStatus] Found Cursor CLI auth: %@", email)
+                }
+                self.serviceAccounts = accounts
+            }
         }
     }
 

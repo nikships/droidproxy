@@ -906,6 +906,7 @@ struct SettingsView: View {
                                 } else {
                                     cursorAgentProxy.stop()
                                 }
+                                factoryModelsInstalled = checkFactoryModelsInstalled()
                             }
                         )
                         if serverManager.isProviderEnabled(.cursor) {
@@ -1034,6 +1035,7 @@ struct SettingsView: View {
             } else if !enabled {
                 cursorAgentProxy.stop()
             }
+            factoryModelsInstalled = checkFactoryModelsInstalled()
         }
         .onChange(of: codexUsageAccountSignature) { _ in
             refreshOAuthUsage()

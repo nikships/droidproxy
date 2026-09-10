@@ -326,13 +326,18 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 
     func maybeStartCursorAgentProxy() {
-        let shouldRun = BETA_FLAG
-            && serverManager.isProviderEnabled(.cursor)
-            && CursorAgentProxyManager.isAgentAuthenticated
-        if shouldRun {
-            cursorAgentProxy.start()
-        } else {
-            cursorAgentProxy.stop()
+        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
+            guard let self else { return }
+            let shouldRun = BETA_FLAG
+                && self.serverManager.isProviderEnabled(.cursor)
+                && CursorAgentProxyManager.isAgentAuthenticated
+            DispatchQueue.main.async {
+                if shouldRun {
+                    self.cursorAgentProxy.start()
+                } else {
+                    self.cursorAgentProxy.stop()
+                }
+            }
         }
     }
 
