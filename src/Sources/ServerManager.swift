@@ -46,6 +46,7 @@ private struct RingBuffer<Element> {
 
 class ServerManager: ObservableObject {
     private var process: Process?
+    private var metaAccountsObserver: AnyCancellable?
     @Published private(set) var isRunning = false
     private(set) var port = 8317
 
@@ -84,6 +85,11 @@ class ServerManager: ObservableObject {
         if let saved = UserDefaults.standard.dictionary(forKey: "enabledProviders") as? [String: Bool] {
             enabledProviders = saved
         }
+        metaAccountsObserver = NotificationCenter.default.publisher(for: .metaAccountsChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                _ = self?.getConfigPath()
+            }
     }
 
     /// Substitutions applied to the bundled `config.yaml` when "Sequential
@@ -469,6 +475,13 @@ class ServerManager: ObservableObject {
                 configContent += "  \(provider):\n    - \"*\"\n"
             }
         }
+
+        // Each enabled Meta account participates in the backend's existing
+        // round-robin / sequential routing and credential retry policy.
+        configContent += MetaMuseCredentialStore.compatibilityConfig(
+            accounts: MetaMuseCredentialStore.shared.accounts,
+            enabled: isProviderEnabled(.meta)
+        )
 
         let mergedConfigPath = authDir.appendingPathComponent("merged-config.yaml")
 

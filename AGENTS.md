@@ -65,6 +65,8 @@ Beta Cursor models instead use:
 
 `Client -> :8317 ThinkingProxy -> :8320 cursor-api-proxy -> local Cursor Agent CLI`
 
+Meta Muse models (`muse-spark-1.3`, `muse-spark-1.3-contributor`) need no extra hop: `MetaMuseAuthManager` mints a Model API key via device-code login and `ServerManager` writes it into CLIProxyAPI's generic `openai-compatibility` config, so these still flow through the normal `:8317 -> :8318 -> upstream` path, straight to `https://api.meta.ai/v1`.
+
 ### Current ThinkingProxy behavior
 
 Reasoning effort is owned by **Droid CLI**, not the proxy. Each Factory custom model is registered with native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid's per-session selector exposes every level the model supports, and Droid sends the chosen value in the request body. The proxy does **not** inject `thinking`, `reasoning`, `reasoning_effort`, `output_config`, `budget_tokens`, or `generationConfig.thinkingConfig` for any model — it forwards the request unchanged.
@@ -103,8 +105,9 @@ The current app/UI exposes these provider types:
 - `kimi`
 - `cursor` (beta; local Cursor Agent CLI via `cursor-api-proxy` on `127.0.0.1:8320`. Auth is `agent login`, not a hosted API key.)
 - `copilot` (device-code OAuth; credentials stay in `~/.droidproxy/copilot-api/`; the separate local Copilot API gateway serves only the user-selected models)
+- `meta` (Meta Muse subscription; device-code OAuth against `auth.meta.com` reproduces the `muse` CLI's own login flow, then mints a Model API key from `api.meta.ai/muse-code/key`. Not a CLIProxyAPI-native OAuth provider — the key is written into a generic `openai-compatibility` block in `merged-config.yaml` instead of an auth JSON file. This contract is reverse-engineered from the `muse` binary and a third-party client, not official docs.)
 
-Auth data for `AuthManager`-managed providers lives in `~/.cli-proxy-api/` as JSON files. Copilot is the exception: its gateway owns `~/.droidproxy/copilot-api/github_token`, which DroidProxy never reads.
+Auth data for `AuthManager`-managed providers lives in `~/.cli-proxy-api/` as JSON files. Copilot is the exception: its gateway owns `~/.droidproxy/copilot-api/github_token`, which DroidProxy never reads. Meta Muse is a second exception: its per-account identity tokens and minted Model API keys live in `~/.droidproxy/meta/accounts.json` (mode 0600, parent directory 0700; legacy `credentials.json` is migrated automatically), never in `~/.cli-proxy-api/`.
 
 - `type`
 - `email`
@@ -141,6 +144,8 @@ Behavior to know:
 | `src/Sources/GrokEndFeatureRunRepair.swift` | Repairs Grok `EndFeatureRun` arguments that omit `handoff` or send a non-bool `validatorsPassed`, and `Execute`/`Read`/`Grep` calls that omit `command`/`file_path`/`pattern` or use aliases. |
 | `src/Sources/DroidProxyModelCatalog.swift` | Authoritative catalog of DroidProxy-exposed models. Each `DroidProxyModelDefinition` carries its supported `levels` plus a `defaultLevelValue`, and `settingsEntry` always embeds Factory's native reasoning metadata (`enableThinking`, `supportedReasoningEfforts`, `defaultReasoningEffort`, `reasoningEffort`) so Droid CLI's per-session selector can expose the full level set. |
 | `src/Sources/CopilotSupport.swift` | Local `@jeffreycao/copilot-api` gateway lifecycle (`CopilotGatewayState` of `idle`/`starting`/`running`/`failed`, with a `/v1/models` readiness probe so a gateway that exits before binding its port surfaces as `failed`), device-code authentication, account-specific model discovery, and persistence for at most three Factory-selected Copilot models. |
+| `src/Sources/MetaMuseSupport.swift` | `MetaMuseAuthManager` reproduces `muse login`'s device-code flow entirely in-process (no child process): device authorization + token polling against `auth.meta.com`, then Model API key minting against `api.meta.ai/muse-code/key`. `AppDelegate` checks hourly and independently refreshes enabled accounts within 6h of their ~24h key expiry. |
+| `src/Sources/MetaMuseCredentialStore.swift` | Private multi-account persistence, legacy migration, account disable/remove, and stale-refresh protection. `ServerManager` emits all enabled, unexpired keys as `api-key-entries` for normal round-robin/sequential failover. `.metaAccountsChanged` triggers config hot reload and the shared Settings account list. |
 | `src/Sources/SettingsView.swift` | SwiftUI settings UI for server status, launch-at-login, provider toggles, auth flows, the Codex fast-mode (`service_tier=priority`) subsection, the Grok 4.6 Fast Mode toggle, the Copilot gateway status row (renders the `failed` reason plus a Retry button), the Factory custom-models Apply button, OLED theme, background opacity, and remote-access settings. No thinking/reasoning selectors — those live in Droid CLI. |
 | `src/Sources/AuthStatus.swift` | `AuthManager`, account parsing, expiry detection, file deletion, and per-account disabled-state updates. |
 | `src/Sources/AppPreferences.swift` | UserDefaults-backed preferences: fast-mode toggles for GPT 5.6-terra/5.6-sol/5.6-luna, Grok 4.6, and Cursor; `allowRemote`, `secretKey`, `oledTheme`, `backgroundOpacity`, `verboseLogging`. No thinking-effort keys — reasoning is driven entirely by Droid CLI. |

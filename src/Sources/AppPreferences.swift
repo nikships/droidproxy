@@ -10,6 +10,10 @@ enum AppPreferences {
     static let grok46FastModeKey = "grok46FastMode"
     /// Cursor Fast Mode (append `-fast` to Composer 2.5 and Cursor Grok 4.6).
     static let cursorFastModeKey = "cursorFastMode"
+    /// Meta Muse Contributor Mode: apply `muse-spark-1.3-contributor` instead of
+    /// `muse-spark-1.3` when Factory custom models are applied. Exactly one of
+    /// the two variants is ever active - never both.
+    static let metaContributorModeKey = "metaContributorMode"
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"
     static let bindAddressKey = "bindAddress"
@@ -25,6 +29,7 @@ enum AppPreferences {
     static let defaultGpt6AstraFastMode = false
     static let defaultGrok46FastMode = false
     static let defaultCursorFastMode = false
+    static let defaultMetaContributorMode = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
     static let defaultBindAddress = "127.0.0.1"
@@ -58,6 +63,10 @@ enum AppPreferences {
 
     static var cursorFastMode: Bool {
         UserDefaults.standard.bool(forKey: cursorFastModeKey)
+    }
+
+    static var metaContributorMode: Bool {
+        UserDefaults.standard.bool(forKey: metaContributorModeKey)
     }
 
     static var allowRemote: Bool {
