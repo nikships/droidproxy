@@ -3,6 +3,18 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class DroidProxyModelCatalogTests: XCTestCase {
+    func testBothMuseVariantsApplyMaxReasoning() {
+        for model in ["muse-spark-1.3", "muse-spark-1.3-contributor"] {
+            let entry = DroidProxyModelCatalog.museModel(
+                baseModel: model, idSlug: model, displayName: model
+            ).settingsEntry
+            XCTAssertEqual(entry["model"] as? String, model)
+            XCTAssertEqual(entry["defaultReasoningEffort"] as? String, "max")
+            XCTAssertEqual(entry["reasoningEffort"] as? String, "max")
+            XCTAssertEqual(entry["supportedReasoningEfforts"] as? [String],
+                           ["low", "medium", "high", "xhigh", "max"])
+        }
+    }
     func testFable5MatchesOpus48EffortLevels() throws {
         let fable = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:fable-5"))
 

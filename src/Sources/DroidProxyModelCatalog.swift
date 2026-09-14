@@ -124,7 +124,7 @@ enum DroidProxyModelCatalog {
     /// Muse Spark 1.3 and its cheaper/faster "contributor" companion, served via
     /// CLIProxyAPI's generic `openai-compatibility` passthrough to
     /// `https://api.meta.ai/v1` once `MetaMuseAuthManager` has minted a key.
-    private static func museModel(baseModel: String, idSlug: String, displayName: String) -> DroidProxyModelDefinition {
+    static func museModel(baseModel: String, idSlug: String, displayName: String) -> DroidProxyModelDefinition {
         DroidProxyModelDefinition(
             baseModel: baseModel,
             idSlug: idSlug,
@@ -136,7 +136,7 @@ enum DroidProxyModelCatalog {
             baseURL: "http://localhost:8317/v1",
             kind: .meta,
             levels: museLevels,
-            defaultLevelValue: "high"
+            defaultLevelValue: "max"
         )
     }
 
