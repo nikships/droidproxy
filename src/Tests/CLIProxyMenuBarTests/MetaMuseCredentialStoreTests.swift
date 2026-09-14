@@ -111,6 +111,38 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
         XCTAssertFalse(store.save(try credentials("bob")))
         XCTAssertEqual(try Data(contentsOf: store.accountsURL), corrupt)
     }
+    func testCatalogEligibilityMatchesConfigurationKeys() throws {
+        XCTAssertFalse(store.hasUsableAPIKey)
+        var valid = try credentials("valid")
+        valid.apiKeyExpiresAt = .distantFuture
+        XCTAssertTrue(store.save(valid))
+        XCTAssertTrue(store.hasUsableAPIKey)
+
+        var expired = try credentials("expired")
+        expired.apiKeyExpiresAt = .distantPast
+        XCTAssertTrue(store.save(expired))
+        XCTAssertTrue(store.save(try credentials("empty", key: "")))
+        XCTAssertTrue(store.toggleDisabled(id: try XCTUnwrap(store.accounts.first?.id)))
+        XCTAssertTrue(store.hasCredentials)
+        XCTAssertFalse(store.hasUsableAPIKey)
+        XCTAssertEqual(MetaMuseCredentialStore.compatibilityConfig(accounts: store.accounts, enabled: true), "")
+
+        XCTAssertTrue(store.toggleDisabled(id: try XCTUnwrap(store.accounts.first?.id)))
+        XCTAssertTrue(store.hasUsableAPIKey)
+        XCTAssertEqual(MetaMuseCredentialStore.usableAPIKeys(accounts: store.accounts), [valid.apiKey])
+        XCTAssertFalse(MetaMuseCredentialStore.compatibilityConfig(accounts: store.accounts, enabled: true).isEmpty)
+    }
+
+    func testKeyExpiringExactlyNowIsNotUsable() throws {
+        let credentials = try credentials("boundary")
+        let account = MetaMuseCredentialStore.account(for: credentials)
+        XCTAssertTrue(MetaMuseCredentialStore.usableAPIKeys(
+            accounts: [account], now: credentials.apiKeyExpiresAt
+        ).isEmpty)
+        XCTAssertEqual(MetaMuseCredentialStore.compatibilityConfig(
+            accounts: [account], enabled: true, now: credentials.apiKeyExpiresAt
+        ), "")
+    }
 
     func testMutationsNotifyUIAndBackendOnMainQueue() throws {
         let changed = expectation(forNotification: .metaAccountsChanged, object: store) { _ in

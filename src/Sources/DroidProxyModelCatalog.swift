@@ -448,11 +448,10 @@ enum DroidProxyModelCatalog {
         // written into Factory's customModels configuration.
         list.append(contentsOf: CopilotModelPreferences.selectedModels.map(copilotModel))
 
-        // Only expose Muse Spark once a Meta Muse login has actually minted an
-        // API key - otherwise Factory would list a dead entry with nothing
-        // behind it. Contributor Mode picks exactly one of the two variants;
+        // Only expose Muse Spark with an enabled, usable key, matching backend
+        // configuration eligibility. Contributor Mode picks exactly one of the two variants;
         // they are never both applied at once.
-        if MetaMuseCredentialStore.shared.hasCredentials {
+        if MetaMuseCredentialStore.shared.hasUsableAPIKey {
             if AppPreferences.metaContributorMode {
                 list.append(museModel(
                     baseModel: "muse-spark-1.3-contributor",

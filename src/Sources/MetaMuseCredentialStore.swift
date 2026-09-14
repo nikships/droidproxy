@@ -42,6 +42,7 @@ final class MetaMuseCredentialStore {
     }
 
     var hasCredentials: Bool { !accounts.isEmpty }
+    var hasUsableAPIKey: Bool { !Self.usableAPIKeys(accounts: accounts).isEmpty }
 
     private func load() throws -> [MetaMuseAccount] {
         if FileManager.default.fileExists(atPath: accountsURL.path) {
@@ -154,9 +155,13 @@ final class MetaMuseCredentialStore {
         }
     }
 
-    static func compatibilityConfig(accounts: [MetaMuseAccount], enabled: Bool, now: Date = Date()) -> String {
-        let keys = accounts.filter { !$0.disabled && $0.credentials.apiKeyExpiresAt > now }
+    static func usableAPIKeys(accounts: [MetaMuseAccount], now: Date = Date()) -> [String] {
+        accounts.filter { !$0.disabled && $0.credentials.apiKeyExpiresAt > now }
             .map(\.credentials.apiKey).filter { !$0.isEmpty }
+    }
+
+    static func compatibilityConfig(accounts: [MetaMuseAccount], enabled: Bool, now: Date = Date()) -> String {
+        let keys = usableAPIKeys(accounts: accounts, now: now)
         guard enabled, !keys.isEmpty else { return "" }
         // JSON strings are valid YAML scalars, including quotes/control characters.
         let entries = keys.map { key in
