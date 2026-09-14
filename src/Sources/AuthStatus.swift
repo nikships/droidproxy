@@ -9,6 +9,7 @@ enum ServiceType: String, CaseIterable {
     case junie
     case grok
     case copilot
+    case meta
 
     init?(authFileType: String) {
         switch authFileType.lowercased() {
@@ -28,6 +29,8 @@ enum ServiceType: String, CaseIterable {
             self = .grok
         case "copilot", "github-copilot":
             self = .copilot
+        case "meta", "muse":
+            self = .meta
         default:
             return nil
         }
@@ -43,6 +46,7 @@ enum ServiceType: String, CaseIterable {
         case .junie: return "Junie"
         case .grok: return "Grok"
         case .copilot: return "GitHub Copilot"
+        case .meta: return "Meta Muse"
         }
     }
 }
@@ -121,9 +125,7 @@ class AuthManager: ObservableObject {
             files = try FileManager.default.contentsOfDirectory(at: authDir, includingPropertiesForKeys: nil)
         } catch {
             NSLog("[AuthStatus] Error checking auth status: %@", error.localizedDescription)
-            let empty = Self.emptyAccounts()
-            DispatchQueue.main.async { self.serviceAccounts = empty }
-            return
+            files = []
         }
 
         NSLog("[AuthStatus] Scanning %d files in auth directory", files.count)
@@ -131,7 +133,7 @@ class AuthManager: ObservableObject {
         for file in files where file.pathExtension == "json" {
             NSLog("[AuthStatus] Checking file: %@", file.lastPathComponent)
             guard let account = parseAccount(from: file) else { continue }
-            if account.type == .cursor { continue }
+            if account.type == .cursor || account.type == .meta { continue }
             newAccounts[account.type]?.accounts.append(account)
             NSLog("[AuthStatus] Found %@ auth: %@", account.type.displayName, account.displayName)
         }
@@ -141,6 +143,7 @@ class AuthManager: ObservableObject {
             let email = CursorAgentProxyManager.currentLoginEmail()
             DispatchQueue.main.async {
                 var accounts = scannedAccounts
+                accounts[.meta]?.accounts = MetaMuseCredentialStore.shared.authAccounts
                 if let email {
                     let marker = authDir.appendingPathComponent("cursor-cli.json")
                     accounts[.cursor]?.accounts.append(
@@ -165,6 +168,11 @@ class AuthManager: ObservableObject {
 
     /// Toggle the disabled state of a specific account's auth file
     func toggleAccountDisabled(_ account: AuthAccount) -> Bool {
+        if account.type == .meta {
+            let updated = MetaMuseCredentialStore.shared.toggleDisabled(id: account.id)
+            if updated { checkAuthStatus() }
+            return updated
+        }
         do {
             let data = try Data(contentsOf: account.filePath)
             guard var json = try JSONSerialization.jsonObject(with: data) as? [String: Any] else {
@@ -193,6 +201,11 @@ class AuthManager: ObservableObject {
 
     /// Delete a specific account's auth file
     func deleteAccount(_ account: AuthAccount) -> Bool {
+        if account.type == .meta {
+            let removed = MetaMuseCredentialStore.shared.remove(id: account.id)
+            if removed { checkAuthStatus() }
+            return removed
+        }
         do {
             try FileManager.default.removeItem(at: account.filePath)
             NSLog("[AuthStatus] Deleted auth file: %@", account.filePath.path)

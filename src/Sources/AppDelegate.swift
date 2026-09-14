@@ -12,10 +12,15 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var thinkingProxy: ThinkingProxy!
     var copilotGateway: CopilotGatewayManager!
     var cursorAgentProxy: CursorAgentProxyManager!
+    var metaMuseAuth: MetaMuseAuthManager!
     private let notificationCenter = UNUserNotificationCenter.current()
     private let updaterController: SPUStandardUpdaterController
     private var authDirectoryMonitor: AuthDirectoryMonitor?
     private var themeObserver: NSObjectProtocol?
+    private var metaKeyRefreshTimer: Timer?
+    /// Re-mint well inside the ~24h Model API key lifetime
+    /// (`MetaMuseAuthManager`'s own margin re-mints starting 6h before expiry).
+    private static let metaKeyRefreshInterval: TimeInterval = 60 * 60
 
     private static let menuBarIconSize = NSSize(width: 18, height: 18)
 
@@ -45,6 +50,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         thinkingProxy = ThinkingProxy()
         copilotGateway = CopilotGatewayManager()
         cursorAgentProxy = CursorAgentProxyManager()
+        metaMuseAuth = MetaMuseAuthManager()
 
         // Warm commonly used icons to avoid first-use disk hits
         preloadIcons()
@@ -57,6 +63,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             copilotGateway.start()
         }
         maybeStartCursorAgentProxy()
+        startMetaKeyRefresh()
 
         // Register for notifications
         NotificationCenter.default.addObserver(
@@ -84,7 +91,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             ("icon-claude.png", serviceIconSize),
             ("icon-codex.png", serviceIconSize),
             ("icon-copilot.png", serviceIconSize),
-            ("icon-gemini.png", serviceIconSize)
+            ("icon-gemini.png", serviceIconSize),
+            ("icon-meta.svg", serviceIconSize)
         ]
 
         for (name, size) in iconsToPreload where IconCatalog.shared.image(named: name, resizedTo: size, template: true) == nil {
@@ -235,7 +243,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let contentView = SettingsView(
             serverManager: serverManager,
             copilotGateway: copilotGateway,
-            cursorAgentProxy: cursorAgentProxy
+            cursorAgentProxy: cursorAgentProxy,
+            metaMuseAuth: metaMuseAuth
         )
         window.contentView = NSHostingView(rootView: contentView)
 
@@ -341,6 +350,19 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         }
     }
 
+    /// Re-mints the Meta Muse Model API key before it's needed (if a login has
+    /// ever completed) and keeps doing so on a timer for the life of the app,
+    /// so a long-running DroidProxy never serves requests with a stale key.
+    private func startMetaKeyRefresh() {
+        if metaMuseAuth.hasCredentials {
+            metaMuseAuth.refreshAPIKeyIfNeeded()
+        }
+        metaKeyRefreshTimer?.invalidate()
+        metaKeyRefreshTimer = Timer.scheduledTimer(withTimeInterval: Self.metaKeyRefreshInterval, repeats: true) { [weak self] _ in
+            self?.metaMuseAuth.refreshAPIKeyIfNeeded()
+        }
+    }
+
     @objc func copyServerURL() {
         let pasteboard = NSPasteboard.general
         pasteboard.clearContents()
@@ -415,6 +437,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         removeThemeObserver()
         authDirectoryMonitor?.stop()
         authDirectoryMonitor = nil
+        metaKeyRefreshTimer?.invalidate()
+        metaKeyRefreshTimer = nil
         stopServersIfRunning()
         copilotGateway.stop()
         cursorAgentProxy.stop()

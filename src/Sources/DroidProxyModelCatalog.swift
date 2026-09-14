@@ -9,6 +9,7 @@ enum DroidProxyModelKind {
     case junie
     case grok
     case copilot
+    case meta
 }
 
 struct DroidProxyThinkingLevel: Equatable {
@@ -67,6 +68,8 @@ struct DroidProxyModelDefinition: Equatable {
             return "Antigravity: \(displayName)"
         case .copilot:
             return "GitHub Copilot: \(displayName)"
+        case .meta:
+            return "Meta: \(displayName)"
         default:
             return displayName
         }
@@ -113,6 +116,29 @@ enum DroidProxyModelCatalog {
     private static let gpt56Levels = [none, low, medium, high, xhigh, max]
     private static let gpt56SolLevels = [dynamic, low, medium, high, xhigh, max]
     private static let gpt6AstraLevels = [low, medium, high, xhigh, max]
+    // Full reasoning-effort range the `muse` CLI itself exposes for Muse Spark
+    // (`--reasoning-effort none|minimal|low|medium|high|xhigh|max|ultra`), minus
+    // `none`/`minimal`/`ultra` which aren't meaningful defaults for a coding model.
+    private static let museLevels = [low, medium, high, xhigh, max]
+
+    /// Muse Spark 1.3 and its cheaper/faster "contributor" companion, served via
+    /// CLIProxyAPI's generic `openai-compatibility` passthrough to
+    /// `https://api.meta.ai/v1` once `MetaMuseAuthManager` has minted a key.
+    static func museModel(baseModel: String, idSlug: String, displayName: String) -> DroidProxyModelDefinition {
+        DroidProxyModelDefinition(
+            baseModel: baseModel,
+            idSlug: idSlug,
+            displayName: displayName,
+            maxOutputTokens: 256_000,
+            maxContextLimit: 1_048_576,
+            provider: "openai",
+            providerKey: "meta",
+            baseURL: "http://localhost:8317/v1",
+            kind: .meta,
+            levels: museLevels,
+            defaultLevelValue: "max"
+        )
+    }
 
     private static func antigravityModel(
         baseModel: String,
@@ -421,6 +447,21 @@ enum DroidProxyModelCatalog {
         // of DroidProxy. Only the three models the user selected in Settings are
         // written into Factory's customModels configuration.
         list.append(contentsOf: CopilotModelPreferences.selectedModels.map(copilotModel))
+
+        // Only expose Muse Spark with an enabled, usable key, matching backend
+        // configuration eligibility. Contributor Mode picks exactly one of the two variants;
+        // they are never both applied at once.
+        if MetaMuseCredentialStore.shared.hasUsableAPIKey {
+            if AppPreferences.metaContributorMode {
+                list.append(museModel(
+                    baseModel: "muse-spark-1.3-contributor",
+                    idSlug: "muse-spark-1.3-contributor",
+                    displayName: "Muse Spark 1.3 Contributor"
+                ))
+            } else {
+                list.append(museModel(baseModel: "muse-spark-1.3", idSlug: "muse-spark-1.3", displayName: "Muse Spark 1.3"))
+            }
+        }
 
         if BETA_FLAG {
             // Composer 2.5 has no thinking-level variants in `agent --list-models`

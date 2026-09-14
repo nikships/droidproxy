@@ -251,7 +251,8 @@ struct ServiceRow<ExtraContent: View>: View {
                                 .foregroundColor(AccountRowView.accent)
 
                             if enabledCount > 1 {
-                                Text("• Round-robin w/ auto-failover")
+                                Text(AppPreferences.sequentialAccountFailover
+                                     ? "• Sequential auto-failover" : "• Round-robin w/ auto-failover")
                                     .font(.caption)
                                     .foregroundColor(.secondary)
                             }
@@ -329,6 +330,7 @@ struct SettingsView: View {
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var copilotGateway: CopilotGatewayManager
     @ObservedObject var cursorAgentProxy: CursorAgentProxyManager
+    @ObservedObject var metaMuseAuth: MetaMuseAuthManager
     @StateObject private var authManager = AuthManager()
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
@@ -338,6 +340,7 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.gpt6AstraFastModeKey) private var gpt6AstraFastMode = AppPreferences.defaultGpt6AstraFastMode
     @AppStorage(AppPreferences.grok46FastModeKey) private var grok46FastMode = AppPreferences.defaultGrok46FastMode
     @AppStorage(AppPreferences.cursorFastModeKey) private var cursorFastMode = AppPreferences.defaultCursorFastMode
+    @AppStorage(AppPreferences.metaContributorModeKey) private var metaContributorMode = AppPreferences.defaultMetaContributorMode
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.bindAddressKey) private var bindAddress = AppPreferences.defaultBindAddress
@@ -355,6 +358,8 @@ struct SettingsView: View {
     @State private var grokUserCode: String?
     @State private var copilotDeviceCode: String?
     @State private var copilotVerificationURL: URL?
+    @State private var metaDeviceCode: String?
+    @State private var metaVerificationURL: URL?
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
@@ -372,12 +377,20 @@ struct SettingsView: View {
     private let junieEffortSelectionColor = Color(red: 0x48/255, green: 0xE0/255, blue: 0x54/255)
     private let grokEffortSelectionColor = Color(red: 0x1D/255, green: 0x9B/255, blue: 0xF0/255)
     private let copilotSelectionColor = Color(red: 0x77/255, green: 0xB9/255, blue: 0xFF/255)
+    // Meta's brand blue ("Meta Blue", #0866FF).
+    private let metaSelectionColor = Color(red: 0x08/255, green: 0x66/255, blue: 0xFF/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
-    init(serverManager: ServerManager, copilotGateway: CopilotGatewayManager, cursorAgentProxy: CursorAgentProxyManager) {
+    init(
+        serverManager: ServerManager,
+        copilotGateway: CopilotGatewayManager,
+        cursorAgentProxy: CursorAgentProxyManager,
+        metaMuseAuth: MetaMuseAuthManager
+    ) {
         self.serverManager = serverManager
         self.copilotGateway = copilotGateway
         self.cursorAgentProxy = cursorAgentProxy
+        self.metaMuseAuth = metaMuseAuth
         let selected = CopilotModelPreferences.selectedModelIDs
         _copilotModelSlots = State(
             initialValue: selected + Array(
@@ -794,8 +807,6 @@ struct SettingsView: View {
                         toggleTint: codexEffortSelectionColor
                     )
 
-                    copilotServiceRow()
-
                     if serverManager.isProviderEnabled(.codex) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
@@ -837,6 +848,15 @@ struct SettingsView: View {
                             }
                         }
                         .padding(.leading, 28)
+                    }
+
+                    copilotServiceRow()
+
+                    metaServiceRow()
+
+                    if serverManager.isProviderEnabled(.meta) {
+                        metaContributorModeRow()
+                            .padding(.leading, 28)
                     }
 
                     providerServiceRow(
@@ -1039,6 +1059,10 @@ struct SettingsView: View {
         }
         .onChange(of: codexUsageAccountSignature) { _ in
             refreshOAuthUsage()
+        }
+        .onReceive(NotificationCenter.default.publisher(for: .metaAccountsChanged)) { _ in
+            authManager.checkAuthStatus()
+            factoryModelsInstalled = checkFactoryModelsInstalled()
         }
         .onDisappear {
             stopMonitoringAuthDirectory()
@@ -1378,6 +1402,124 @@ struct SettingsView: View {
         factoryModelsInstalled = checkFactoryModelsInstalled()
     }
 
+    // MARK: - Meta Muse
+
+    @ViewBuilder
+    private func metaServiceRow() -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            providerServiceRow(
+                .meta, iconName: "icon-meta.svg", toggleTint: metaSelectionColor,
+                helpText: "Add Meta Muse accounts for automatic account failover.",
+                onToggleEnabled: { enabled in
+                    if !enabled { cancelMetaAuthentication() }
+                    else { metaMuseAuth.refreshAPIKeyIfNeeded() }
+                    factoryModelsInstalled = checkFactoryModelsInstalled()
+                }
+            )
+            if serverManager.isProviderEnabled(.meta) {
+                if metaMuseAuth.state == .authenticating {
+                    metaDeviceCodeRow()
+                    Button("Cancel sign-in") { cancelMetaAuthentication() }
+                        .droidGlassPlain()
+                        .controlSize(.small)
+                        .padding(.leading, 28)
+                }
+                if let error = metaMuseAuth.lastError {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.leading, 28)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func metaDeviceCodeRow() -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            if let metaDeviceCode {
+                Text("Complete Meta sign-in with this device code:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    Text(metaDeviceCode)
+                        .font(.system(.body, design: .monospaced))
+                        .fontWeight(.semibold)
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(metaDeviceCode, forType: .string)
+                    }
+                    .droidGlassPlain()
+                    .controlSize(.small)
+                    if let metaVerificationURL {
+                        Link("Open Meta", destination: metaVerificationURL)
+                            .droidGlassPlain()
+                            .controlSize(.small)
+                            .pointingHandCursor()
+                    }
+                }
+            } else {
+                Text("Waiting for Meta to provide a device code…")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+            }
+        }
+        .padding(.leading, 28)
+    }
+
+    private func startMetaAuthentication() {
+        metaDeviceCode = nil
+        metaVerificationURL = nil
+        metaMuseAuth.startAuthentication(
+            onDeviceCode: { code, verificationURL in
+                self.metaDeviceCode = code
+                self.metaVerificationURL = verificationURL
+            },
+            completion: { result in
+                self.metaDeviceCode = nil
+                self.metaVerificationURL = nil
+                switch result {
+                case .success:
+                    self.authResultMessage = "Meta Muse connected.\n\nMuse Spark 1.3 and Muse Spark 1.3 Contributor are now available. Re-apply Factory custom models to pick them up."
+                case .failure(let error):
+                    self.authResultMessage = "Meta Muse authentication failed: \(error.localizedDescription)"
+                }
+                self.factoryModelsInstalled = self.checkFactoryModelsInstalled()
+                self.showingAuthResult = true
+            }
+        )
+    }
+
+    private func cancelMetaAuthentication() {
+        metaMuseAuth.cancelAuthentication()
+        metaDeviceCode = nil
+        metaVerificationURL = nil
+    }
+
+    /// Same visual language as `codexFastModeToggleRow`, but a single toggle:
+    /// Contributor Mode picks `muse-spark-1.3-contributor` instead of
+    /// `muse-spark-1.3` when Factory custom models are applied. The two
+    /// variants are mutually exclusive - `DroidProxyModelCatalog` only ever
+    /// emits one of them.
+    @ViewBuilder
+    private func metaContributorModeRow() -> some View {
+        HStack {
+            Text("Muse Spark")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            Spacer()
+            Toggle("Contributor mode", isOn: $metaContributorMode)
+                .toggleStyle(.checkbox)
+                .font(.caption)
+                .help("Applies Muse Spark 1.3 Contributor instead of Muse Spark 1.3 when Factory custom models are applied. Only one is ever active.")
+        }
+        .padding(.vertical, 2)
+        .onChange(of: metaContributorMode) { _ in
+            factoryModelsInstalled = checkFactoryModelsInstalled()
+        }
+    }
+
     /// Constructs a `ServiceRow` wired up to the standard auth/server callbacks.
     /// Keeps the body's `Section("Services")` declaration compact and free of
     /// repeated boilerplate per provider.
@@ -1393,7 +1535,7 @@ struct SettingsView: View {
             serviceType: serviceType,
             iconName: iconName,
             accounts: authManager.accounts(for: serviceType),
-            isAuthenticating: authenticatingService == serviceType,
+            isAuthenticating: serviceType == .meta ? metaMuseAuth.state == .authenticating : authenticatingService == serviceType,
             helpText: helpText,
             isEnabled: serverManager.isProviderEnabled(serviceType),
             customTitle: nil,
@@ -1427,6 +1569,9 @@ struct SettingsView: View {
     
     private func toggleAccountDisabled(_ account: AuthAccount) {
         if authManager.toggleAccountDisabled(account) {
+            if account.type == .meta, account.isDisabled {
+                metaMuseAuth.refreshAPIKeyIfNeeded()
+            }
             authResultMessage = account.isDisabled
                 ? "✓ Enabled \(account.displayName)"
                 : "✓ Disabled \(account.displayName)"
@@ -1510,6 +1655,11 @@ struct SettingsView: View {
             return
         }
 
+        if serviceType == .meta {
+            startMetaAuthentication()
+            return
+        }
+
         authenticatingService = serviceType
         NSLog("[SettingsView] Starting %@ authentication", serviceType.displayName)
         
@@ -1523,6 +1673,7 @@ struct SettingsView: View {
         case .junie: return // handled by the early-return above; defensive
         case .grok: return // handled by the early-return above; defensive
         case .copilot: return // handled by the early-return above; defensive
+        case .meta: return // handled by the early-return above; defensive
         }
         
         serverManager.runAuthCommand(command) { success, output in
@@ -1558,6 +1709,8 @@ struct SettingsView: View {
             return "🌐 Browser opened for Grok (xAI) authentication.\n\nApprove access for SuperGrok / X Premium+, then DroidProxy will save credentials automatically."
         case .copilot:
             return "🌐 GitHub Copilot sign-in started."
+        case .meta:
+            return "🌐 Meta Muse sign-in started."
         }
     }
 
@@ -1724,8 +1877,15 @@ struct SettingsView: View {
             showingAuthResult = true
             return
         }
+        if account.type == .meta {
+            let removed = authManager.deleteAccount(account)
+            authResultMessage = removed ? "Removed \(account.displayName) from Meta Muse" : "Failed to remove account"
+            factoryModelsInstalled = checkFactoryModelsInstalled()
+            showingAuthResult = true
+            return
+        }
         let wasRunning = serverManager.isRunning
-        
+
         // Stop server, delete file, restart
         let cleanup = {
             if self.authManager.deleteAccount(account) {
