@@ -476,8 +476,9 @@ class ServerManager: ObservableObject {
             }
         }
 
-        // Each enabled Meta account participates in the backend's existing
-        // round-robin / sequential routing and credential retry policy.
+        // Completions still go through this compatibility block (and its
+        // account failover). Responses are TLS-forwarded by ThinkingProxy —
+        // CLIProxyAPI would otherwise rewrite them into `/chat/completions`.
         configContent += MetaMuseCredentialStore.compatibilityConfig(
             accounts: MetaMuseCredentialStore.shared.accounts,
             enabled: isProviderEnabled(.meta)

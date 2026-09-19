@@ -163,6 +163,9 @@ final class MetaMuseCredentialStore {
     static func compatibilityConfig(accounts: [MetaMuseAccount], enabled: Bool, now: Date = Date()) -> String {
         let keys = usableAPIKeys(accounts: accounts, now: now)
         guard enabled, !keys.isEmpty else { return "" }
+        // Completions still go through this compatibility block (and its
+        // account failover). Responses are TLS-forwarded by ThinkingProxy —
+        // CLIProxyAPI would otherwise rewrite them into `/chat/completions`.
         // JSON strings are valid YAML scalars, including quotes/control characters.
         let entries = keys.map { key in
             let quoted = String(data: try! JSONEncoder().encode(key), encoding: .utf8)!
