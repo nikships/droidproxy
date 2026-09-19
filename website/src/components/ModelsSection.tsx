@@ -17,6 +17,14 @@ const models = [
   },
   {
     icon: '/assets/icon-claude.png',
+    name: 'Claude Opus 5.2',
+    id: 'opus-5-2',
+    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    max: '128,000',
+    provider: 'Anthropic',
+  },
+  {
+    icon: '/assets/icon-claude.png',
     name: 'Claude Opus 5',
     id: 'opus-5',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
