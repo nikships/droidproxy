@@ -121,9 +121,10 @@ enum DroidProxyModelCatalog {
     // `none`/`minimal`/`ultra` which aren't meaningful defaults for a coding model.
     private static let museLevels = [low, medium, high, xhigh, max]
 
-    /// Muse Spark 1.3 and its cheaper/faster "contributor" companion, served via
-    /// CLIProxyAPI's generic `openai-compatibility` passthrough to
-    /// `https://api.meta.ai/v1` once `MetaMuseAuthManager` has minted a key.
+    /// Muse Spark 1.3 and its cheaper/faster "contributor" companion. Completions
+    /// go through CLIProxyAPI's `openai-compatibility` passthrough; Responses are
+    /// TLS-forwarded by ThinkingProxy to `https://api.meta.ai/v1` so encrypted
+    /// reasoning can persist across turns.
     static func museModel(baseModel: String, idSlug: String, displayName: String) -> DroidProxyModelDefinition {
         DroidProxyModelDefinition(
             baseModel: baseModel,

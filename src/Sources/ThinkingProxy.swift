@@ -17,6 +17,8 @@ import Network
    support Gemini via the Responses API endpoint.
  - Rewrites Grok native `<|tool_calls_begin|>` markup leaked into chat-completion
    content into OpenAI `tool_calls` so Factory's generic OpenAI adapter executes them.
+ - TLS-forwards Muse Spark `/v1/responses` (and `/responses/compact`) to
+   `api.meta.ai` so CLIProxyAPI cannot translate Responses into Chat Completions.
 
  JSON edits and hot-path inspections are surgical (no full JSON re-serialization) so
  Anthropic prompt-cache key ordering is preserved and large prompts avoid parse overhead.
@@ -422,6 +424,24 @@ class ThinkingProxy {
                 }
                 forwardToGrok(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: grokBody, originalConnection: connection)
                 return
+            }
+            if isMetaModel(requestFields) {
+                guard isMetaEnabled() else {
+                    NSLog("[ThinkingProxy] Warning: Meta Muse model requested but the provider is disabled in settings.")
+                    sendError(to: connection, statusCode: 400, message: "Meta Muse provider is disabled in DroidProxy settings.")
+                    return
+                }
+                if MetaMuseUpstream.shouldTLSForward(model: requestFields?.model, path: rewrittenPath) {
+                    forwardToMeta(
+                        method: method,
+                        path: rewrittenPath,
+                        version: httpVersion,
+                        headers: headers,
+                        body: modifiedBody,
+                        originalConnection: connection
+                    )
+                    return
+                }
             }
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath, fields: requestFields) {
                 modifiedBody = result
@@ -1488,6 +1508,105 @@ class ThinkingProxy {
             label: "Grok",
             rewriteGrokNativeToolCalls: true
         )
+    }
+
+    // MARK: - Meta Muse (minted key → api.meta.ai Responses)
+
+    // Muse Spark is Responses-native. CLIProxyAPI `openai-compatibility` always
+    // POSTs `/chat/completions` for `/v1/responses`, which returns `chatcmpl-*`
+    // ids and drops `reasoning.encrypted_content`. Completions still go through
+    // CLIProxyAPI so multi-account failover keeps working.
+
+    private func isMetaModel(_ requestFields: RequestJSONFields?) -> Bool {
+        MetaMuseUpstream.isMetaModel(requestFields?.model)
+    }
+
+    private func isMetaEnabled() -> Bool {
+        if let saved = UserDefaults.standard.dictionary(forKey: "enabledProviders") as? [String: Bool] {
+            return saved["meta"] ?? true
+        }
+        return true
+    }
+
+    private func loadMetaAPIKey() -> String? {
+        MetaMuseCredentialStore.usableAPIKeys(accounts: MetaMuseCredentialStore.shared.accounts).first
+    }
+
+    private func forwardToMeta(
+        method: String,
+        path: String,
+        version: String,
+        headers: [(String, String)],
+        body: String,
+        originalConnection: NWConnection
+    ) {
+        guard let apiKey = loadMetaAPIKey() else {
+            NSLog("[ThinkingProxy] Error: No active Meta Muse API key found")
+            sendError(
+                to: originalConnection,
+                statusCode: 401,
+                message: "No active Meta Muse API key found. Connect Meta Muse in DroidProxy settings."
+            )
+            return
+        }
+
+        let tlsOptions = NWProtocolTLS.Options()
+        let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
+        let host = MetaMuseUpstream.apiHost
+        let upstreamPath = MetaMuseUpstream.upstreamPath(path)
+        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: 443)
+        let targetConnection = NWConnection(to: endpoint, using: parameters)
+
+        targetConnection.stateUpdateHandler = { [weak self] state in
+            guard let self = self else { return }
+            switch state {
+            case .ready:
+                var forwardedRequest = "\(method) \(upstreamPath) \(version)\r\n"
+                for (name, value) in GrokAuth.filterClientHeaders(headers) {
+                    forwardedRequest += "\(name): \(value)\r\n"
+                }
+
+                forwardedRequest += "Host: \(host)\r\n"
+                forwardedRequest += "Authorization: Bearer \(apiKey)\r\n"
+                forwardedRequest += "Content-Type: application/json\r\n"
+                forwardedRequest += "Accept-Encoding: identity\r\n"
+                forwardedRequest += "Connection: close\r\n"
+                forwardedRequest += "Content-Length: \(body.utf8.count)\r\n\r\n"
+                forwardedRequest += body
+
+                ThinkingProxy.fileLog("FORWARD META: \(method) \(upstreamPath) -> \(host)")
+
+                if let requestData = forwardedRequest.data(using: .utf8) {
+                    targetConnection.send(content: requestData, completion: .contentProcessed({ error in
+                        if let error = error {
+                            NSLog("[ThinkingProxy] Send error to \(host): \(error)")
+                            targetConnection.cancel()
+                            originalConnection.cancel()
+                        } else {
+                            self.receiveMetaResponse(from: targetConnection, originalConnection: originalConnection)
+                        }
+                    }))
+                } else {
+                    NSLog("[ThinkingProxy] Failed to encode Meta upstream request as UTF-8")
+                    self.sendError(to: originalConnection, statusCode: 500, message: "Failed to encode Meta Muse request.")
+                    targetConnection.cancel()
+                }
+
+            case .failed(let error):
+                NSLog("[ThinkingProxy] Connection to \(host) failed: \(error)")
+                self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway - Could not connect to \(host)")
+                targetConnection.cancel()
+
+            default:
+                break
+            }
+        }
+
+        targetConnection.start(queue: .global(qos: .userInitiated))
+    }
+
+    private func receiveMetaResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
+        relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection, label: "Meta")
     }
 
     /// Shared TLS upstream → client relay used by Cursor / Junie / Grok paths.

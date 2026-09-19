@@ -62,8 +62,9 @@ enum MetaMuseState: Equatable {
 /// HTTPS calls, no child process): device authorization and token polling
 /// against `auth.meta.com`, then Model API key minting against
 /// `api.meta.ai/muse-code/key`. The resulting API key is what `ServerManager`
-/// writes into CLIProxyAPI's `openai-compatibility` config for the `meta`
-/// provider.
+/// writes into CLIProxyAPI's `openai-compatibility` config for Completions.
+/// Muse `/v1/responses` is TLS-forwarded by ThinkingProxy instead, because the
+/// compatibility executor translates Responses into Chat Completions.
 ///
 /// This contract is reverse-engineered from the installed `muse` CLI binary
 /// and a working third-party client (`pi-meta-oauth`), not from official Meta
