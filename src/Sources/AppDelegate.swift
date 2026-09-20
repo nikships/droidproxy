@@ -13,7 +13,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var copilotGateway: CopilotGatewayManager!
     var cursorAgentProxy: CursorAgentProxyManager!
     var metaMuseAuth: MetaMuseAuthManager!
-    private let notificationCenter = UNUserNotificationCenter.current()
+    private lazy var notificationCenter = UNUserNotificationCenter.current()
     private let updaterController: SPUStandardUpdaterController
     private var authDirectoryMonitor: AuthDirectoryMonitor?
     private var metaKeyRefreshTimer: Timer?
@@ -32,6 +32,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     
     override init() {
         self.updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        super.init()
+    }
+
+    /// Allows menu wiring to be tested without starting Sparkle or the proxy.
+    init(updaterController: SPUStandardUpdaterController) {
+        self.updaterController = updaterController
         super.init()
     }
 
@@ -144,26 +150,31 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         updateStatusBarIcon(isRunning: false)
 
         menu = NSMenu(title: "DroidProxy")
-        let statusItem = NSMenuItem(title: "Proxy offline", action: nil, keyEquivalent: "")
-        statusItem.isEnabled = false
-        menu.addItem(statusItem)
+        let statusRow = NSMenuItem(title: "Proxy offline", action: nil, keyEquivalent: "")
+        statusRow.isEnabled = false
+        menu.addItem(statusRow)
         menu.addItem(NSMenuItem.separator())
 
-        menu.addItem(NSMenuItem(title: "Open Settings", action: #selector(openSettings), keyEquivalent: "s"))
+        let settingsItem = NSMenuItem(title: "Open Settings", action: #selector(openSettings), keyEquivalent: "s")
+        settingsItem.target = self
+        menu.addItem(settingsItem)
         menu.addItem(NSMenuItem.separator())
 
         let startStopItem = NSMenuItem(title: "Start Server", action: #selector(toggleServer), keyEquivalent: "")
+        startStopItem.target = self
         startStopItem.tag = MenuTag.startStop
         menu.addItem(startStopItem)
 
         menu.addItem(NSMenuItem.separator())
 
         let copyURLItem = NSMenuItem(title: "Copy Server URL", action: #selector(copyServerURL), keyEquivalent: "c")
+        copyURLItem.target = self
         copyURLItem.isEnabled = false
         copyURLItem.tag = MenuTag.copyURL
         menu.addItem(copyURLItem)
 
         let dashboardItem = NSMenuItem(title: "Open Dashboard", action: #selector(openDashboard), keyEquivalent: "d")
+        dashboardItem.target = self
         dashboardItem.isEnabled = false
         dashboardItem.tag = MenuTag.dashboard
         menu.addItem(dashboardItem)
@@ -175,9 +186,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         menu.addItem(checkForUpdatesItem)
 
         menu.addItem(NSMenuItem.separator())
-        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
 
-        statusItem.menu = menu
+        // Attach to the NSStatusItem, never to an NSMenuItem inside the menu.
+        self.statusItem.menu = menu
     }
 
     /// Updates the menu-bar icon to reflect the current running state, falling
