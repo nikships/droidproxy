@@ -158,10 +158,10 @@ struct ServiceRow<ExtraContent: View>: View {
                         HStack(spacing: 6) {
                             Text("Add Account")
                             Image(systemName: "arrow.right")
-                                .font(Theme.mono(10, weight: .semibold))
+                                .font(Theme.mono(9, weight: .semibold))
                         }
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle(compact: true))
                 }
             }
             
@@ -411,6 +411,29 @@ struct SettingsView: View {
             .foregroundColor(Theme.textTertiary)
     }
 
+    /// Hero "APPLY →" CTA until the custom models are installed; afterwards it
+    /// demotes to a quiet ghost "RE-APPLY →" so the attract loop only pitches
+    /// the action while it is still needed.
+    @ViewBuilder
+    private var applyModelsButton: some View {
+        let label = HStack(spacing: 6) {
+            Text(factoryModelsInstalled ? "Re-apply" : "Apply")
+            if factoryModelsInstalled {
+                Image(systemName: "arrow.right")
+                    .font(Theme.mono(10, weight: .semibold))
+            } else {
+                CTAArrowGlyph()
+            }
+        }
+        if factoryModelsInstalled {
+            Button(action: applyFactoryCustomModels) { label }
+                .buttonStyle(GhostButtonStyle())
+        } else {
+            Button(action: applyFactoryCustomModels) { label }
+                .buttonStyle(ApplyCTAButtonStyle())
+        }
+    }
+
     private enum Timing {
         static let serverRestartDelay: TimeInterval = 0.3
         static let refreshDebounce: TimeInterval = 0.5
@@ -533,16 +556,7 @@ struct SettingsView: View {
                                         .foregroundColor(Theme.accent)
                                 }
                             }
-                            Button {
-                                applyFactoryCustomModels()
-                            } label: {
-                                HStack(spacing: 6) {
-                                    Text(factoryModelsInstalled ? "Re-apply" : "Apply")
-                                    Image(systemName: "arrow.right")
-                                        .font(Theme.mono(10, weight: .semibold))
-                                }
-                            }
-                            .buttonStyle(PrimaryButtonStyle())
+                            applyModelsButton
                         }
 
                         Text("Apply writes DroidProxy model aliases into ~/.factory/settings.json and makes a timestamped backup first. Reasoning effort is selected from Droid CLI when the model exposes multiple levels.")
@@ -990,10 +1004,10 @@ struct SettingsView: View {
                         HStack(spacing: 6) {
                             Text("Connect")
                             Image(systemName: "arrow.right")
-                                .font(Theme.mono(10, weight: .semibold))
+                                .font(Theme.mono(9, weight: .semibold))
                         }
                     }
-                    .buttonStyle(PrimaryButtonStyle())
+                    .buttonStyle(PrimaryButtonStyle(compact: true))
                 }
             }
 
