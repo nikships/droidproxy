@@ -4,7 +4,7 @@ import { VERSION, GITHUB, RELEASES } from '../content'
 export default function HeroSection() {
   return (
     <section className="hero">
-      <div className="container">
+      <div className="container hero-grid">
         <div className="hero-copy">
           <span className="eyebrow"><span className="dot"></span>v{VERSION} · macOS · free & open source</span>
           <h1 className="title">
@@ -31,29 +31,19 @@ export default function HeroSection() {
           </div>
         </div>
 
-        <div className="hero-pair">
-          <figure className="settings-shot-wrap">
-            <img
-              className="settings-shot"
-              src="/assets/settings-screenshot.png"
-              alt="DroidProxy Settings — Claude, ChatGPT, and Gemini connected, Factory custom models applied."
-              loading="eager"
-            />
-            <figcaption>
-              DroidProxy Settings. Sign in to <span className="mono">Claude</span>, <span className="mono">ChatGPT</span>, and <span className="mono">Gemini</span> — the same flow for every other lab — then Apply.
-            </figcaption>
-          </figure>
-          <figure className="cli-shot-wrap">
-            <img
-              className="cli-shot"
-              src="/assets/droid-cli.png"
-              alt="Factory Droid CLI — a New Chat Session with tool calls, a plan, and the prompt composer."
-              loading="eager"
-            />
-            <figcaption>
-              Factory Droid CLI. Pick <span className="mono">DroidProxy: Fable 5.1</span> or <span className="mono">GPT 6 Astra</span> from <span className="mono">/model</span>.
-            </figcaption>
-          </figure>
+        <div className="hero-visual">
+          <img
+            className="cli-shot"
+            src="/assets/droid-cli.png"
+            alt="Factory Droid CLI — a New Chat Session with tool calls, a plan, and the prompt composer."
+            loading="eager"
+          />
+          <img
+            className="settings-shot"
+            src="/assets/settings-screenshot.png"
+            alt="DroidProxy Settings — Claude, ChatGPT, and Gemini connected, Factory custom models applied."
+            loading="eager"
+          />
         </div>
       </div>
     </section>
