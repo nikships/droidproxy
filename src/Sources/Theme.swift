@@ -127,13 +127,12 @@ struct SectionLabel: View {
     }
 }
 
-/// Hero CTA for the Factory custom-models Apply action. Same light-filled
-/// inversion as factory.ai's "START BUILDING →", plus a quiet attract loop:
-/// a Factory-orange hairline scans along the button's bottom edge while the
-/// trailing arrow (`CTAArrowGlyph`) breathes. Hover brightens the fill and
-/// the arrow starts nudging; pressing flashes the fill to the bright accent,
-/// scales the button down slightly, and fires a fast scanner wipe across it.
-/// All motion is mechanical easeOut/linear — no springs, no shimmer.
+/// Hero CTA for the Factory custom-models Apply action: the same light-filled
+/// inversion as factory.ai's "START BUILDING →". Motion is deliberately
+/// minimal and purely state-driven — the trailing arrow (`CTAArrowGlyph`)
+/// breathes at rest, hovering brightens the fill and speeds the arrow up, and
+/// pressing flashes the fill to the bright accent with a small scale dip.
+/// No overlay geometry, no sweeps — nothing that can half-render.
 struct ApplyCTAButtonStyle: ButtonStyle {
     @State private var isHovering = false
 
@@ -143,27 +142,14 @@ struct ApplyCTAButtonStyle: ButtonStyle {
             .textCase(.uppercase)
             .tracking(0.5)
             .foregroundStyle(Color.black.opacity(0.9))
-            .scaleEffect(configuration.isPressed ? 0.97 : 1)
+            .scaleEffect(configuration.isPressed ? 0.96 : 1)
             .padding(.horizontal, 18)
             .padding(.vertical, 10)
             .background(
-                GeometryReader { geo in
-                    ZStack {
-                        RoundedRectangle(cornerRadius: Theme.corner)
-                            .fill(configuration.isPressed
-                                ? Theme.accentBright
-                                : (isHovering ? Color.white : Theme.textPrimary))
-                        ScanLine(width: geo.size.width)
-                        PressWipe(width: geo.size.width, pressed: configuration.isPressed)
-                    }
-                    .clipShape(RoundedRectangle(cornerRadius: Theme.corner))
-                }
-            )
-            .overlay(
                 RoundedRectangle(cornerRadius: Theme.corner)
-                    .strokeBorder(
-                        configuration.isPressed ? Theme.accent : Theme.borderStrong,
-                        lineWidth: 1)
+                    .fill(configuration.isPressed
+                        ? Theme.accentBright
+                        : (isHovering ? Color.white : Theme.textPrimary))
             )
             .animation(.easeOut(duration: 0.12), value: isHovering)
             .animation(.easeOut(duration: 0.12), value: configuration.isPressed)
@@ -171,83 +157,29 @@ struct ApplyCTAButtonStyle: ButtonStyle {
     }
 }
 
-/// A Factory-orange hairline that repeatedly scans the button's bottom edge,
-/// entering from the left and exiting at the right. Static (parked offscreen)
-/// under Reduce Motion.
-private struct ScanLine: View {
-    let width: CGFloat
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var running = false
-
-    var body: some View {
-        Rectangle()
-            .fill(Theme.accent)
-            .frame(width: 26, height: 1.5)
-            .offset(x: running ? width + 26 : -26, y: -1)
-            .animation(
-                reduceMotion
-                    ? nil
-                    : .linear(duration: 2.6).repeatForever(autoreverses: false),
-                value: running)
-            .onAppear { running = true }
-    }
-}
-
-/// One-shot dark scanner wipe fired when the button goes down. Sweeps a flat
-/// translucent-black segment left→right in 0.26s, then parks until the next
-/// press. Disabled under Reduce Motion.
-private struct PressWipe: View {
-    let width: CGFloat
-    let pressed: Bool
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    @State private var sweeping = false
-
-    private var segmentWidth: CGFloat { max(22, width * 0.3) }
-
-    var body: some View {
-        Rectangle()
-            .fill(Color.black.opacity(0.16))
-            .frame(width: segmentWidth)
-            .offset(x: sweeping ? width : -segmentWidth)
-            .allowsHitTesting(false)
-            .onChange(of: pressed) { down in
-                guard down, !reduceMotion else { return }
-                sweeping = true
-                withAnimation(.easeOut(duration: 0.26)) { sweeping = false }
-                DispatchQueue.main.asyncAfter(deadline: .now() + 0.32) { sweeping = false }
-            }
-    }
-}
-
-/// Trailing arrow for the Apply CTA. Breathes slowly at rest (0→2pt); while
-/// hovered it switches to a quicker, longer nudge (0→3.5pt) — as if impatient
-/// to go. Static under Reduce Motion.
+/// Trailing arrow for the Apply CTA. Oscillates a fixed 0→3pt: a slow breath
+/// at rest, a quick nudge while hovered. Static under Reduce Motion.
 struct CTAArrowGlyph: View {
     @Environment(\.accessibilityReduceMotion) private var reduceMotion
     @State private var isHovering = false
-    @State private var phase: CGFloat = 0
+    @State private var nudge = false
 
     var body: some View {
         Image(systemName: "arrow.right")
             .font(Theme.mono(10, weight: .semibold))
-            .offset(x: phase)
+            .offset(x: nudge ? 3 : 0)
             .animation(
                 reduceMotion
                     ? nil
-                    : .easeInOut(duration: isHovering ? 0.4 : 1.8).repeatForever(autoreverses: true),
-                value: phase)
+                    : .easeInOut(duration: isHovering ? 0.35 : 1.6).repeatForever(autoreverses: true),
+                value: nudge)
             .onAppear {
                 guard !reduceMotion else { return }
-                phase = 2
+                nudge = true
             }
             .onHover { hovering in
-                guard !reduceMotion else { return }
                 isHovering = hovering
-                // Reset without animating so the loop always oscillates from 0.
-                var reset = Transaction()
-                reset.disablesAnimations = true
-                withTransaction(reset) { phase = 0 }
-                phase = hovering ? 3.5 : 2
+                if !reduceMotion { nudge.toggle() }
             }
     }
 }
