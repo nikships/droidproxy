@@ -1,11 +1,13 @@
+import Eyebrow from './Eyebrow'
+
 export default function ShowcaseVideoSection() {
   return (
     <section id="showcase-video" className="showcase-video-section">
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 08 — Walkthrough</div>
-            <h2 style={{ marginTop: 10 }}>See the local path in motion.</h2>
+            <Eyebrow index="09">Walkthrough</Eyebrow>
+            <h2>See the local path in motion.</h2>
           </div>
           <p>Menu bar setup, localhost proxy, model registration, and provider routing — the same loop the install steps describe.</p>
         </div>

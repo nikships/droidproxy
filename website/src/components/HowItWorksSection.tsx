@@ -1,3 +1,5 @@
+import Eyebrow from './Eyebrow'
+
 const steps = [
   {
     num: '01',
@@ -28,8 +30,8 @@ export default function HowItWorksSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 02 — How it works</div>
-            <h2 style={{ marginTop: 10 }}>Sign in once. Droid uses it.</h2>
+            <Eyebrow index="02">How it works</Eyebrow>
+            <h2>Sign in once. Droid uses it.</h2>
           </div>
           <p>DroidProxy lives in the menu bar. You authenticate through it, it writes custom models into Factory, and Droid keeps the same keyboard-first workflow — slash commands, skills, missions, diffs — on your subscription.</p>
         </div>

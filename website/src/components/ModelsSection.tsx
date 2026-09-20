@@ -1,4 +1,5 @@
 import { models } from '../content'
+import Eyebrow from './Eyebrow'
 
 export default function ModelsSection() {
   const groups = models.reduce<string[]>((acc, m) => {
@@ -11,8 +12,8 @@ export default function ModelsSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 03 — Models</div>
-            <h2 style={{ marginTop: 10 }}>Current flagships, your subscription.</h2>
+            <Eyebrow index="03">Models</Eyebrow>
+            <h2>Current flagships, your subscription.</h2>
           </div>
           <p>Reasoning effort is chosen per session in Droid CLI — not in the proxy. DroidProxy registers each model with its native levels so the selector shows every option the lab actually supports.</p>
         </div>

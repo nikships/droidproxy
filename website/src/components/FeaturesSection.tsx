@@ -1,3 +1,5 @@
+import Eyebrow from './Eyebrow'
+
 const features = [
   {
     tag: 'Auth',
@@ -32,8 +34,8 @@ export default function FeaturesSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 04 — Also in the menu bar</div>
-            <h2 style={{ marginTop: 10 }}>More than a port forward.</h2>
+            <Eyebrow index="05">Also in the menu bar</Eyebrow>
+            <h2>More than a port forward.</h2>
           </div>
           <p>Auth, quota, failover, image gen, and the Copilot gateway all live in the same app that sits next to Wi-Fi.</p>
         </div>

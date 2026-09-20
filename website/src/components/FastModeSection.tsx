@@ -1,3 +1,5 @@
+import Eyebrow from './Eyebrow'
+
 const fastModeCode = `<span class="c">// Fast Mode adds one field to GPT Responses requests.</span>
 {
   <span class="k">"model"</span>: <span class="s">"gpt-6-astra"</span>,
@@ -10,7 +12,7 @@ export default function FastModeSection() {
     <section id="fast-mode">
       <div className="container spotlight">
         <div>
-          <span className="spot-pill">⚡ Fast Mode</span>
+          <Eyebrow index="04">Fast Mode</Eyebrow>
           <h2>A priority lane when you want the answer now.</h2>
           <p>Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy asks OpenAI for the priority service tier on GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol.</p>
           <dl className="spot-list">

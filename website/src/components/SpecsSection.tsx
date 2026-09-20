@@ -1,3 +1,5 @@
+import Eyebrow from './Eyebrow'
+
 const specs = [
   { label: 'Platform', value: 'macOS 13.0+', small: 'Ventura through current' },
   { label: 'Architecture', value: 'Apple Silicon', small: 'M1 through M5' },
@@ -15,8 +17,8 @@ export default function SpecsSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 06 — Spec sheet</div>
-            <h2 style={{ marginTop: 10 }}>The boring numbers.</h2>
+            <Eyebrow index="07">Spec sheet</Eyebrow>
+            <h2>The boring numbers.</h2>
           </div>
           <p>Runtime, ports, and licensing — at a glance. All local backends bind to localhost only.</p>
         </div>

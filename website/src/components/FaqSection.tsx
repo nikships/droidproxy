@@ -1,3 +1,5 @@
+import Eyebrow from './Eyebrow'
+
 const faqs = [
   {
     q: 'Does this replace Factory Droid?',
@@ -31,8 +33,8 @@ export default function FaqSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 07 — FAQ</div>
-            <h2 style={{ marginTop: 10 }}>Quick answers.</h2>
+            <Eyebrow index="08">FAQ</Eyebrow>
+            <h2>Quick answers.</h2>
           </div>
           <p>The short version of how DroidProxy sits next to Factory without becoming Factory.</p>
         </div>

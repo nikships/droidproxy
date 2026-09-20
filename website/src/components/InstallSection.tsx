@@ -1,6 +1,6 @@
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
-import { ArrowRightIcon } from './icons'
 import { RELEASES } from '../content'
+import Eyebrow from './Eyebrow'
 
 const codePlain = `// What "Apply" writes — no need to edit this yourself.
 "customModels": [
@@ -70,8 +70,8 @@ export default function InstallSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 05 — Install</div>
-            <h2 style={{ marginTop: 10 }}>Setup takes about a minute.</h2>
+            <Eyebrow index="06">Install</Eyebrow>
+            <h2>Setup takes about a minute.</h2>
           </div>
           <p>Download, sign in, click Apply. DroidProxy stays in the menu bar and updates itself — you should not have to do this twice.</p>
         </div>
@@ -85,8 +85,7 @@ export default function InstallSection() {
                 <p>Grab the latest Apple Silicon build from GitHub. Unzip, drag to Applications, open — it lives in the menu bar from then on.</p>
                 <div className="step-cta">
                   <a className="btn btn-primary" href={RELEASES} target="_blank" rel="noopener">
-                    Download for macOS
-                    <ArrowRightIcon />
+                    Download for macOS →
                   </a>
                 </div>
               </div>
@@ -103,7 +102,7 @@ export default function InstallSection() {
             <div className="step">
               <span className="step-n">03</span>
               <div>
-                <h4>Click <em style={{ fontStyle: 'normal', color: 'var(--accent)' }}>Apply Factory Models</em></h4>
+                <h4>Click <em>Apply Factory Models</em></h4>
                 <p>One click writes DroidProxy models into Factory. Restart Droid and pick Fable 5.1 or GPT 6 Astra — your subscription handles the bill.</p>
               </div>
             </div>
