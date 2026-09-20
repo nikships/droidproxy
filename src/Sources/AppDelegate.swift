@@ -13,9 +13,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var copilotGateway: CopilotGatewayManager!
     var cursorAgentProxy: CursorAgentProxyManager!
     var metaMuseAuth: MetaMuseAuthManager!
-    private lazy var notificationCenter = UNUserNotificationCenter.current()
+    private let notificationCenter = UNUserNotificationCenter.current()
     private let updaterController: SPUStandardUpdaterController
     private var authDirectoryMonitor: AuthDirectoryMonitor?
+    private var themeObserver: NSObjectProtocol?
     private var metaKeyRefreshTimer: Timer?
     /// Re-mint well inside the ~24h Model API key lifetime
     /// (`MetaMuseAuthManager`'s own margin re-mints starting 6h before expiry).
@@ -32,12 +33,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     
     override init() {
         self.updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
-        super.init()
-    }
-
-    /// Allows menu wiring to be tested without starting Sparkle or the proxy.
-    init(updaterController: SPUStandardUpdaterController) {
-        self.updaterController = updaterController
         super.init()
     }
 
@@ -149,32 +144,25 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         updateStatusBarIcon(isRunning: false)
 
-        menu = NSMenu(title: "DroidProxy")
-        let statusRow = NSMenuItem(title: "Proxy offline", action: nil, keyEquivalent: "")
-        statusRow.isEnabled = false
-        menu.addItem(statusRow)
+        menu = NSMenu()
+        menu.addItem(NSMenuItem(title: "Server: Stopped", action: nil, keyEquivalent: ""))
         menu.addItem(NSMenuItem.separator())
 
-        let settingsItem = NSMenuItem(title: "Open Settings", action: #selector(openSettings), keyEquivalent: "s")
-        settingsItem.target = self
-        menu.addItem(settingsItem)
+        menu.addItem(NSMenuItem(title: "Open Settings", action: #selector(openSettings), keyEquivalent: "s"))
         menu.addItem(NSMenuItem.separator())
 
         let startStopItem = NSMenuItem(title: "Start Server", action: #selector(toggleServer), keyEquivalent: "")
-        startStopItem.target = self
         startStopItem.tag = MenuTag.startStop
         menu.addItem(startStopItem)
 
         menu.addItem(NSMenuItem.separator())
 
         let copyURLItem = NSMenuItem(title: "Copy Server URL", action: #selector(copyServerURL), keyEquivalent: "c")
-        copyURLItem.target = self
         copyURLItem.isEnabled = false
         copyURLItem.tag = MenuTag.copyURL
         menu.addItem(copyURLItem)
 
         let dashboardItem = NSMenuItem(title: "Open Dashboard", action: #selector(openDashboard), keyEquivalent: "d")
-        dashboardItem.target = self
         dashboardItem.isEnabled = false
         dashboardItem.tag = MenuTag.dashboard
         menu.addItem(dashboardItem)
@@ -186,12 +174,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         menu.addItem(checkForUpdatesItem)
 
         menu.addItem(NSMenuItem.separator())
-        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
-        quitItem.target = self
-        menu.addItem(quitItem)
+        menu.addItem(NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q"))
 
-        // Attach to the NSStatusItem, never to an NSMenuItem inside the menu.
-        self.statusItem.menu = menu
+        statusItem.menu = menu
     }
 
     /// Updates the menu-bar icon to reflect the current running state, falling
@@ -224,26 +209,36 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
 
     func createSettingsWindow() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 560, height: 820),
+            contentRect: NSRect(x: 0, y: 0, width: 1000, height: 900),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "DroidProxy"
-        window.contentMinSize = NSSize(width: 500, height: 600)
         window.center()
         window.delegate = self
         window.isReleasedWhenClosed = false
 
-        // Keep the standard window controls over the compact graphite header.
+        // Fully transparent titlebar so the traffic-light buttons float over the
+        // Liquid Glass content. Content extends edge-to-edge under the title bar.
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
-        // Opaque graphite backing keeps the compact utility legible without
-        // compositing the desktop behind the settings surface.
-        window.backgroundColor = NSColor(red: 14 / 255, green: 17 / 255, blue: 22 / 255, alpha: 1)
-        window.isOpaque = true
+        window.backgroundColor = .clear
+        window.isOpaque = false
         window.hasShadow = true
+        // Alpha depends on theme: opaque OLED vs translucent Liquid Glass.
+        applyTheme(to: window)
+
+        // Listen for theme changes from SettingsView and update alphaValue live.
+        themeObserver = NotificationCenter.default.addObserver(
+            forName: .droidProxyThemeChanged,
+            object: nil,
+            queue: .main
+        ) { [weak self] _ in
+            guard let win = self?.settingsWindow else { return }
+            self?.applyTheme(to: win)
+        }
 
         let contentView = SettingsView(
             serverManager: serverManager,
@@ -254,6 +249,17 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         window.contentView = NSHostingView(rootView: contentView)
 
         settingsWindow = window
+    }
+    
+    private func applyTheme(to window: NSWindow) {
+        // Fully opaque: solid NSWindow so macOS doesn't composite the desktop
+        // behind it regardless of SwiftUI layers.
+        // Translucent: keep non-opaque so VisualEffectBlur can show the desktop
+        // blur; SwiftUI layers control the visible opacity.
+        let isOpaque = AppPreferences.backgroundOpacity >= 1.0
+        window.isOpaque = isOpaque
+        window.backgroundColor = isOpaque ? .black : .clear
+        window.alphaValue = 1.0
     }
 
     @objc func toggleServer() {
@@ -387,9 +393,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let isRunning = serverManager.isRunning
 
         if let serverStatus = menu.item(at: 0) {
-            serverStatus.title = isRunning
-                ? "Proxy running  •  localhost:\(thinkingProxy.proxyPort)"
-                : "Proxy offline"
+            serverStatus.title = isRunning ? "Server: Running (port \(thinkingProxy.proxyPort))" : "Server: Stopped"
         }
         menu.item(withTag: MenuTag.startStop)?.title = isRunning ? "Stop Server" : "Start Server"
         menu.item(withTag: MenuTag.copyURL)?.isEnabled = isRunning
@@ -430,6 +434,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self, name: .serverStatusChanged, object: nil)
         NotificationCenter.default.removeObserver(self, name: .authDirectoryChanged, object: nil)
+        removeThemeObserver()
         authDirectoryMonitor?.stop()
         authDirectoryMonitor = nil
         metaKeyRefreshTimer?.invalidate()
@@ -446,6 +451,12 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         return .terminateNow
     }
 
+    private func removeThemeObserver() {
+        guard let themeObserver else { return }
+        NotificationCenter.default.removeObserver(themeObserver)
+        self.themeObserver = nil
+    }
+    
     // MARK: - Auth Directory Monitoring
 
     private func startMonitoringAuthDirectory() {
@@ -463,9 +474,14 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 }
 
+extension Notification.Name {
+    static let droidProxyThemeChanged = Notification.Name("DroidProxyThemeChanged")
+}
+
 extension AppDelegate {
     func windowDidClose(_ notification: Notification) {
         guard notification.object as? NSWindow === settingsWindow else { return }
+        removeThemeObserver()
         settingsWindow = nil
     }
 }

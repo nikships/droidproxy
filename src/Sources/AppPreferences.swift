@@ -17,6 +17,8 @@ enum AppPreferences {
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"
     static let bindAddressKey = "bindAddress"
+    static let oledThemeKey = "oledTheme"
+    static let backgroundOpacityKey = "backgroundOpacity"
     static let betaFlagKey = "BETA_FLAG"
     static let verboseLoggingKey = "verboseLogging"
     static let sequentialAccountFailoverKey = "sequentialAccountFailover"
@@ -31,6 +33,8 @@ enum AppPreferences {
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
     static let defaultBindAddress = "127.0.0.1"
+    static let defaultOledTheme = false
+    static let defaultBackgroundOpacity = 0.55
     static let defaultBetaFlag = false
     static let defaultVerboseLogging = false
     /// Opt-in. Off preserves the historical round-robin routing and globally
@@ -83,6 +87,12 @@ enum AppPreferences {
             return defaultBindAddress
         }
         return trimmed
+    }
+
+    static var backgroundOpacity: Double {
+        let defaults = UserDefaults.standard
+        guard defaults.object(forKey: backgroundOpacityKey) != nil else { return defaultBackgroundOpacity }
+        return defaults.double(forKey: backgroundOpacityKey)
     }
 
     static var betaFlag: Bool {
