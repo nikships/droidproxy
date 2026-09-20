@@ -279,9 +279,8 @@ h1.title {
   transition: background var(--transition);
 }
 .provider-chip:hover { background: var(--surface-2); }
-.provider-chip img {
+.provider-chip .brand-icon {
   width: 18px; height: 18px; flex-shrink: 0;
-  border-radius: var(--radius);
 }
 .provider-chip b {
   display: block;
@@ -467,7 +466,7 @@ tbody td {
 }
 tbody tr:last-child td { border-bottom: 0; }
 td.model-cell { display: flex; align-items: center; gap: 10px; }
-td.model-cell img { width: 18px; height: 18px; border-radius: var(--radius); flex-shrink: 0; }
+td.model-cell .brand-icon { width: 18px; height: 18px; flex-shrink: 0; }
 td.model-cell b { display: block; font-weight: 600; color: var(--fg); }
 td.model-cell span {
   display: block;
@@ -767,10 +766,16 @@ footer.foot {
 
 #fast-mode { background: var(--bg-alt); }
 
-img[src*="icon-grok"],
-img[src*="icon-meta"],
-img[src*="icon-kimi"] {
-  filter: invert(0.92);
+.brand-icon {
+  display: inline-block;
+  flex-shrink: 0;
+  background-color: currentColor;
+  -webkit-mask-repeat: no-repeat;
+  -webkit-mask-position: center;
+  -webkit-mask-size: contain;
+  mask-repeat: no-repeat;
+  mask-position: center;
+  mask-size: contain;
 }
 
 /* Features — two bands so 3+2 seams stay aligned within each row */
@@ -862,10 +867,9 @@ img[src*="icon-kimi"] {
   gap: 10px;
   min-width: 0;
 }
-.model-card-name img {
+.model-card-name .brand-icon {
   width: 18px;
   height: 18px;
-  border-radius: var(--radius);
   flex-shrink: 0;
 }
 .model-card-name b { display: block; font-size: 15px; }

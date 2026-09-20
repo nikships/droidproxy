@@ -11,17 +11,29 @@ export type Provider = {
   name: string
   lab: string
   note: string
+  color: string
 }
 
+export const brandColor = {
+  claude: '#D97757',
+  chatgpt: '#74AA9C',
+  gemini: '#4285F4',
+  copilot: '#77B9FF',
+  grok: '#1D9BF0',
+  kimi: '#00BF91',
+  muse: '#0866FF',
+  junie: '#48E054',
+} as const
+
 export const providers: Provider[] = [
-  { icon: '/assets/icon-claude.png', name: 'Claude', lab: 'Anthropic', note: 'Pro · Max' },
-  { icon: '/assets/icon-codex.png', name: 'ChatGPT', lab: 'OpenAI', note: 'Plus · Pro' },
-  { icon: '/assets/icon-gemini.png', name: 'Gemini', lab: 'Google', note: 'AI Plan' },
-  { icon: '/assets/icon-copilot.png', name: 'Copilot', lab: 'GitHub', note: '3 models' },
-  { icon: '/assets/icon-grok.svg', name: 'Grok', lab: 'xAI', note: 'SuperGrok' },
-  { icon: '/assets/icon-kimi.svg', name: 'Kimi', lab: 'Moonshot', note: 'Kimi Code' },
-  { icon: '/assets/icon-meta.svg', name: 'Muse', lab: 'Meta', note: 'Muse Spark' },
-  { icon: '/assets/icon-junie.svg', name: 'Junie', lab: 'JetBrains', note: 'AI plan' },
+  { icon: '/assets/icon-claude.png', name: 'Claude', lab: 'Anthropic', note: 'Pro · Max', color: brandColor.claude },
+  { icon: '/assets/icon-codex.png', name: 'ChatGPT', lab: 'OpenAI', note: 'Plus · Pro', color: brandColor.chatgpt },
+  { icon: '/assets/icon-gemini.png', name: 'Gemini', lab: 'Google', note: 'AI Plan', color: brandColor.gemini },
+  { icon: '/assets/icon-copilot.png', name: 'Copilot', lab: 'GitHub', note: '3 models', color: brandColor.copilot },
+  { icon: '/assets/icon-grok.svg', name: 'Grok', lab: 'xAI', note: 'SuperGrok', color: brandColor.grok },
+  { icon: '/assets/icon-kimi.svg', name: 'Kimi', lab: 'Moonshot', note: 'Kimi Code', color: brandColor.kimi },
+  { icon: '/assets/icon-meta.svg', name: 'Muse', lab: 'Meta', note: 'Muse Spark', color: brandColor.muse },
+  { icon: '/assets/icon-junie.svg', name: 'Junie', lab: 'JetBrains', note: 'AI plan', color: brandColor.junie },
 ]
 
 export type ModelRow = {
@@ -33,6 +45,7 @@ export type ModelRow = {
   context?: string
   provider: string
   group: string
+  color: string
 }
 
 export const models: ModelRow[] = [
@@ -44,6 +57,7 @@ export const models: ModelRow[] = [
     max: '128,000',
     provider: 'Anthropic',
     group: 'Claude',
+    color: brandColor.claude,
   },
   {
     icon: '/assets/icon-claude.png',
@@ -53,6 +67,7 @@ export const models: ModelRow[] = [
     max: '128,000',
     provider: 'Anthropic',
     group: 'Claude',
+    color: brandColor.claude,
   },
   {
     icon: '/assets/icon-claude.png',
@@ -62,6 +77,7 @@ export const models: ModelRow[] = [
     max: '128,000',
     provider: 'Anthropic',
     group: 'Claude',
+    color: brandColor.claude,
   },
   {
     icon: '/assets/icon-codex.png',
@@ -72,6 +88,7 @@ export const models: ModelRow[] = [
     context: '1.05M',
     provider: 'OpenAI',
     group: 'ChatGPT',
+    color: brandColor.chatgpt,
   },
   {
     icon: '/assets/icon-codex.png',
@@ -81,6 +98,7 @@ export const models: ModelRow[] = [
     max: '128,000',
     provider: 'OpenAI',
     group: 'ChatGPT',
+    color: brandColor.chatgpt,
   },
   {
     icon: '/assets/icon-codex.png',
@@ -90,6 +108,7 @@ export const models: ModelRow[] = [
     max: '128,000',
     provider: 'OpenAI',
     group: 'ChatGPT',
+    color: brandColor.chatgpt,
   },
   {
     icon: '/assets/icon-codex.png',
@@ -99,6 +118,7 @@ export const models: ModelRow[] = [
     max: '128,000',
     provider: 'OpenAI',
     group: 'ChatGPT',
+    color: brandColor.chatgpt,
   },
   {
     icon: '/assets/icon-gemini.png',
@@ -108,6 +128,7 @@ export const models: ModelRow[] = [
     max: '65,536',
     provider: 'Google',
     group: 'Gemini',
+    color: brandColor.gemini,
   },
   {
     icon: '/assets/icon-grok.svg',
@@ -118,6 +139,7 @@ export const models: ModelRow[] = [
     context: '500k',
     provider: 'xAI',
     group: 'Grok',
+    color: brandColor.grok,
   },
   {
     icon: '/assets/icon-kimi.svg',
@@ -127,6 +149,7 @@ export const models: ModelRow[] = [
     max: '65,536',
     provider: 'Moonshot',
     group: 'Kimi',
+    color: brandColor.kimi,
   },
   {
     icon: '/assets/icon-meta.svg',
@@ -137,5 +160,6 @@ export const models: ModelRow[] = [
     context: '1M',
     provider: 'Meta',
     group: 'Muse',
+    color: brandColor.muse,
   },
 ]

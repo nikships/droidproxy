@@ -140,6 +140,7 @@ struct ServiceRow<ExtraContent: View>: View {
                     Image(nsImage: nsImage)
                         .resizable()
                         .renderingMode(.template)
+                        .foregroundStyle(toggleTint)
                         .frame(width: 20, height: 20)
                         .opacity(isEnabled ? 1.0 : 0.4)
                 }
@@ -398,6 +399,16 @@ struct SettingsView: View {
                     .foregroundColor(Theme.textSecondary)
             }
         }
+    }
+
+    /// Small uppercase mono label for the grouped blocks (Remote, Logging,
+    /// Routing) inside the collapsed "Advanced" section.
+    private func advancedGroupLabel(_ text: String) -> some View {
+        Text(text)
+            .font(Theme.mono(10, weight: .semibold))
+            .textCase(.uppercase)
+            .tracking(1.2)
+            .foregroundColor(Theme.textTertiary)
     }
 
     private enum Timing {
@@ -840,7 +851,7 @@ struct SettingsView: View {
                         }
                     }
                 } header: {
-                    SectionLabel(index: "07", text: "Services")
+                    SectionLabel(index: "05", text: "Services")
                 }
                 .listRowBackground(Theme.surface)
             }
@@ -950,6 +961,7 @@ struct SettingsView: View {
                     Image(nsImage: nsImage)
                         .resizable()
                         .renderingMode(.template)
+                        .foregroundStyle(copilotColor)
                         .frame(width: 20, height: 20)
                         .opacity(isEnabled ? 1.0 : 0.4)
                 }

@@ -1,5 +1,6 @@
 import { providers } from '../content'
 import { noOrphan } from '../typography'
+import BrandIcon from './BrandIcon'
 
 export default function ProvidersSection() {
   return (
@@ -12,7 +13,7 @@ export default function ProvidersSection() {
         <div className="providers-grid">
           {providers.map((p) => (
             <div className="provider-chip" key={p.name}>
-              <img src={p.icon} alt="" />
+              <BrandIcon src={p.icon} color={p.color} />
               <div>
                 <b>{p.name}</b>
                 <span><span className="provider-lab">{p.lab} · </span>{p.note}</span>

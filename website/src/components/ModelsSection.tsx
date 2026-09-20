@@ -1,5 +1,6 @@
 import { models } from '../content'
 import { noOrphan } from '../typography'
+import BrandIcon from './BrandIcon'
 import Eyebrow from './Eyebrow'
 
 export default function ModelsSection() {
@@ -36,7 +37,7 @@ export default function ModelsSection() {
                   .map((m, i) => (
                     <tr key={m.id} className={i === 0 ? 'group-start' : undefined}>
                       <td className="model-cell">
-                        <img src={m.icon} alt="" />
+                        <BrandIcon src={m.icon} color={m.color} />
                         <div>
                           {i === 0 && <div className="model-group">{group}</div>}
                           <b>{m.name}</b>
@@ -67,7 +68,7 @@ export default function ModelsSection() {
             <article className="model-card" key={m.id}>
               <div className="model-card-top">
                 <div className="model-card-name">
-                  <img src={m.icon} alt="" />
+                  <BrandIcon src={m.icon} color={m.color} />
                   <div>
                     <div className="model-group">{m.group}</div>
                     <b>{m.name}</b>
