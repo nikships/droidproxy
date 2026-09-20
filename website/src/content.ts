@@ -21,7 +21,6 @@ export const providers: Provider[] = [
   { icon: '/assets/icon-grok.svg', name: 'Grok', lab: 'xAI', note: 'SuperGrok' },
   { icon: '/assets/icon-kimi.svg', name: 'Kimi', lab: 'Moonshot', note: 'Kimi Code' },
   { icon: '/assets/icon-meta.svg', name: 'Muse', lab: 'Meta', note: 'Muse Spark' },
-  { icon: '/assets/icon-cursor.png', name: 'Cursor', lab: 'Agent CLI', note: 'Beta' },
   { icon: '/assets/icon-junie.svg', name: 'Junie', lab: 'JetBrains', note: 'AI plan' },
 ]
 
@@ -138,23 +137,5 @@ export const models: ModelRow[] = [
     context: '1M',
     provider: 'Meta',
     group: 'Muse',
-  },
-  {
-    icon: '/assets/icon-cursor.png',
-    name: 'Cursor Composer 2.5',
-    id: 'cursor-composer-2.5',
-    levels: [],
-    max: '128,000',
-    provider: 'Cursor CLI',
-    group: 'Cursor · Beta',
-  },
-  {
-    icon: '/assets/icon-cursor.png',
-    name: 'Cursor Grok 4.6',
-    id: 'cursor-grok-4.6',
-    levels: ['low', 'medium', 'high', 'xhigh'],
-    max: '128,000',
-    provider: 'Cursor CLI',
-    group: 'Cursor · Beta',
   },
 ]

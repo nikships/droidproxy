@@ -43,11 +43,9 @@ export default function ModelsSection() {
                       </td>
                       <td>
                         <div className="levels">
-                          {m.levels.length === 0
-                            ? <span className="level">fast toggle</span>
-                            : m.levels.map((lvl) => (
-                                <span className={lvl === 'max' ? 'level max' : 'level'} key={lvl}>{lvl}</span>
-                              ))}
+                          {m.levels.map((lvl) => (
+                            <span className={lvl === 'max' ? 'level max' : 'level'} key={lvl}>{lvl}</span>
+                          ))}
                         </div>
                       </td>
                       <td className="ctx num">

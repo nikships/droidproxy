@@ -639,6 +639,7 @@ tbody tr:first-child.group-start td { border-top: 0; }
   border-bottom: 1px solid var(--border);
 }
 .spec:nth-child(4n) { border-right: 0; }
+.spec:last-child { border-right: 0; }
 .specs-wide .spec:nth-child(n+9) { border-bottom: 0; }
 .spec-label {
   font-family: var(--font-mono);

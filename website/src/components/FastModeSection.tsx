@@ -12,14 +12,12 @@ export default function FastModeSection() {
         <div>
           <span className="spot-pill">⚡ Fast Mode</span>
           <h2>A priority lane when you want the answer now.</h2>
-          <p>Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy only asks the lab for a faster path — OpenAI priority for GPT, or the Cursor Agent CLI <span className="mono">-fast</span> suffix for Composer and Grok.</p>
+          <p>Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy asks OpenAI for the priority service tier on GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol.</p>
           <dl className="spot-list">
-            <dt>GPT</dt>
-            <dd>Injects <span className="mono">service_tier: priority</span> for GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol</dd>
-            <dt>Cursor · Beta</dt>
-            <dd>Appends <span className="mono">-fast</span> to Composer 2.5 and Cursor Grok 4.6 via the local Agent CLI</dd>
-            <dt>Grok OAuth</dt>
-            <dd>Diverts <span className="mono">grok-4.6</span> onto that same Cursor fast path — <span className="mono">api.x.ai</span> has no fast variant</dd>
+            <dt>What it does</dt>
+            <dd>Injects <span className="mono">service_tier: priority</span> on GPT Responses requests</dd>
+            <dt>Works with</dt>
+            <dd>GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol — toggle each one in Settings</dd>
             <dt>Reasoning</dt>
             <dd>Left untouched. You still pick the thinking level per session in Droid CLI</dd>
           </dl>

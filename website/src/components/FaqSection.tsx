@@ -17,7 +17,7 @@ const faqs = [
   },
   {
     q: 'Is traffic leaving my machine encrypted?',
-    a: 'Yes, to the lab. The local hop is http://127.0.0.1:8317. Upstream connections use each provider’s TLS API. Copilot and Cursor sidecars also bind localhost only.',
+    a: 'Yes, to the lab. The local hop is http://127.0.0.1:8317. Upstream connections use each provider’s TLS API. The Copilot gateway also binds localhost only.',
   },
   {
     q: 'Windows?',

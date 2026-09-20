@@ -18,9 +18,9 @@ const cases = [
   {
     tag: '03 — Mix labs',
     title: 'Fable 5.1, GPT 6 Astra, Gemini 3.8 Flash, Grok 4.6 — in one picker.',
-    body: 'Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, Cursor, or Junie. Each account stays on your Mac. Disable any provider without touching the others.',
+    body: 'Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, or Junie. Each account stays on your Mac. Disable any provider without touching the others.',
     footLabel: 'Providers',
-    footValue: '9 subscriptions · all optional',
+    footValue: '8 subscriptions · all optional',
     footRight: 'local OAuth',
   },
 ]

@@ -11,7 +11,7 @@ export default function HeroSection() {
             Run Factory Droid on the <em>subscriptions you already pay for</em>.
           </h1>
           <p className="lede">
-            DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, Cursor, and Junie through the plans you already have. Same Droid CLI. Same agent. No Factory token markup.
+            DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie through the plans you already have. Same Droid CLI. Same agent. No Factory token markup.
           </p>
           <div className="hero-cta">
             <a href={RELEASES} className="btn btn-primary btn-lg" target="_blank" rel="noopener">

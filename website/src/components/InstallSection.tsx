@@ -96,7 +96,7 @@ export default function InstallSection() {
               <span className="step-n">02</span>
               <div>
                 <h4>Sign in to the labs you already pay</h4>
-                <p>Menu bar icon → Settings. Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, Cursor, or Junie. A normal browser login opens. Skip anything you do not have.</p>
+                <p>Menu bar icon → Settings. Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, or Junie. A normal browser login opens. Skip anything you do not have.</p>
               </div>
             </div>
 

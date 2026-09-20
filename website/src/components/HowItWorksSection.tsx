@@ -2,7 +2,7 @@ const steps = [
   {
     num: '01',
     name: 'You sign in',
-    desc: 'Open Settings from the menu bar and log in with the same browser flow you already use for Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, Cursor, or Junie. Connect as many or as few as you like.',
+    desc: 'Open Settings from the menu bar and log in with the same browser flow you already use for Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, or Junie. Connect as many or as few as you like.',
     portLabel: 'handled by',
     port: 'DroidProxy',
   },

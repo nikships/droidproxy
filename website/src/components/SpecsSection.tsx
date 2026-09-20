@@ -4,7 +4,6 @@ const specs = [
   { label: 'ThinkingProxy', value: ':8317', small: 'client-facing localhost', mono: true },
   { label: 'CLIProxyAPI', value: ':8318', small: 'bundled child process', mono: true },
   { label: 'Copilot gateway', value: ':8319', small: 'selected models only', mono: true },
-  { label: 'Cursor sidecar', value: ':8320', small: 'Agent CLI · Beta', mono: true },
   { label: 'Auth', value: 'Native OAuth', small: 'no API keys to provision' },
   { label: 'Auto-update', value: 'Sparkle', small: 'EdDSA-signed appcast' },
   { label: 'Distribution', value: 'Notarized .zip', small: 'signed by Apple' },
