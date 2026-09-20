@@ -12,6 +12,19 @@ import Foundation
 enum MetaMuseUpstream {
     static let apiHost = "api.meta.ai"
 
+    /// Meta rejects `reasoning.effort: "max"` without a Muse client User-Agent.
+    /// Droid overrides custom-model extraHeaders, so set this at the TLS boundary.
+    static func headersForForwarding(_ headers: [(String, String)]) -> [(String, String)] {
+        let filtered = GrokAuth.filterClientHeaders(headers)
+        let nativeUserAgent = filtered.first {
+            $0.0.caseInsensitiveCompare("User-Agent") == .orderedSame
+                && $0.1.hasPrefix("muse-build/")
+        }?.1
+        return filtered.filter {
+            $0.0.caseInsensitiveCompare("User-Agent") != .orderedSame
+        } + [("User-Agent", nativeUserAgent ?? "muse-build/1.3.0")]
+    }
+
     static func isMetaModel(_ model: String?) -> Bool {
         guard let model, !model.isEmpty else { return false }
         return model == "muse-spark-1.3" || model.hasPrefix("muse-spark-1.3-")

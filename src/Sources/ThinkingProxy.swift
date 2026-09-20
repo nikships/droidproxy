@@ -1562,7 +1562,7 @@ class ThinkingProxy {
             switch state {
             case .ready:
                 var forwardedRequest = "\(method) \(upstreamPath) \(version)\r\n"
-                for (name, value) in GrokAuth.filterClientHeaders(headers) {
+                for (name, value) in MetaMuseUpstream.headersForForwarding(headers) {
                     forwardedRequest += "\(name): \(value)\r\n"
                 }
 

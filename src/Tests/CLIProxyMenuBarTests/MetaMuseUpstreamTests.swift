@@ -2,6 +2,32 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class MetaMuseUpstreamTests: XCTestCase {
+    func testReplacesFactoryUserAgentForMaxReasoning() {
+        let headers = MetaMuseUpstream.headersForForwarding([
+            ("user-agent", "factory-cli/0.223.0"),
+            ("Authorization", "Bearer test-client-key"),
+            ("Accept", "text/event-stream")
+        ])
+        XCTAssertEqual(headers.map(\.0), ["Accept", "User-Agent"])
+        XCTAssertEqual(headers.map(\.1), ["text/event-stream", "muse-build/1.3.0"])
+    }
+
+    func testAddsMuseUserAgentWhenMissing() {
+        let headers = MetaMuseUpstream.headersForForwarding([])
+        XCTAssertEqual(headers.map(\.0), ["User-Agent"])
+        XCTAssertEqual(headers.map(\.1), ["muse-build/1.3.0"])
+    }
+
+    func testPreservesNativeMuseUserAgentWithoutDuplicates() {
+        let nativeUserAgent = "muse-build/1.3.0 (non-interactive; macos-aarch64)"
+        let headers = MetaMuseUpstream.headersForForwarding([
+            ("USER-AGENT", "factory-cli/0.223.0"),
+            ("User-Agent", nativeUserAgent)
+        ])
+        XCTAssertEqual(headers.map(\.0), ["User-Agent"])
+        XCTAssertEqual(headers.map(\.1), [nativeUserAgent])
+    }
+
     func testRecognizesMuseSparkModels() {
         XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-spark-1.3"))
         XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-spark-1.3-contributor"))
