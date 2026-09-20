@@ -29,7 +29,7 @@ export default function HowItWorksSection() {
         <div className="section-head">
           <div>
             <div className="meta">§ 02 — How it works</div>
-            <h2 style={{ marginTop: 10 }}>Sign in once. Factory Droid uses it.</h2>
+            <h2 style={{ marginTop: 10 }}>Sign in once. Droid uses it.</h2>
           </div>
           <p>DroidProxy lives in the menu bar. You authenticate through it, it writes custom models into Factory, and Droid keeps the same keyboard-first workflow — slash commands, skills, missions, diffs — on your subscription.</p>
         </div>

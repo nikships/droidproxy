@@ -17,7 +17,7 @@ export const providers: Provider[] = [
   { icon: '/assets/icon-claude.png', name: 'Claude', lab: 'Anthropic', note: 'Pro · Max' },
   { icon: '/assets/icon-codex.png', name: 'ChatGPT', lab: 'OpenAI', note: 'Plus · Pro' },
   { icon: '/assets/icon-gemini.png', name: 'Gemini', lab: 'Google', note: 'AI Plan' },
-  { icon: '/assets/icon-copilot.png', name: 'Copilot', lab: 'GitHub', note: 'up to 3 models' },
+  { icon: '/assets/icon-copilot.png', name: 'Copilot', lab: 'GitHub', note: '3 models' },
   { icon: '/assets/icon-grok.svg', name: 'Grok', lab: 'xAI', note: 'SuperGrok' },
   { icon: '/assets/icon-kimi.svg', name: 'Kimi', lab: 'Moonshot', note: 'Kimi Code' },
   { icon: '/assets/icon-meta.svg', name: 'Muse', lab: 'Meta', note: 'Muse Spark' },

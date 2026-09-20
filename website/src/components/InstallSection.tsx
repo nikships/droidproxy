@@ -104,7 +104,7 @@ export default function InstallSection() {
               <span className="step-n">03</span>
               <div>
                 <h4>Click <em style={{ fontStyle: 'normal', color: 'var(--accent)' }}>Apply Factory Models</em></h4>
-                <p>One click writes DroidProxy models into Factory. Restart the Droid session and pick <span className="mono">DroidProxy: Fable 5.1</span> or <span className="mono">DroidProxy: GPT 6 Astra</span> — your subscription handles the bill.</p>
+                <p>One click writes DroidProxy models into Factory. Restart Droid and pick Fable 5.1 or GPT 6 Astra — your subscription handles the bill.</p>
               </div>
             </div>
 

@@ -14,7 +14,7 @@ export default function ProvidersSection() {
               <img src={p.icon} alt="" />
               <div>
                 <b>{p.name}</b>
-                <span>{p.lab} · {p.note}</span>
+                <span><span className="provider-lab">{p.lab} · </span>{p.note}</span>
               </div>
             </div>
           ))}

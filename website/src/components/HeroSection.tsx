@@ -24,10 +24,9 @@ export default function HeroSection() {
             </a>
           </div>
           <div className="hero-meta">
-            <span><span className="pip"></span>Free forever</span>
+            <span><span className="pip"></span>Free forever · MIT</span>
             <span><span className="pip"></span>macOS · Apple Silicon</span>
-            <span><span className="pip"></span>Open source · MIT</span>
-            <span><span className="pip"></span>Signed & notarized by Apple</span>
+            <span><span className="pip"></span>Signed & notarized</span>
           </div>
         </div>
 

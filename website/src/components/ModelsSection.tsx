@@ -59,6 +59,34 @@ export default function ModelsSection() {
             </tbody>
           </table>
         </div>
+
+        <div className="model-cards">
+          {models.map((m) => (
+            <article className="model-card" key={m.id}>
+              <div className="model-card-top">
+                <div className="model-card-name">
+                  <img src={m.icon} alt="" />
+                  <div>
+                    <div className="model-group">{m.group}</div>
+                    <b>{m.name}</b>
+                    <span>{m.id}</span>
+                  </div>
+                </div>
+                <div className="model-card-meta">
+                  {m.max} tok
+                  {m.context && <small>{m.context} ctx</small>}
+                  <small>{m.provider}</small>
+                </div>
+              </div>
+              <div className="levels">
+                {m.levels.map((lvl) => (
+                  <span className={lvl === 'max' ? 'level max' : 'level'} key={lvl}>{lvl}</span>
+                ))}
+              </div>
+            </article>
+          ))}
+        </div>
+
         <p className="table-note">
           Copilot is account-specific — pick up to three models from your GitHub plan in Settings. Junie serves Fable 5.1, Opus 5, and Sonnet 5 from a JetBrains AI subscription. Image models (Grok Imagine, GPT Image) are separate skills, not chat entries.
         </p>
