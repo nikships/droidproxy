@@ -53,7 +53,7 @@ struct AccountRowView: View {
                 .fill(statusColor)
                 .frame(width: 6, height: 6)
             Text(account.displayName)
-                .font(.caption)
+            .font(Theme.label(12, weight: .medium))
                 .foregroundColor(nameColor)
                 .strikethrough(account.isDisabled)
             if account.isExpired && !account.isDisabled {
@@ -450,16 +450,14 @@ struct SettingsView: View {
         VStack(spacing: 0) {
             ZStack(alignment: .top) {
                 LogoView()
-                    .padding(.top, 36) // leave room for the transparent titlebar traffic-lights
-                    .padding(.bottom, 10)
+                    .padding(.top, 28) // leave room for the transparent titlebar traffic-lights
+                    .padding(.bottom, 12)
                     .frame(maxWidth: .infinity)
                 HStack {
                     Spacer()
                     Toggle(isOn: $betaFlag) {
                         Text("Beta")
-                            .font(Theme.mono(10, weight: .semibold))
-                            .textCase(.uppercase)
-                            .tracking(0.8)
+                            .font(Theme.label(10, weight: .medium))
                             .foregroundColor(Theme.textSecondary)
                     }
                     .toggleStyle(.switch)
@@ -471,11 +469,6 @@ struct SettingsView: View {
                 .padding(.top, 12)
                 .padding(.horizontal, 12)
             }
-            // Hairline rule separating the header band from content.
-            Rectangle()
-                .fill(Theme.border)
-                .frame(height: 1)
-
             Form {
                 Section {
                     HStack {
@@ -490,9 +483,9 @@ struct SettingsView: View {
                         }) {
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(serverManager.isRunning ? Theme.accent : Theme.danger)
+                                    .fill(serverManager.isRunning ? Theme.success : Theme.danger)
                                     .frame(width: 6, height: 6)
-                                Text(serverManager.isRunning ? "Running" : "Stopped")
+                                Text(serverManager.isRunning ? "Proxy running" : "Proxy stopped")
                             }
                         }
                         .buttonStyle(GhostButtonStyle())
@@ -548,12 +541,10 @@ struct SettingsView: View {
                                 HStack(spacing: 4) {
                                     Image(systemName: "checkmark.circle.fill")
                                         .font(Theme.mono(10))
-                                        .foregroundColor(Theme.accent)
+                                        .foregroundColor(Theme.success)
                                     Text("Applied")
-                                        .font(Theme.mono(10, weight: .semibold))
-                                        .textCase(.uppercase)
-                                        .tracking(0.8)
-                                        .foregroundColor(Theme.accent)
+                                        .font(Theme.label(10, weight: .medium))
+                                        .foregroundColor(Theme.success)
                                 }
                             }
                             applyModelsButton
@@ -873,8 +864,7 @@ struct SettingsView: View {
             .scrollContentBackground(.hidden)
             .scrollDisabled(false)
 
-            Spacer()
-                .frame(height: 6)
+            Spacer().frame(height: 4)
 
             // Footer
             VStack(spacing: 4) {
@@ -886,15 +876,11 @@ struct SettingsView: View {
                     Text("|")
                     Text("License: MIT")
                 }
-                .font(Theme.mono(9))
-                .textCase(.uppercase)
-                .tracking(0.5)
+                .font(Theme.label(10))
                 .foregroundColor(Theme.textTertiary)
 
                 Text("© 2026 DroidProxy")
-                    .font(Theme.mono(9))
-                    .textCase(.uppercase)
-                    .tracking(0.5)
+                    .font(Theme.label(10))
                     .foregroundColor(Theme.textTertiary)
 
                 Link("Report an issue", destination: URL(string: "https://github.com/anand-92/droidproxy/issues")!)
@@ -906,8 +892,8 @@ struct SettingsView: View {
         .background(Theme.background.ignoresSafeArea())
         .accentColor(Theme.accent)
         .preferredColorScheme(.dark)
-        .frame(width: 480)
-        .frame(minHeight: 600, idealHeight: 900, maxHeight: .infinity)
+        .frame(minWidth: 500, idealWidth: 560, maxWidth: .infinity)
+        .frame(minHeight: 600, idealHeight: 820, maxHeight: .infinity)
         .onAppear {
             authManager.checkAuthStatus()
             checkLaunchAtLogin()
@@ -1065,7 +1051,7 @@ struct SettingsView: View {
     private var copilotGatewayStatusColor: Color {
         switch copilotGateway.state {
         case .running:
-            return Theme.accent
+            return Theme.success
         case .failed:
             return Theme.danger
         case .idle, .starting:
@@ -1445,8 +1431,8 @@ struct SettingsView: View {
                 metaMuseAuth.refreshAPIKeyIfNeeded()
             }
             authResultMessage = account.isDisabled
-                ? "✓ Enabled \(account.displayName)"
-                : "✓ Disabled \(account.displayName)"
+                ? "Enabled \(account.displayName)"
+                : "Disabled \(account.displayName)"
         } else {
             authResultMessage = "Failed to update \(account.displayName). Please try again."
         }
@@ -1566,23 +1552,23 @@ struct SettingsView: View {
     private func successMessage(for serviceType: ServiceType) -> String {
         switch serviceType {
         case .claude:
-            return "🌐 Browser opened for Claude Code authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
+            return "A browser window opened for Claude Code authentication.\n\nComplete the login in your browser. DroidProxy will detect your credentials automatically."
         case .codex:
-            return "🌐 Browser opened for Codex authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
+            return "A browser window opened for Codex authentication.\n\nComplete the login in your browser. DroidProxy will detect your credentials automatically."
         case .antigravity:
-            return "🌐 Browser opened for Antigravity authentication.\n\nYou must have Google Antigravity installed before adding an Antigravity account.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
+            return "A browser window opened for Antigravity authentication.\n\nGoogle Antigravity must be installed before adding an account. Complete the login in your browser; DroidProxy will detect your credentials automatically.\n\nIf needed, run in Terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
         case .kimi:
-            return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
+            return "A browser window opened for Kimi authentication.\n\nComplete the login in your browser. DroidProxy will detect your credentials automatically."
         case .cursor:
-            return "✓ Cursor Agent CLI is signed in."
+            return "Cursor Agent CLI is signed in."
         case .junie:
-            return "✓ Successfully saved Junie API Key."
+            return "Junie API key saved."
         case .grok:
-            return "🌐 Browser opened for Grok (xAI) authentication.\n\nApprove access for SuperGrok / X Premium+, then DroidProxy will save credentials automatically."
+            return "A browser window opened for Grok authentication.\n\nApprove access for SuperGrok or X Premium+ and DroidProxy will save credentials automatically."
         case .copilot:
-            return "🌐 GitHub Copilot sign-in started."
+            return "GitHub Copilot sign-in started."
         case .meta:
-            return "🌐 Meta Muse sign-in started."
+            return "Meta Muse sign-in started."
         }
     }
 
@@ -1607,7 +1593,7 @@ struct SettingsView: View {
                 DispatchQueue.main.async {
                     guard self.grokLoginSession === sessionRef.value else { return }
                     self.grokUserCode = auth.userCode
-                    self.authResultMessage = "🌐 Browser opened for Grok login.\n\nIf prompted, enter code: \(auth.userCode)\n\nWaiting for approval…"
+                    self.authResultMessage = "A browser window opened for Grok login.\n\nIf prompted, enter code: \(auth.userCode)\n\nWaiting for approval."
                     self.showingAuthResult = true
                 }
             },
@@ -1621,7 +1607,7 @@ struct SettingsView: View {
                         self.grokLoginSession = nil
                         self.authManager.checkAuthStatus()
                         let who = creds.email ?? "grok-user"
-                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.6 in Droid with `/model`."
+                        self.authResultMessage = "Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.6 in Droid with `/model`."
                         self.showingAuthResult = true
                     case .failure(.cancelled):
                         // Replaced session already cleared `grokLoginSession` above.
@@ -1652,7 +1638,7 @@ struct SettingsView: View {
             self.authManager.checkAuthStatus()
             self.cursorAgentProxy.refreshLoginStatus()
             if success {
-                self.authResultMessage = "✓ Cursor Agent CLI signed in as \(CursorAgentProxyManager.currentLoginEmail() ?? "your account")."
+                self.authResultMessage = "Cursor Agent CLI signed in as \(CursorAgentProxyManager.currentLoginEmail() ?? "your account")."
                 if self.serverManager.isProviderEnabled(.cursor) {
                     self.cursorAgentProxy.start()
                 }
@@ -1688,7 +1674,7 @@ struct SettingsView: View {
 
     private var cursorProxyStatusColor: Color {
         switch cursorAgentProxy.state {
-        case .running: return Theme.accent
+        case .running: return Theme.success
         case .starting: return Theme.textSecondary
         case .failed: return Theme.danger
         case .idle: return Theme.textTertiary
@@ -1734,7 +1720,7 @@ struct SettingsView: View {
 
             authManager.checkAuthStatus()
 
-            self.authResultMessage = "✓ Successfully added Junie API Key."
+            self.authResultMessage = "Junie API key added."
             self.showingAuthResult = true
         } catch {
             NSLog("[SettingsView] Failed to save Junie API Key: \(error.localizedDescription)")
@@ -1761,7 +1747,7 @@ struct SettingsView: View {
         // Stop server, delete file, restart
         let cleanup = {
             if self.authManager.deleteAccount(account) {
-                self.authResultMessage = "✓ Removed \(account.displayName) from \(account.type.displayName)"
+                self.authResultMessage = "Removed \(account.displayName) from \(account.type.displayName)"
             } else {
                 self.authResultMessage = "Failed to remove account"
             }

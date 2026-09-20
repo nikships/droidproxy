@@ -329,12 +329,12 @@ class ServerManager: ObservableObject {
             }
         }
 
-        let browserOpenedMessage = "🌐 Browser opened for authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect when you're authenticated."
+        let browserOpenedMessage = "A browser window opened for authentication.\n\nComplete the login in your browser. DroidProxy will detect when you are authenticated."
 
         do {
             NSLog("[Auth] Starting process: %@ with args: %@", bundledPath, authProcess.arguments?.joined(separator: " ") ?? "none")
             try authProcess.run()
-            addLog("✓ Authentication process started (PID: \(authProcess.processIdentifier)) - browser should open shortly")
+            addLog("Authentication process started (PID: \(authProcess.processIdentifier)) - browser should open shortly")
             NSLog("[Auth] Process started with PID: %d", authProcess.processIdentifier)
 
             // Notify watchers when auth completes successfully so the UI can pick

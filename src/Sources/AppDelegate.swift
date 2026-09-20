@@ -143,8 +143,10 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         updateStatusBarIcon(isRunning: false)
 
-        menu = NSMenu()
-        menu.addItem(NSMenuItem(title: "Server: Stopped", action: nil, keyEquivalent: ""))
+        menu = NSMenu(title: "DroidProxy")
+        let statusItem = NSMenuItem(title: "Proxy offline", action: nil, keyEquivalent: "")
+        statusItem.isEnabled = false
+        menu.addItem(statusItem)
         menu.addItem(NSMenuItem.separator())
 
         menu.addItem(NSMenuItem(title: "Open Settings", action: #selector(openSettings), keyEquivalent: "s"))
@@ -208,24 +210,24 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
 
     func createSettingsWindow() {
         let window = NSWindow(
-            contentRect: NSRect(x: 0, y: 0, width: 1000, height: 900),
+            contentRect: NSRect(x: 0, y: 0, width: 560, height: 820),
             styleMask: [.titled, .closable, .miniaturizable, .resizable, .fullSizeContentView],
             backing: .buffered,
             defer: false
         )
         window.title = "DroidProxy"
+        window.contentMinSize = NSSize(width: 500, height: 600)
         window.center()
         window.delegate = self
         window.isReleasedWhenClosed = false
 
-        // Fully transparent titlebar so the traffic-light buttons float over the
-        // Liquid Glass content. Content extends edge-to-edge under the title bar.
+        // Keep the standard window controls over the compact graphite header.
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
-        // Factory product treatment: fully opaque #020202 window so macOS
-        // doesn't composite the desktop behind the flat dark surface.
-        window.backgroundColor = NSColor(red: 2 / 255, green: 2 / 255, blue: 2 / 255, alpha: 1)
+        // Opaque graphite backing keeps the compact utility legible without
+        // compositing the desktop behind the settings surface.
+        window.backgroundColor = NSColor(red: 14 / 255, green: 17 / 255, blue: 22 / 255, alpha: 1)
         window.isOpaque = true
         window.hasShadow = true
 
@@ -371,7 +373,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let isRunning = serverManager.isRunning
 
         if let serverStatus = menu.item(at: 0) {
-            serverStatus.title = isRunning ? "Server: Running (port \(thinkingProxy.proxyPort))" : "Server: Stopped"
+            serverStatus.title = isRunning
+                ? "Proxy running  •  localhost:\(thinkingProxy.proxyPort)"
+                : "Proxy offline"
         }
         menu.item(withTag: MenuTag.startStop)?.title = isRunning ? "Stop Server" : "Start Server"
         menu.item(withTag: MenuTag.copyURL)?.isEnabled = isRunning

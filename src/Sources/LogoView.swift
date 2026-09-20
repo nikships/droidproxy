@@ -2,14 +2,20 @@ import SwiftUI
 
 struct LogoView: View {
     var body: some View {
-        if let image = Self.logoImage {
-            Image(nsImage: image)
-                .renderingMode(.template)
-                .resizable()
-                .aspectRatio(contentMode: .fit)
-                .frame(height: 24)
-                .foregroundColor(.primary)
+        HStack(spacing: 8) {
+            DroidGlyph(size: 18)
+                .foregroundStyle(Theme.accent)
+            VStack(alignment: .leading, spacing: 1) {
+                Text("DroidProxy")
+                    .font(.system(size: 14, weight: .semibold, design: .rounded))
+                    .foregroundStyle(Theme.textPrimary)
+                Text("Local subscription proxy")
+                    .font(Theme.label(10))
+                    .foregroundStyle(Theme.textTertiary)
+            }
         }
+        .accessibilityElement(children: .combine)
+        .accessibilityLabel("DroidProxy local subscription proxy")
     }
 
     private static let logoImage: NSImage? = {
