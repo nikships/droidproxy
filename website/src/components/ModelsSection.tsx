@@ -1,112 +1,20 @@
-const models = [
-  {
-    icon: '/assets/icon-claude.png',
-    name: 'Claude Fable 5.1',
-    id: 'fable-5-1',
-    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
-    max: '128,000',
-    provider: 'Anthropic',
-  },
-  {
-    icon: '/assets/icon-claude.png',
-    name: 'Claude Fable 5',
-    id: 'fable-5',
-    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
-    max: '128,000',
-    provider: 'Anthropic',
-  },
-  {
-    icon: '/assets/icon-claude.png',
-    name: 'Claude Opus 5',
-    id: 'opus-5',
-    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
-    max: '128,000',
-    provider: 'Anthropic',
-  },
-  {
-    icon: '/assets/icon-claude.png',
-    name: 'Claude Sonnet 4.6',
-    id: 'sonnet-4-6',
-    levels: ['low', 'medium', 'high', 'max'],
-    max: '64,000',
-    provider: 'Anthropic',
-  },
-  {
-    icon: '/assets/icon-codex.png',
-    name: 'GPT 5.6 Terra',
-    id: 'gpt-5.6-terra',
-    levels: ['none', 'low', 'medium', 'high', 'xhigh', 'max'],
-    max: '128,000',
-    provider: 'OpenAI',
-  },
-  {
-    icon: '/assets/icon-codex.png',
-    name: 'GPT 5.6 Sol',
-    id: 'gpt-5.6-sol',
-    levels: ['dynamic', 'low', 'medium', 'high', 'xhigh', 'max'],
-    max: '128,000',
-    provider: 'OpenAI',
-  },
-  {
-    icon: '/assets/icon-gemini.png',
-    name: 'Gemini 3.1 Pro',
-    id: 'gemini-3.1-pro-preview',
-    levels: ['low', 'medium', 'high'],
-    max: '65,536',
-    provider: 'Google',
-  },
-  {
-    icon: '/assets/icon-gemini.png',
-    name: 'Gemini 3 Flash',
-    id: 'gemini-3-flash-preview',
-    levels: ['minimal', 'low', 'medium', 'high'],
-    max: '65,536',
-    provider: 'Google',
-  },
-  {
-    icon: '/assets/icon-kimi.svg',
-    name: 'Kimi K3',
-    id: 'kimi-k3',
-    levels: ['max'],
-    max: '65,536',
-    provider: 'Moonshot AI',
-  },
-  {
-    icon: '/assets/icon-kimi.svg',
-    name: 'Kimi K2.6',
-    id: 'kimi-k2.6',
-    levels: ['high'],
-    max: '262,144',
-    provider: 'Moonshot AI',
-  },
-  {
-    icon: '/assets/icon-cursor.png',
-    name: 'Cursor Composer 2.5',
-    id: 'cursor-composer-2.5',
-    levels: [],
-    max: '128,000',
-    provider: 'Cursor CLI',
-  },
-  {
-    icon: '/assets/icon-cursor.png',
-    name: 'Cursor Grok 4.6',
-    id: 'cursor-grok-4.6',
-    levels: ['low', 'medium', 'high', 'xhigh'],
-    max: '128,000',
-    provider: 'Cursor CLI',
-  },
-]
+import { models } from '../content'
 
 export default function ModelsSection() {
+  const groups = models.reduce<string[]>((acc, m) => {
+    if (!acc.includes(m.group)) acc.push(m.group)
+    return acc
+  }, [])
+
   return (
     <section id="models">
       <div className="container">
         <div className="section-head">
           <div>
             <div className="meta">§ 03 — Models</div>
-            <h2 style={{ marginTop: 10 }}>All the frontier models, your subscription.</h2>
+            <h2 style={{ marginTop: 10 }}>Current flagships, your subscription.</h2>
           </div>
-          <p>Each model has a thinking dial — turn it up for harder problems, down for faster answers. Pick whichever models match the subscriptions you actually have.</p>
+          <p>Reasoning effort is chosen per session in Droid CLI — not in the proxy. DroidProxy registers each model with its native levels so the selector shows every option the lab actually supports.</p>
         </div>
 
         <div className="table-wrap">
@@ -115,36 +23,47 @@ export default function ModelsSection() {
               <tr>
                 <th style={{ width: '32%' }}>Model</th>
                 <th>Effort levels</th>
-                <th style={{ width: '18%' }}>Max output</th>
+                <th style={{ width: '16%' }}>Max output</th>
                 <th style={{ width: '14%' }}>Provider</th>
               </tr>
             </thead>
             <tbody>
-              {models.map((m) => (
-                <tr key={m.id}>
-                  <td className="model-cell">
-                    <img src={m.icon} alt="" />
-                    <div>
-                      <b>{m.name}</b>
-                      <span>{m.id}</span>
-                    </div>
-                  </td>
-                  <td>
-                    <div className="levels">
-                      {m.levels.length === 0
-                        ? <span className="level">fast toggle</span>
-                        : m.levels.map((lvl) => (
-                            <span className={lvl === 'max' ? 'level max' : 'level'} key={lvl}>{lvl}</span>
-                          ))}
-                    </div>
-                  </td>
-                  <td className="ctx num">{m.max}<small>tok</small></td>
-                  <td className="ctx">{m.provider}</td>
-                </tr>
+              {groups.map((group) => (
+                models
+                  .filter((m) => m.group === group)
+                  .map((m, i) => (
+                    <tr key={m.id} className={i === 0 ? 'group-start' : undefined}>
+                      <td className="model-cell">
+                        <img src={m.icon} alt="" />
+                        <div>
+                          {i === 0 && <div className="model-group">{group}</div>}
+                          <b>{m.name}</b>
+                          <span>{m.id}</span>
+                        </div>
+                      </td>
+                      <td>
+                        <div className="levels">
+                          {m.levels.length === 0
+                            ? <span className="level">fast toggle</span>
+                            : m.levels.map((lvl) => (
+                                <span className={lvl === 'max' ? 'level max' : 'level'} key={lvl}>{lvl}</span>
+                              ))}
+                        </div>
+                      </td>
+                      <td className="ctx num">
+                        {m.max}<small>tok</small>
+                        {m.context && <><br /><span className="ctx-extra">{m.context} context</span></>}
+                      </td>
+                      <td className="ctx">{m.provider}</td>
+                    </tr>
+                  ))
               ))}
             </tbody>
           </table>
         </div>
+        <p className="table-note">
+          Copilot is account-specific — pick up to three models from your GitHub plan in Settings. Junie serves Fable 5.1, Opus 5, and Sonnet 5 from a JetBrains AI subscription. Image models (Grok Imagine, GPT Image) are separate skills, not chat entries.
+        </p>
       </div>
     </section>
   )

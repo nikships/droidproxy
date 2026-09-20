@@ -2,21 +2,21 @@ const steps = [
   {
     num: '01',
     name: 'You sign in',
-    desc: 'Click a button in the DroidProxy menu bar. A normal browser login window opens for Claude, ChatGPT, Gemini, or Kimi — the same one you\'ve already used a hundred times.',
+    desc: 'Open Settings from the menu bar and log in with the same browser flow you already use for Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, Cursor, or Junie. Connect as many or as few as you like.',
     portLabel: 'handled by',
     port: 'DroidProxy',
   },
   {
     num: '02',
-    name: 'DroidProxy holds the login',
-    desc: 'Tokens stay on your Mac. DroidProxy refreshes them in the background so nothing ever expires mid-session — no API keys, no copy-paste, no .env files. The Settings window also shows your live Claude and Codex usage windows — the 5-hour and weekly ones — so you always know how much subscription budget is left before the next reset.',
+    name: 'Tokens stay on your Mac',
+    desc: 'OAuth credentials never leave localhost. DroidProxy refreshes them in the background so sessions do not die mid-run. Settings also shows live Claude and Codex quota windows — 5-hour and weekly — so you can see what is left before the next reset.',
     portLabel: 'stored at',
     port: '~/.cli-proxy-api',
   },
   {
     num: '03',
-    name: 'Factory Droid uses it',
-    desc: 'Click "Apply" once and DroidProxy adds custom models to your Factory client. Pick one and Droid sends every request to DroidProxy — which forwards to Anthropic, OpenAI, Google, or Moonshot on your subscription.',
+    name: 'Droid uses your plan',
+    desc: 'Click Apply Factory Models once. Droid CLI grows a DroidProxy: … entry for every connected lab. Pick one with /model and every request hits localhost:8317, then the lab that actually bills you.',
     portLabel: 'billed by',
     port: 'your AI lab',
   },
@@ -31,7 +31,7 @@ export default function HowItWorksSection() {
             <div className="meta">§ 02 — How it works</div>
             <h2 style={{ marginTop: 10 }}>Sign in once. Factory Droid uses it.</h2>
           </div>
-          <p>DroidProxy lives in your menu bar. You sign in to Claude, ChatGPT, Gemini, or Kimi through it — exactly like signing in to those apps anywhere else. Then it tells Factory Droid "use these subscriptions instead of your own billing."</p>
+          <p>DroidProxy lives in the menu bar. You authenticate through it, it writes custom models into Factory, and Droid keeps the same keyboard-first workflow — slash commands, skills, missions, diffs — on your subscription.</p>
         </div>
 
         <div className="flow">

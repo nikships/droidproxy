@@ -4,10 +4,10 @@ export default function ShowcaseVideoSection() {
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 01 — Video walkthrough</div>
-            <h2 style={{ marginTop: 10 }}>See the local adapter path in motion.</h2>
+            <div className="meta">§ 08 — Walkthrough</div>
+            <h2 style={{ marginTop: 10 }}>See the local path in motion.</h2>
           </div>
-          <p>A HyperFrames overview of DroidProxy's menu bar setup, localhost proxy, model registration, and provider routing.</p>
+          <p>Menu bar setup, localhost proxy, model registration, and provider routing — the same loop the install steps describe.</p>
         </div>
 
         <div className="showcase-video-card">

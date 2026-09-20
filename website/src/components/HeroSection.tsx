@@ -1,23 +1,24 @@
 import { DownloadIcon, GitHubIcon } from './icons'
+import { VERSION, GITHUB, RELEASES } from '../content'
 
 export default function HeroSection() {
   return (
-    <section className="hero" style={{ borderBottom: '1px solid var(--border)' }}>
+    <section className="hero">
       <div className="container hero-grid">
         <div>
-          <span className="eyebrow"><span className="dot"></span>v1.8.32 · macOS · free & open source</span>
+          <span className="eyebrow"><span className="dot"></span>v{VERSION} · macOS · free & open source</span>
           <h1 className="title">
-            Use your <em>Claude, ChatGPT & Gemini</em> subscriptions inside Factory Droid.
+            Run Factory Droid on the <em>subscriptions you already pay for</em>.
           </h1>
           <p className="lede">
-            Factory Droid is a great coding agent — but its token packages are pricey because they pay full API rates upstream. DroidProxy is a tiny macOS menu bar app that lets Factory Droid run on the Claude, ChatGPT, and Gemini subscriptions you already pay for. Same Droid, same models, your existing plan.
+            DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, Cursor, and Junie through the plans you already have. Same Droid CLI. Same agent. No Factory token markup.
           </p>
           <div className="hero-cta">
-            <a href="https://github.com/anand-92/droidproxy/releases/latest" className="btn btn-primary btn-lg" target="_blank" rel="noopener">
+            <a href={RELEASES} className="btn btn-primary btn-lg" target="_blank" rel="noopener">
               Download for macOS
               <DownloadIcon />
             </a>
-            <a href="https://github.com/anand-92/droidproxy" className="btn btn-ghost btn-lg" target="_blank" rel="noopener">
+            <a href={GITHUB} className="btn btn-ghost btn-lg" target="_blank" rel="noopener">
               <GitHubIcon />
               View on GitHub
             </a>
@@ -25,19 +26,22 @@ export default function HeroSection() {
           <div className="hero-meta">
             <span><span className="pip"></span>Free forever</span>
             <span><span className="pip"></span>macOS · Apple Silicon</span>
-            <span><span className="pip"></span>Open source</span>
+            <span><span className="pip"></span>Open source · MIT</span>
             <span><span className="pip"></span>Signed & notarized by Apple</span>
           </div>
         </div>
 
-        <div className="product-shot-wrap">
+        <figure className="cli-shot-wrap">
           <img
-            className="product-shot"
-            src="/assets/settings-screenshot.png"
-            alt="DroidProxy settings window — Factory custom models applied, Claude, ChatGPT, and Gemini connected."
+            className="cli-shot"
+            src="/assets/droid-cli.png"
+            alt="Factory Droid CLI — a New Chat Session with tool calls, a plan, and the prompt composer."
             loading="eager"
           />
-        </div>
+          <figcaption>
+            Factory Droid CLI. Apply DroidProxy models once, then pick <span className="mono">DroidProxy: Fable 5.1</span> or <span className="mono">GPT 6 Astra</span> from <span className="mono">/model</span>.
+          </figcaption>
+        </figure>
       </div>
     </section>
   )

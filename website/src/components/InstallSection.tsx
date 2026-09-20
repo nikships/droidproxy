@@ -1,112 +1,79 @@
 import { useCopyToClipboard } from '../hooks/useCopyToClipboard'
 import { ArrowRightIcon } from './icons'
+import { RELEASES } from '../content'
 
-const codePlain = `// What "Apply" writes for you — no need to touch this yourself.
+const codePlain = `// What "Apply" writes — no need to edit this yourself.
 "customModels": [
   {
     "model": "claude-fable-5-1",
     "id": "custom:droidproxy:fable-5-1",
-    "index": 0,
     "baseUrl": "http://localhost:8317",
     "apiKey": "***",
     "displayName": "DroidProxy: Fable 5.1",
     "maxOutputTokens": 128000,
-    "provider": "anthropic"
+    "provider": "anthropic",
+    "enableThinking": true,
+    "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+    "defaultReasoningEffort": "xhigh"
   },
   {
-    "model": "claude-fable-5",
-    "id": "custom:droidproxy:fable-5",
-    "index": 1,
-    "baseUrl": "http://localhost:8317",
+    "model": "gpt-6-astra",
+    "id": "custom:droidproxy:gpt-6-astra",
+    "baseUrl": "http://localhost:8317/v1",
     "apiKey": "***",
-    "displayName": "DroidProxy: Fable 5",
+    "displayName": "DroidProxy: GPT 6 Astra",
     "maxOutputTokens": 128000,
-    "provider": "anthropic"
-  },
-  {
-    "model": "claude-opus-5",
-    "id": "custom:droidproxy:opus-5",
-    "index": 2,
-    "baseUrl": "http://localhost:8317",
-    "apiKey": "***",
-    "displayName": "DroidProxy: Opus 5",
-    "maxOutputTokens": 128000,
-    "provider": "anthropic"
-  },
-  {
-    "model": "claude-sonnet-4-6",
-    "id": "custom:droidproxy:sonnet-4-6",
-    "index": 3,
-    "baseUrl": "http://localhost:8317",
-    "apiKey": "***",
-    "displayName": "DroidProxy: Sonnet 4.6",
-    "maxOutputTokens": 64000,
-    "provider": "anthropic"
+    "maxContextLimit": 1050000,
+    "provider": "openai",
+    "enableThinking": true,
+    "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+    "defaultReasoningEffort": "medium"
   }
-  // + GPT 5.6, Gemini, Kimi
+  // + Opus 5, Sonnet 5, GPT 5.6, Gemini 3.8 Flash, Grok 4.6, …
 ]`
 
-const codeHtml = `<span class="c">// What "Apply" writes for you — no need to touch this yourself.</span>
+const codeHtml = `<span class="c">// What "Apply" writes — no need to edit this yourself.</span>
 <span class="k">"customModels"</span>: [
   {
     <span class="k">"model"</span>: <span class="s">"claude-fable-5-1"</span>,
     <span class="k">"id"</span>: <span class="s">"custom:droidproxy:fable-5-1"</span>,
-    <span class="k">"index"</span>: <span class="n">0</span>,
     <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
     <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Fable 5.1"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
-    <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
+    <span class="k">"provider"</span>: <span class="s">"anthropic"</span>,
+    <span class="k">"enableThinking"</span>: true,
+    <span class="k">"supportedReasoningEfforts"</span>: [<span class="s">"low"</span>, <span class="s">"medium"</span>, <span class="s">"high"</span>, <span class="s">"xhigh"</span>, <span class="s">"max"</span>],
+    <span class="k">"defaultReasoningEffort"</span>: <span class="s">"xhigh"</span>
   },
   {
-    <span class="k">"model"</span>: <span class="s">"claude-fable-5"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:fable-5"</span>,
-    <span class="k">"index"</span>: <span class="n">1</span>,
-    <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
+    <span class="k">"model"</span>: <span class="s">"gpt-6-astra"</span>,
+    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:gpt-6-astra"</span>,
+    <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317/v1"</span>,
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Fable 5"</span>,
+    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: GPT 6 Astra"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
-    <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
-  },
-  {
-    <span class="k">"model"</span>: <span class="s">"claude-opus-5"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:opus-5"</span>,
-    <span class="k">"index"</span>: <span class="n">2</span>,
-    <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
-    <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Opus 5"</span>,
-    <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
-    <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
-  },
-  {
-    <span class="k">"model"</span>: <span class="s">"claude-sonnet-4-6"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:sonnet-4-6"</span>,
-    <span class="k">"index"</span>: <span class="n">3</span>,
-    <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
-    <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Sonnet 4.6"</span>,
-    <span class="k">"maxOutputTokens"</span>: <span class="n">64000</span>,
-    <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
+    <span class="k">"maxContextLimit"</span>: <span class="n">1050000</span>,
+    <span class="k">"provider"</span>: <span class="s">"openai"</span>,
+    <span class="k">"enableThinking"</span>: true,
+    <span class="k">"supportedReasoningEfforts"</span>: [<span class="s">"low"</span>, <span class="s">"medium"</span>, <span class="s">"high"</span>, <span class="s">"xhigh"</span>, <span class="s">"max"</span>],
+    <span class="k">"defaultReasoningEffort"</span>: <span class="s">"medium"</span>
   }
-  <span class="c">// + GPT 5.6, Gemini, Kimi</span>
+  <span class="c">// + Opus 5, Sonnet 5, GPT 5.6, Gemini 3.8 Flash, Grok 4.6, …</span>
 ]`
 
 export default function InstallSection() {
   const { copy, copied } = useCopyToClipboard()
-
-  const handleCopy = () => {
-    copy(codePlain)
-  }
 
   return (
     <section id="install">
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 04 — Install</div>
+            <div className="meta">§ 05 — Install</div>
             <h2 style={{ marginTop: 10 }}>Setup takes about a minute.</h2>
           </div>
-          <p>Download, sign in, click apply. DroidProxy stays in your menu bar and updates itself in the background — so you'll never have to do this twice.</p>
+          <p>Download, sign in, click Apply. DroidProxy stays in the menu bar and updates itself — you should not have to do this twice.</p>
         </div>
 
         <div className="install-grid">
@@ -115,9 +82,9 @@ export default function InstallSection() {
               <span className="step-n">01</span>
               <div>
                 <h4>Download DroidProxy</h4>
-                <p>Grab the latest release from GitHub. Drag it to Applications and open — it lives in your menu bar from then on.</p>
+                <p>Grab the latest Apple Silicon build from GitHub. Unzip, drag to Applications, open — it lives in the menu bar from then on.</p>
                 <div className="step-cta">
-                  <a className="btn btn-primary" href="https://github.com/anand-92/droidproxy/releases/latest" target="_blank" rel="noopener">
+                  <a className="btn btn-primary" href={RELEASES} target="_blank" rel="noopener">
                     Download for macOS
                     <ArrowRightIcon />
                   </a>
@@ -128,8 +95,8 @@ export default function InstallSection() {
             <div className="step">
               <span className="step-n">02</span>
               <div>
-                <h4>Sign in to your AI subscriptions</h4>
-                <p>Click the menu bar icon → Settings, then sign in to Claude, ChatGPT, or Gemini. A normal browser login window opens. Sign in to as many or as few as you like.</p>
+                <h4>Sign in to the labs you already pay</h4>
+                <p>Menu bar icon → Settings. Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, Cursor, or Junie. A normal browser login opens. Skip anything you do not have.</p>
               </div>
             </div>
 
@@ -137,7 +104,7 @@ export default function InstallSection() {
               <span className="step-n">03</span>
               <div>
                 <h4>Click <em style={{ fontStyle: 'normal', color: 'var(--accent)' }}>Apply Factory Models</em></h4>
-                <p>One click adds DroidProxy's models to your Factory Droid setup. Restart your Droid session — when you pick "DroidProxy: Opus 5" or any of the others, your subscription handles the bill.</p>
+                <p>One click writes DroidProxy models into Factory. Restart the Droid session and pick <span className="mono">DroidProxy: Fable 5.1</span> or <span className="mono">DroidProxy: GPT 6 Astra</span> — your subscription handles the bill.</p>
               </div>
             </div>
 
@@ -145,7 +112,7 @@ export default function InstallSection() {
               <span className="step-n">04</span>
               <div>
                 <h4>That's it.</h4>
-                <p>Use Factory Droid like you always have. DroidProxy quietly handles auth in the background and updates itself when there's a new version.</p>
+                <p>Use Droid like you always have. Reasoning stays in the CLI selector. DroidProxy refreshes OAuth in the background and Sparkle pulls updates.</p>
               </div>
             </div>
           </div>
@@ -154,7 +121,7 @@ export default function InstallSection() {
             <div className="code-block">
               <div className="code-head">
                 <span><span className="mono" style={{ color: 'var(--accent)' }}>$</span> &nbsp; ~/.factory/settings.json &nbsp; <span style={{ color: 'var(--dim)' }}>— customModels</span></span>
-                <button className="copy" type="button" onClick={handleCopy}>
+                <button className="copy" type="button" onClick={() => copy(codePlain)}>
                   {copied ? 'Copied' : 'Copy'}
                 </button>
               </div>

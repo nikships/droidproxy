@@ -1,4 +1,5 @@
 import { GitHubIcon } from './icons'
+import { GITHUB, RELEASES } from '../content'
 
 export default function Navbar() {
   return (
@@ -9,15 +10,15 @@ export default function Navbar() {
           <span>DroidProxy</span>
         </a>
         <nav className="nav-links">
-          <a href="#use-cases">Why</a>
+          <a href="#why">Why</a>
           <a href="#how-it-works">How it works</a>
           <a href="#models">Models</a>
           <a href="#install">Install</a>
-          <a href="https://github.com/anand-92/droidproxy" target="_blank" rel="noopener">GitHub</a>
+          <a href={GITHUB} target="_blank" rel="noopener">GitHub</a>
         </nav>
         <div className="nav-cta">
           <a
-            href="https://github.com/anand-92/droidproxy"
+            href={GITHUB}
             target="_blank"
             rel="noopener"
             className="btn btn-ghost"
@@ -27,7 +28,7 @@ export default function Navbar() {
             <span>Star</span>
           </a>
           <a
-            href="https://github.com/anand-92/droidproxy/releases/latest"
+            href={RELEASES}
             target="_blank"
             rel="noopener"
             className="btn btn-primary"
