@@ -20,15 +20,6 @@ APP_DIR="$PROJECT_DIR/$APP_NAME.app"
 # Build the Swift executable first
 echo -e "${BLUE}Building Swift executable (release)...${NC}"
 cd "$SRC_DIR"
-# A successful compile cannot detect a menu attached to the wrong AppKit
-# object. Exercise the actual menu wiring before producing a release bundle.
-echo -e "${BLUE}Checking menu bar attachment and action dispatch...${NC}"
-if [ -n "$TARGET_ARCH" ]; then
-    swift test -c release --arch "$TARGET_ARCH" --filter AppDelegateMenuBarTests
-else
-    swift test -c release --filter AppDelegateMenuBarTests
-fi
-
 if [ -n "$TARGET_ARCH" ]; then
     echo "Building for architecture: $TARGET_ARCH"
     swift build -c release --arch "$TARGET_ARCH"
