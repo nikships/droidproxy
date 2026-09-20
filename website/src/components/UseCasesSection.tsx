@@ -1,4 +1,5 @@
 import Eyebrow from './Eyebrow'
+import { noOrphan } from '../typography'
 
 const cases = [
   {
@@ -39,7 +40,7 @@ export default function UseCasesSection() {
             <Eyebrow index="01">Why it exists</Eyebrow>
             <h2>Stop paying twice for the same models.</h2>
           </div>
-          <p>You already pay the labs. Factory Droid is a great coding agent that talks to those same models — and charges a steep markup to handle billing. DroidProxy cuts the middleman.</p>
+          <p>{noOrphan('You already pay the labs. Factory Droid talks to those same models and charges a steep markup to handle billing. DroidProxy removes that extra bill.')}</p>
         </div>
 
         <div className="usecase-grid">
@@ -47,7 +48,7 @@ export default function UseCasesSection() {
             <div className="usecase" key={c.index}>
               <Eyebrow index={c.index}>{c.tag}</Eyebrow>
               <h3>{c.title}</h3>
-              <p>{c.body}</p>
+              <p>{noOrphan(c.body)}</p>
               <div className="usecase-foot">
                 <span><b>{c.footLabel}</b> {c.footValue}</span>
                 <span>{c.footRight}</span>

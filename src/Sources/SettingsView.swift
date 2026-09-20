@@ -2,82 +2,9 @@ import SwiftUI
 import ServiceManagement
 import AppKit
 
-// MARK: - NSVisualEffectView bridge for live backdrop blur behind the window
-struct VisualEffectBlur: NSViewRepresentable {
-    var material: NSVisualEffectView.Material = .underWindowBackground
-    var blendingMode: NSVisualEffectView.BlendingMode = .behindWindow
-
-    func makeNSView(context: Context) -> NSVisualEffectView {
-        let view = NSVisualEffectView()
-        view.material = material
-        view.blendingMode = blendingMode
-        view.state = .active
-        view.isEmphasized = true
-        return view
-    }
-
-    func updateNSView(_ nsView: NSVisualEffectView, context: Context) {
-        nsView.material = material
-        nsView.blendingMode = blendingMode
-    }
-}
-
-// MARK: - Liquid Glass helpers (macOS 26+)
-// These wrap the new Liquid Glass APIs with availability fallbacks so the
-// settings UI keeps its current look on older macOS versions.
+// MARK: - Shared view helpers
 
 extension View {
-    /// Applies a Liquid Glass card background on macOS 26+, falling back to a
-    /// flat rounded-rect fill on older systems.
-    @ViewBuilder
-    func droidGlassCard(cornerRadius: CGFloat = 14, tint: Color? = nil, fallback: Color = Color(red: 0x12/255, green: 0x12/255, blue: 0x12/255)) -> some View {
-        if #available(macOS 26.0, *) {
-            if let tint {
-                self.glassEffect(.regular.tint(tint), in: .rect(cornerRadius: cornerRadius))
-            } else {
-                self.glassEffect(.regular, in: .rect(cornerRadius: cornerRadius))
-            }
-        } else {
-            self
-                .background(fallback)
-                .clipShape(RoundedRectangle(cornerRadius: cornerRadius))
-        }
-    }
-
-    /// Applies an interactive Liquid Glass capsule on macOS 26+, else a rounded background.
-    @ViewBuilder
-    func droidGlassCapsule(tint: Color? = nil, interactive: Bool = false) -> some View {
-        if #available(macOS 26.0, *) {
-            switch (tint, interactive) {
-            case (let t?, true):  self.glassEffect(.regular.tint(t).interactive(), in: .capsule)
-            case (let t?, false): self.glassEffect(.regular.tint(t), in: .capsule)
-            case (nil, true):     self.glassEffect(.regular.interactive(), in: .capsule)
-            case (nil, false):    self.glassEffect(.regular, in: .capsule)
-            }
-        } else {
-            self
-                .background(Capsule().fill(Color.white.opacity(0.06)))
-        }
-    }
-
-    /// Applies a prominent Liquid Glass button style on macOS 26+, else plain.
-    @ViewBuilder
-    func droidGlassProminent() -> some View {
-        if #available(macOS 26.0, *) {
-            self.buttonStyle(.glassProminent)
-        } else {
-            self.buttonStyle(.borderedProminent)
-        }
-    }
-
-    @ViewBuilder
-    func droidGlassPlain() -> some View {
-        if #available(macOS 26.0, *) {
-            self.buttonStyle(.glass)
-        } else {
-            self.buttonStyle(.bordered)
-        }
-    }
 
     /// Pushes the pointing-hand cursor while hovered. The `enabled` flag lets
     /// callers gate the cursor change on a runtime condition (e.g. disabled
@@ -96,8 +23,6 @@ extension View {
 
 /// A single account row with disable toggle and remove button
 struct AccountRowView: View {
-    static let accent = Color(red: 0xF2/255, green: 0x7B/255, blue: 0x2F/255)
-
     let account: AuthAccount
     let removeColor: Color
     let showDisableToggle: Bool
@@ -106,20 +31,20 @@ struct AccountRowView: View {
     let onRemove: () -> Void
 
     private var statusColor: Color {
-        if account.isDisabled { return .gray }
-        if account.isExpired { return Self.accent.opacity(0.6) }
-        return Self.accent
+        if account.isDisabled { return Theme.textTertiary }
+        if account.isExpired { return Theme.accent.opacity(0.6) }
+        return Theme.accent
     }
 
     private var nameColor: Color {
-        if account.isDisabled { return .secondary.opacity(0.5) }
-        if account.isExpired { return Self.accent.opacity(0.6) }
-        return .secondary
+        if account.isDisabled { return Theme.textSecondary.opacity(0.5) }
+        if account.isExpired { return Theme.accent.opacity(0.6) }
+        return Theme.textSecondary
     }
 
     private func disableButtonColor(canDisable: Bool) -> Color {
-        if account.isDisabled { return Self.accent }
-        return canDisable ? Self.accent.opacity(0.6) : .secondary.opacity(0.4)
+        if account.isDisabled { return Theme.accent }
+        return canDisable ? Theme.accent.opacity(0.6) : Theme.textTertiary
     }
 
     var body: some View {
@@ -133,19 +58,21 @@ struct AccountRowView: View {
                 .strikethrough(account.isDisabled)
             if account.isExpired && !account.isDisabled {
                 Text("(expired)")
-                    .font(.caption2)
-                    .foregroundColor(Self.accent.opacity(0.6))
+                    .font(Theme.mono(10))
+                    .foregroundColor(Theme.accent.opacity(0.6))
             }
             if account.isDisabled {
                 Text("(disabled)")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .font(Theme.mono(10))
+                    .foregroundColor(Theme.textTertiary)
             }
             if showDisableToggle {
                 let canDisable = account.isDisabled || !isLastEnabled
                 Button(action: onToggleDisabled) {
                     Text(account.isDisabled ? "Enable" : "Disable")
-                        .font(.caption)
+                        .font(Theme.mono(10, weight: .semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.5)
                         .foregroundColor(disableButtonColor(canDisable: canDisable))
                 }
                 .buttonStyle(.plain)
@@ -154,13 +81,11 @@ struct AccountRowView: View {
                 .pointingHandCursor(enabled: canDisable)
             }
             Button(action: onRemove) {
-                HStack(spacing: 2) {
-                    Image(systemName: "minus.circle.fill")
-                        .font(.caption)
-                    Text("Remove")
-                        .font(.caption)
-                }
-                .foregroundColor(removeColor)
+                Text("Remove")
+                    .font(Theme.mono(10, weight: .semibold))
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                    .foregroundColor(removeColor)
             }
             .buttonStyle(.plain)
             .pointingHandCursor()
@@ -190,7 +115,7 @@ struct ServiceRow<ExtraContent: View>: View {
     @State private var accountToRemove: AuthAccount?
     @State private var showingRemoveConfirmation = false
 
-    private let removeColor = Color(red: 0xeb/255, green: 0x0f/255, blue: 0x0f/255)
+    private let removeColor = Theme.danger
     
     private var displayTitle: String {
         customTitle ?? serviceType.displayName
@@ -220,18 +145,22 @@ struct ServiceRow<ExtraContent: View>: View {
                 }
                 Text(displayTitle)
                     .fontWeight(.medium)
-                    .foregroundColor(isEnabled ? .primary : .secondary)
+                    .foregroundColor(isEnabled ? Theme.textPrimary : Theme.textSecondary)
                 Spacer()
                 if isAuthenticating {
                     ProgressView()
                         .controlSize(.small)
                 } else if isEnabled {
-                    Button("Add Account") {
+                    Button {
                         onConnect()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Add Account")
+                            Image(systemName: "arrow.right")
+                                .font(Theme.mono(10, weight: .semibold))
+                        }
                     }
-                    .droidGlassProminent()
-                    .tint(toggleTint)
-                    .controlSize(.small)
+                    .buttonStyle(PrimaryButtonStyle())
                 }
             }
             
@@ -241,31 +170,24 @@ struct ServiceRow<ExtraContent: View>: View {
                 if !accounts.isEmpty {
                     // Collapsible summary
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
+                        withAnimation(.easeOut(duration: 0.15)) {
                             isExpanded.toggle()
                         }
                     } label: {
-                        HStack(spacing: 4) {
+                        HStack(spacing: 6) {
                             Text("\(accounts.count) connected account\(accounts.count == 1 ? "" : "s")")
-                                .font(.caption)
-                                .foregroundColor(AccountRowView.accent)
-
+                                .foregroundStyle(Theme.accent)
                             if enabledCount > 1 {
                                 Text(AppPreferences.sequentialAccountFailover
                                      ? "• Sequential auto-failover" : "• Round-robin w/ auto-failover")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .foregroundStyle(Theme.textTertiary)
                             }
-
                             Image(systemName: isExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(Theme.mono(10, weight: .semibold))
+                                .foregroundStyle(Theme.textTertiary)
                         }
-                        .padding(.horizontal, 10)
-                        .padding(.vertical, 4)
-                        .droidGlassCapsule(tint: AccountRowView.accent.opacity(0.18), interactive: true)
                     }
-                    .buttonStyle(.plain)
+                    .buttonStyle(GhostButtonStyle())
                     .padding(.leading, 28)
                     .accessibilityLabel("\(accounts.count) connected \(accounts.count == 1 ? "account" : "accounts")")
                     .accessibilityHint(isExpanded ? "Collapse account list" : "Expand account list")
@@ -287,8 +209,10 @@ struct ServiceRow<ExtraContent: View>: View {
                     }
                 } else {
                     Text("No connected accounts")
-                        .font(.caption)
-                        .foregroundColor(.secondary)
+                        .font(Theme.mono(10, weight: .semibold))
+                        .textCase(.uppercase)
+                        .tracking(0.8)
+                        .foregroundColor(Theme.textTertiary)
                         .padding(.leading, 28)
                 }
             }
@@ -344,8 +268,6 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
     @AppStorage(AppPreferences.bindAddressKey) private var bindAddress = AppPreferences.defaultBindAddress
-    @AppStorage(AppPreferences.oledThemeKey) private var oledTheme = AppPreferences.defaultOledTheme
-    @AppStorage(AppPreferences.backgroundOpacityKey) private var backgroundOpacity = AppPreferences.defaultBackgroundOpacity
     @AppStorage(AppPreferences.betaFlagKey) private var betaFlag = AppPreferences.defaultBetaFlag
     @AppStorage(AppPreferences.verboseLoggingKey) private var verboseLogging = AppPreferences.defaultVerboseLogging
     @AppStorage(AppPreferences.sequentialAccountFailoverKey) private var sequentialAccountFailover = AppPreferences.defaultSequentialAccountFailover
@@ -363,23 +285,25 @@ struct SettingsView: View {
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
-    @State private var remoteManagementExpanded = false
+    @State private var advancedExpanded = false
     @State private var codexFastModeExpanded = true
     @State private var grokFastModeExpanded = true
     @State private var cursorFastModeExpanded = true
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
-    private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
-    private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
-    private let antigravityEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
-    private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
-    private let cursorEffortSelectionColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
-    private let junieEffortSelectionColor = Color(red: 0x48/255, green: 0xE0/255, blue: 0x54/255)
-    private let grokEffortSelectionColor = Color(red: 0x1D/255, green: 0x9B/255, blue: 0xF0/255)
-    private let copilotSelectionColor = Color(red: 0x77/255, green: 0xB9/255, blue: 0xFF/255)
+    // Per-provider brand colors, used for each provider's switch tint so
+    // rows stay visually distinguishable. Everything else in the UI uses
+    // the single Factory orange accent.
+    private let claudeColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
+    private let codexColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
+    private let antigravityColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
+    private let kimiColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
+    private let cursorColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
+    private let junieColor = Color(red: 0x48/255, green: 0xE0/255, blue: 0x54/255)
+    private let grokColor = Color(red: 0x1D/255, green: 0x9B/255, blue: 0xF0/255)
+    private let copilotColor = Color(red: 0x77/255, green: 0xB9/255, blue: 0xFF/255)
     // Meta's brand blue ("Meta Blue", #0866FF).
-    private let metaSelectionColor = Color(red: 0x08/255, green: 0x66/255, blue: 0xFF/255)
-    private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
+    private let metaColor = Color(red: 0x08/255, green: 0x66/255, blue: 0xFF/255)
 
     init(
         serverManager: ServerManager,
@@ -405,7 +329,7 @@ struct SettingsView: View {
             if oauthUsageTracker.accounts.isEmpty {
                 Text("Connect Codex or Claude OAuth accounts to show quota windows.")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
             } else {
                 ForEach(oauthUsageTracker.accounts) { account in
                     oauthUsageAccountRow(account)
@@ -423,7 +347,7 @@ struct SettingsView: View {
                     .fontWeight(.semibold)
                 Text(account.email)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
                     .lineLimit(1)
                 Spacer()
                 if account.isLoading {
@@ -434,8 +358,8 @@ struct SettingsView: View {
 
             if let error = account.error {
                 Text(error)
-                    .font(.caption2)
-                    .foregroundColor(.orange)
+                    .font(Theme.mono(10))
+                    .foregroundColor(Theme.danger)
             } else {
                 ForEach(account.windows) { window in
                     usageWindowRow(window)
@@ -443,7 +367,7 @@ struct SettingsView: View {
             }
         }
         .padding(8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
+        .surfaceStyle()
     }
 
     private func usageWindowRow(_ window: OAuthUsageWindow) -> some View {
@@ -452,65 +376,30 @@ struct SettingsView: View {
             HStack {
                 Text(window.title)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
                 Spacer()
                 if let remaining {
                     Text("\(Int(remaining.rounded()))% left")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Theme.textSecondary)
                 }
             }
             if let remaining {
                 ProgressView(value: remaining, total: 100)
-                    .tint(remaining < 20 ? .orange : .green)
+                    .tint(remaining < 20 ? Theme.danger : Theme.accent)
             } else {
                 Text("Usage unavailable")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
             }
             if let resetText = window.resetText {
                 Text(resetText)
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
             }
         }
     }
 
-    // Translucent row background that reveals the colourful window backdrop.
-    // We deliberately avoid .ultraThinMaterial here — on dark appearance it
-    // vibrancy-composites to an almost-opaque grey which fights the glass look.
-    // A white gradient at low alpha + a hairline inner/outer highlight reads as
-    // actual liquid glass against the multi-hue window gradient below.
-    @ViewBuilder
-    private var glassRowBackground: some View {
-        ZStack {
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .fill(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.10),
-                            Color.white.opacity(0.02)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    )
-                )
-            RoundedRectangle(cornerRadius: 12, style: .continuous)
-                .strokeBorder(
-                    LinearGradient(
-                        colors: [
-                            Color.white.opacity(0.35),
-                            Color.white.opacity(0.05)
-                        ],
-                        startPoint: .topLeading,
-                        endPoint: .bottomTrailing
-                    ),
-                    lineWidth: 1
-                )
-        }
-        .padding(.vertical, 2)
-    }
-    
     private enum Timing {
         static let serverRestartDelay: TimeInterval = 0.3
         static let refreshDebounce: TimeInterval = 0.5
@@ -528,53 +417,30 @@ struct SettingsView: View {
             ZStack(alignment: .top) {
                 LogoView()
                     .padding(.top, 36) // leave room for the transparent titlebar traffic-lights
-                    .padding(.bottom, 4)
+                    .padding(.bottom, 10)
                     .frame(maxWidth: .infinity)
                 HStack {
-                    Toggle("Beta", isOn: $betaFlag)
-                        .toggleStyle(.switch)
-                        .controlSize(.mini)
-                        .font(.caption)
-                        .foregroundColor(Color.white.opacity(0.75))
-                        .help("Enable beta-gated features")
-                        .pointingHandCursor()
                     Spacer()
-                    HStack(spacing: 8) {
-                        HStack(spacing: 4) {
-                            Image(systemName: "circle.lefthalf.filled")
-                                .font(.system(size: 10, weight: .regular))
-                                .foregroundColor(Color.white.opacity(0.40))
-                            Slider(value: $backgroundOpacity, in: 0.10...1.0)
-                                .frame(width: 60)
-                                .controlSize(.mini)
-                                .tint(Color.white.opacity(0.55))
-                        }
-                        .help("Adjust background opacity (100% = fully opaque)")
-                        Button {
-                            oledTheme.toggle()
-                            NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
-                        } label: {
-                            Image(systemName: oledTheme ? "sun.max.fill" : "moon.fill")
-                                .font(.system(size: 13, weight: .semibold))
-                                .foregroundColor(oledTheme ? Color.yellow.opacity(0.9) : Color.white.opacity(0.75))
-                                .frame(width: 26, height: 26)
-                                .background(
-                                    Circle()
-                                        .fill(Color.white.opacity(oledTheme ? 0.06 : 0.10))
-                                )
-                                .overlay(
-                                    Circle()
-                                        .strokeBorder(Color.white.opacity(0.18), lineWidth: 1)
-                                )
-                        }
-                        .buttonStyle(.plain)
-                        .help(oledTheme ? "Switch to Liquid Glass theme" : "Switch to OLED black theme")
-                        .pointingHandCursor()
+                    Toggle(isOn: $betaFlag) {
+                        Text("Beta")
+                            .font(Theme.mono(10, weight: .semibold))
+                            .textCase(.uppercase)
+                            .tracking(0.8)
+                            .foregroundColor(Theme.textSecondary)
                     }
+                    .toggleStyle(.switch)
+                    .controlSize(.mini)
+                    .tint(Theme.accent)
+                    .help("Enable beta-gated features")
+                    .pointingHandCursor()
                 }
                 .padding(.top, 12)
                 .padding(.horizontal, 12)
             }
+            // Hairline rule separating the header band from content.
+            Rectangle()
+                .fill(Theme.border)
+                .frame(height: 1)
 
             Form {
                 Section {
@@ -590,41 +456,38 @@ struct SettingsView: View {
                         }) {
                             HStack(spacing: 6) {
                                 Circle()
-                                    .fill(serverManager.isRunning ? Color.green : Color.red)
-                                    .frame(width: 8, height: 8)
+                                    .fill(serverManager.isRunning ? Theme.accent : Theme.danger)
+                                    .frame(width: 6, height: 6)
                                 Text(serverManager.isRunning ? "Running" : "Stopped")
-                                    .font(.caption)
                             }
-                            .padding(.horizontal, 10)
-                            .padding(.vertical, 4)
-                            .droidGlassCapsule(
-                                tint: serverManager.isRunning ? Color.green.opacity(0.4) : Color.red.opacity(0.4),
-                                interactive: true
-                            )
                         }
-                        .buttonStyle(.plain)
+                        .buttonStyle(GhostButtonStyle())
                     }
+                } header: {
+                    SectionLabel(index: "01", text: "Status")
                 }
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(Theme.surface)
 
                 if serverManager.isProviderEnabled(.codex) || authManager.hasAccounts(for: .codex) ||
                    serverManager.isProviderEnabled(.claude) || authManager.hasAccounts(for: .claude) {
                     Section {
                         HStack {
-                            Text("OAuth Quota Usage")
                             Spacer()
                             Button(action: refreshOAuthUsage) {
                                 Image(systemName: "arrow.clockwise")
+                                    .font(Theme.mono(11))
+                                    .foregroundColor(Theme.textSecondary)
                             }
                             .disabled(oauthUsageTracker.isRefreshing)
                             .buttonStyle(.plain)
-                            .foregroundColor(.secondary)
                             .opacity(oauthUsageTracker.isRefreshing ? 0.5 : 1)
                             .help("Refresh usage quotas")
                         }
                         oauthUsageDashboard
+                    } header: {
+                        SectionLabel(index: "02", text: "Quota")
                     }
-                    .listRowBackground(glassRowBackground)
+                    .listRowBackground(Theme.surface)
                 }
 
                 Section {
@@ -639,7 +502,7 @@ struct SettingsView: View {
                         Button("Open Folder") {
                             openAuthFolder()
                         }
-                        .droidGlassPlain()
+                        .buttonStyle(GhostButtonStyle())
                         .controlSize(.small)
                     }
 
@@ -650,172 +513,188 @@ struct SettingsView: View {
                             if factoryModelsInstalled {
                                 HStack(spacing: 4) {
                                     Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption)
+                                        .font(Theme.mono(10))
+                                        .foregroundColor(Theme.accent)
                                     Text("Applied")
-                                        .font(.caption)
-                                        .foregroundColor(.green)
+                                        .font(Theme.mono(10, weight: .semibold))
+                                        .textCase(.uppercase)
+                                        .tracking(0.8)
+                                        .foregroundColor(Theme.accent)
                                 }
                             }
-                            Button(factoryModelsInstalled ? "Re-apply" : "Apply") {
+                            Button {
                                 applyFactoryCustomModels()
+                            } label: {
+                                HStack(spacing: 6) {
+                                    Text(factoryModelsInstalled ? "Re-apply" : "Apply")
+                                    Image(systemName: "arrow.right")
+                                        .font(Theme.mono(10, weight: .semibold))
+                                }
                             }
-                            .droidGlassProminent()
-                            .controlSize(.small)
+                            .buttonStyle(PrimaryButtonStyle())
                         }
 
                         Text("Apply writes DroidProxy model aliases into ~/.factory/settings.json and makes a timestamped backup first. Reasoning effort is selected from Droid CLI when the model exposes multiple levels.")
                             .font(.caption2)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Theme.textSecondary)
                             .fixedSize(horizontal: false, vertical: true)
                         }
+                } header: {
+                    SectionLabel(index: "03", text: "General")
                 }
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(Theme.surface)
 
                 Section {
-                    if remoteManagementExpanded {
-                        Toggle("Allow remote access", isOn: $allowRemote)
-                            .onChange(of: allowRemote) { _ in
-                                _ = serverManager.getConfigPath()
-                            }
-
-                        HStack {
-                            Text("Secret key")
-                            Spacer()
-                            SecureField("Enter secret key", text: $secretKey)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: 200)
-                                .onSubmit {
-                                    _ = serverManager.getConfigPath()
-                                }
-                        }
-
-                        if betaFlag {
-                            HStack {
-                                Text("Bind address")
-                                Spacer()
-                                TextField("127.0.0.1", text: $bindAddress)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(maxWidth: 200)
-                                    .disableAutocorrection(true)
-                                    // Regenerate the merged config when the user commits the
-                                    // value (Return / focus loss), not on every keystroke — the
-                                    // previous .onChange rewrote the config file on every typed
-                                    // character. The new address applies on the next server restart.
-                                    .onSubmit {
+                    if advancedExpanded {
+                        VStack(alignment: .leading, spacing: 14) {
+                            // Remote access
+                            VStack(alignment: .leading, spacing: 6) {
+                                advancedGroupLabel("Remote")
+                                Toggle("Allow remote access", isOn: $allowRemote)
+                                    .onChange(of: allowRemote) { _ in
                                         _ = serverManager.getConfigPath()
                                     }
+
+                                HStack {
+                                    Text("Secret key")
+                                    Spacer()
+                                    SecureField("Enter secret key", text: $secretKey)
+                                        .textFieldStyle(.roundedBorder)
+                                        .frame(maxWidth: 200)
+                                        .onSubmit {
+                                            _ = serverManager.getConfigPath()
+                                        }
+                                }
+
+                                if betaFlag {
+                                    HStack {
+                                        Text("Bind address")
+                                        Spacer()
+                                        TextField("127.0.0.1", text: $bindAddress)
+                                            .textFieldStyle(.roundedBorder)
+                                            .frame(maxWidth: 200)
+                                            .disableAutocorrection(true)
+                                            // Regenerate the merged config when the user commits the
+                                            // value (Return / focus loss), not on every keystroke — the
+                                            // previous .onChange rewrote the config file on every typed
+                                            // character. The new address applies on the next server restart.
+                                            .onSubmit {
+                                                _ = serverManager.getConfigPath()
+                                            }
+                                    }
+
+                                    Text("Default is 127.0.0.1. Set to 0.0.0.0 to allow access from other devices on your network (e.g. Tailscale). Requires server restart.")
+                                        .font(.caption2)
+                                        .foregroundColor(Theme.textSecondary)
+                                        .fixedSize(horizontal: false, vertical: true)
+                                }
+
+                                if allowRemote && secretKey.isEmpty {
+                                    HStack(spacing: 4) {
+                                        Image(systemName: "exclamationmark.triangle.fill")
+                                            .font(Theme.mono(10))
+                                            .foregroundColor(Theme.danger)
+                                        Text("Set a secret key to secure remote access")
+                                            .font(Theme.mono(10))
+                                            .foregroundColor(Theme.danger)
+                                    }
+                                }
                             }
 
-                            Text("Default is 127.0.0.1. Set to 0.0.0.0 to allow access from other devices on your network (e.g. Tailscale). Requires server restart.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
+                            // Logging
+                            VStack(alignment: .leading, spacing: 6) {
+                                advancedGroupLabel("Logging")
+                                Toggle("Verbose logging", isOn: $verboseLogging)
+                                    .onChange(of: verboseLogging) { _ in
+                                        _ = serverManager.getConfigPath()
+                                    }
+                                    .help("Writes verbose backend request/response logs to ~/.cli-proxy-api/logs/. CLIProxyAPI hot-reloads, so no restart is required.")
 
-                        if allowRemote && secretKey.isEmpty {
-                            HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                                Text("Set a secret key to secure remote access")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
+                                HStack {
+                                    Text("Logs folder")
+                                    Spacer()
+                                    Button("Open Logs") {
+                                        openLogsFolder()
+                                    }
+                                    .buttonStyle(GhostButtonStyle())
+                                    .help("Opens ~/.cli-proxy-api/logs/ in Finder. Double-click any log to view it in your default text editor.")
+                                }
+                            }
+
+                            // Routing
+                            VStack(alignment: .leading, spacing: 6) {
+                                advancedGroupLabel("Routing")
+                                Toggle("Sequential account failover", isOn: $sequentialAccountFailover)
+                                    .onChange(of: sequentialAccountFailover) { newValue in
+                                        serverManager.setSequentialAccountFailover(newValue)
+                                    }
+                                    .help("Use one account at a time instead of spreading requests across all of them. CLIProxyAPI hot-reloads, so no restart is required.")
+
+                                Text("With multiple accounts on the same provider, requests stay on one account until its quota runs out, then move to the next automatically without surfacing an error. The exhausted account is skipped until its quota resets. Leave off to spread requests evenly across every account.")
+                                    .font(.caption2)
+                                    .foregroundColor(Theme.textSecondary)
+                                    .fixedSize(horizontal: false, vertical: true)
                             }
                         }
                     } else {
                         HStack(spacing: 6) {
                             Text(allowRemote ? "Remote access: On" : "Remote access: Off")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
+                                .font(Theme.mono(10))
+                                .foregroundColor(Theme.textSecondary)
                             if allowRemote && secretKey.isEmpty {
                                 Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
+                                    .font(Theme.mono(10))
+                                    .foregroundColor(Theme.danger)
                                 Text("Secret key missing")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
+                                    .font(Theme.mono(10))
+                                    .foregroundColor(Theme.danger)
                             }
                         }
                     }
                 } header: {
                     Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            remoteManagementExpanded.toggle()
+                        withAnimation(.easeOut(duration: 0.15)) {
+                            advancedExpanded.toggle()
                         }
                     } label: {
-                        HStack(spacing: 4) {
-                            Text("Remote Management")
-                            Image(systemName: remoteManagementExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
+                        HStack(spacing: 7) {
+                            SectionLabel(index: "04", text: "Advanced")
+                            Image(systemName: advancedExpanded ? "chevron.down" : "chevron.right")
+                                .font(Theme.mono(9, weight: .semibold))
+                                .foregroundColor(Theme.textTertiary)
                         }
                         .contentShape(Rectangle())
                     }
                     .buttonStyle(.plain)
-                    .accessibilityLabel("Remote Management")
-                    .accessibilityValue(remoteManagementExpanded ? "Expanded" : "Collapsed")
+                    .accessibilityLabel("Advanced")
+                    .accessibilityValue(advancedExpanded ? "Expanded" : "Collapsed")
                 }
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(Theme.surface)
 
-                Section("Logging") {
-                    Toggle("Verbose logging", isOn: $verboseLogging)
-                        .onChange(of: verboseLogging) { _ in
-                            _ = serverManager.getConfigPath()
-                        }
-                        .help("Writes verbose backend request/response logs to ~/.cli-proxy-api/logs/. CLIProxyAPI hot-reloads, so no restart is required.")
-
-                    HStack {
-                        Text("Logs folder")
-                        Spacer()
-                        Button("Open Logs") {
-                            openLogsFolder()
-                        }
-                        .droidGlassProminent()
-                        .controlSize(.small)
-                        .help("Opens ~/.cli-proxy-api/logs/ in Finder. Double-click any log to view it in your default text editor.")
-                    }
-                }
-                .listRowBackground(glassRowBackground)
-
-                Section("Account Routing") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle("Sequential account failover", isOn: $sequentialAccountFailover)
-                            .onChange(of: sequentialAccountFailover) { newValue in
-                                serverManager.setSequentialAccountFailover(newValue)
-                            }
-                            .help("Use one account at a time instead of spreading requests across all of them. CLIProxyAPI hot-reloads, so no restart is required.")
-
-                        Text("With multiple accounts on the same provider, requests stay on one account until its quota runs out, then move to the next automatically without surfacing an error. The exhausted account is skipped until its quota resets. Leave off to spread requests evenly across every account.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
-                }
-                .listRowBackground(glassRowBackground)
-
-                Section("Services") {
+                Section {
                     providerServiceRow(
                         .claude,
                         iconName: "icon-claude.png",
-                        toggleTint: claudeEffortSelectionColor
+                        toggleTint: claudeColor
                     )
 
                     providerServiceRow(
                         .codex,
                         iconName: "icon-codex.png",
-                        toggleTint: codexEffortSelectionColor
+                        toggleTint: codexColor
                     )
 
                     if serverManager.isProviderEnabled(.codex) {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
                                 Text("Fast Mode")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(Theme.mono(10, weight: .semibold))
+                                    .textCase(.uppercase)
+                                    .tracking(0.8)
+                                    .foregroundColor(Theme.textSecondary)
                                 Image(systemName: codexFastModeExpanded ? "chevron.down" : "chevron.right")
                                     .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(Theme.textSecondary)
                                 Spacer()
                             }
                             .contentShape(Rectangle())
@@ -862,27 +741,27 @@ struct SettingsView: View {
                     providerServiceRow(
                         .antigravity,
                         iconName: "icon-gemini.png",
-                        toggleTint: antigravityEffortSelectionColor,
+                        toggleTint: antigravityColor,
                         helpText: "Uses your Antigravity subscription for the Antigravity-backed Gemini, Claude, and GPT-OSS models."
                     )
 
                     providerServiceRow(
                         .kimi,
                         iconName: "icon-kimi.svg",
-                        toggleTint: kimiEffortSelectionColor
+                        toggleTint: kimiColor
                     )
 
                     providerServiceRow(
                         .junie,
                         iconName: "icon-junie.svg",
-                        toggleTint: junieEffortSelectionColor,
+                        toggleTint: junieColor,
                         helpText: "Enter your JetBrains Junie API key to use your JetBrains AI subscription for Junie Sonnet 5, Opus 5, and Fable 5."
                     )
 
                     providerServiceRow(
                         .grok,
                         iconName: "icon-grok.svg",
-                        toggleTint: grokEffortSelectionColor,
+                        toggleTint: grokColor,
                         helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.6 via api.x.ai (supported tiers; no xAI API key)."
                     )
 
@@ -890,11 +769,13 @@ struct SettingsView: View {
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
                                 Text("Fast Mode")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
+                                    .font(Theme.mono(10, weight: .semibold))
+                                    .textCase(.uppercase)
+                                    .tracking(0.8)
+                                    .foregroundColor(Theme.textSecondary)
                                 Image(systemName: grokFastModeExpanded ? "chevron.down" : "chevron.right")
                                     .font(.caption2)
-                                    .foregroundColor(.secondary)
+                                    .foregroundColor(Theme.textSecondary)
                                 Spacer()
                             }
                             .contentShape(Rectangle())
@@ -918,7 +799,7 @@ struct SettingsView: View {
                         providerServiceRow(
                             .cursor,
                             iconName: "icon-cursor.png",
-                            toggleTint: cursorEffortSelectionColor,
+                            toggleTint: cursorColor,
                             helpText: "Uses your local Cursor Agent CLI (`agent login`). Exposes Composer 2.5 and Grok 4.6 through cursor-api-proxy. Fast Mode and thinking levels are independent: Fast is this toggle, thinking is Droid's per-session effort selector.",
                             onToggleEnabled: { enabled in
                                 if enabled {
@@ -935,10 +816,10 @@ struct SettingsView: View {
                                 HStack(spacing: 4) {
                                     Text("Fast Mode")
                                         .font(.caption)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Theme.textSecondary)
                                     Image(systemName: cursorFastModeExpanded ? "chevron.down" : "chevron.right")
                                         .font(.caption2)
-                                        .foregroundColor(.secondary)
+                                        .foregroundColor(Theme.textSecondary)
                                     Spacer()
                                 }
                                 .contentShape(Rectangle())
@@ -958,8 +839,10 @@ struct SettingsView: View {
                             .padding(.leading, 28)
                         }
                     }
+                } header: {
+                    SectionLabel(index: "07", text: "Services")
                 }
-                .listRowBackground(glassRowBackground)
+                .listRowBackground(Theme.surface)
             }
             .formStyle(.grouped)
             .scrollContentBackground(.hidden)
@@ -970,77 +853,36 @@ struct SettingsView: View {
 
             // Footer
             VStack(spacing: 4) {
-                HStack(spacing: 4) {
+                HStack(spacing: 6) {
                     Text("DroidProxy \(appVersion) was made possible thanks to")
-                        .font(.caption)
-                        .foregroundColor(oledFooterText)
                     Link("CLIProxyAPI", destination: URL(string: "https://github.com/router-for-me/CLIProxyAPI")!)
-                        .font(.caption)
                         .underline()
-                        .foregroundColor(oledFooterText)
                         .pointingHandCursor()
                     Text("|")
-                        .font(.caption)
-                        .foregroundColor(oledFooterText)
                     Text("License: MIT")
-                        .font(.caption)
-                        .foregroundColor(oledFooterText)
                 }
+                .font(Theme.mono(9))
+                .textCase(.uppercase)
+                .tracking(0.5)
+                .foregroundColor(Theme.textTertiary)
 
-                HStack(spacing: 4) {
-                    Text("© 2026")
-                        .font(.caption)
-                        .foregroundColor(oledFooterText)
-                    Text("DroidProxy")
-                        .font(.caption)
-                        .foregroundColor(oledFooterText)
-                }
+                Text("© 2026 DroidProxy")
+                    .font(Theme.mono(9))
+                    .textCase(.uppercase)
+                    .tracking(0.5)
+                    .foregroundColor(Theme.textTertiary)
 
                 Link("Report an issue", destination: URL(string: "https://github.com/anand-92/droidproxy/issues")!)
-                    .font(.caption)
-                    .foregroundColor(oledFooterText)
-                    .padding(.horizontal, 10)
-                    .padding(.vertical, 4)
-                    .droidGlassCapsule(tint: Color.white.opacity(0.08), interactive: true)
+                    .buttonStyle(GhostButtonStyle())
                     .padding(.top, 6)
-                    .pointingHandCursor()
             }
             .padding(.bottom, 12)
         }
-        .background(
-            ZStack {
-                if oledTheme {
-                    Color.black.ignoresSafeArea()
-                } else {
-                    if backgroundOpacity < 1.0 {
-                        VisualEffectBlur(material: .hudWindow, blendingMode: .behindWindow)
-                            .ignoresSafeArea()
-                    }
-                    Color.black.opacity(0.55)
-                        .ignoresSafeArea()
-                    RadialGradient(
-                        colors: [Color(red: 0.95, green: 0.45, blue: 0.15).opacity(0.45), Color.clear],
-                        center: .init(x: 0.15, y: 0.1), startRadius: 10, endRadius: 420
-                    ).ignoresSafeArea()
-                    RadialGradient(
-                        colors: [Color(red: 0.30, green: 0.50, blue: 0.95).opacity(0.35), Color.clear],
-                        center: .init(x: 0.85, y: 0.9), startRadius: 10, endRadius: 420
-                    ).ignoresSafeArea()
-                    RadialGradient(
-                        colors: [Color(red: 0.90, green: 0.25, blue: 0.35).opacity(0.25), Color.clear],
-                        center: .init(x: 0.9, y: 0.2), startRadius: 10, endRadius: 320
-                    ).ignoresSafeArea()
-                }
-            }
-            .opacity(backgroundOpacity)
-        )
-        .accentColor(AccountRowView.accent)
+        .background(Theme.background.ignoresSafeArea())
+        .accentColor(Theme.accent)
         .preferredColorScheme(.dark)
         .frame(width: 480)
         .frame(minHeight: 600, idealHeight: 900, maxHeight: .infinity)
-        .onChange(of: backgroundOpacity) { _ in
-            NotificationCenter.default.post(name: .droidProxyThemeChanged, object: nil)
-        }
         .onAppear {
             authManager.checkAuthStatus()
             checkLaunchAtLogin()
@@ -1096,7 +938,7 @@ struct SettingsView: View {
                 ))
                 .toggleStyle(.switch)
                 .controlSize(.mini)
-                .tint(copilotSelectionColor)
+                .tint(copilotColor)
                 .labelsHidden()
                 .help(isEnabled ? "Disable GitHub Copilot" : "Enable GitHub Copilot")
 
@@ -1113,7 +955,7 @@ struct SettingsView: View {
                 }
                 Text("GitHub Copilot")
                     .fontWeight(.medium)
-                    .foregroundColor(isEnabled ? .primary : .secondary)
+                    .foregroundColor(isEnabled ? Theme.textPrimary : Theme.textSecondary)
                 Spacer()
                 if copilotGateway.isAuthenticating {
                     ProgressView()
@@ -1121,21 +963,25 @@ struct SettingsView: View {
                     Button("Cancel") {
                         cancelCopilotAuthentication()
                     }
-                    .droidGlassPlain()
+                    .buttonStyle(GhostButtonStyle())
                     .controlSize(.small)
                 } else if copilotGateway.hasCredentials {
                     Button("Disconnect") {
                         disconnectCopilot()
                     }
-                    .droidGlassPlain()
+                    .buttonStyle(GhostButtonStyle())
                     .controlSize(.small)
                 } else if isEnabled {
-                    Button("Connect") {
+                    Button {
                         startCopilotAuthentication()
+                    } label: {
+                        HStack(spacing: 6) {
+                            Text("Connect")
+                            Image(systemName: "arrow.right")
+                                .font(Theme.mono(10, weight: .semibold))
+                        }
                     }
-                    .droidGlassProminent()
-                    .tint(copilotSelectionColor)
-                    .controlSize(.small)
+                    .buttonStyle(PrimaryButtonStyle())
                 }
             }
 
@@ -1149,19 +995,19 @@ struct SettingsView: View {
                             .frame(width: 6, height: 6)
                         Text(copilotGatewayStatusText)
                             .font(.caption)
-                            .foregroundColor(.secondary)
+                            .foregroundColor(Theme.textSecondary)
                         Spacer()
                         if case .failed = copilotGateway.state {
                             Button("Retry") {
                                 copilotGateway.start()
                             }
-                            .droidGlassPlain()
+                            .buttonStyle(GhostButtonStyle())
                             .controlSize(.small)
                         }
                         Button("Refresh Models") {
                             refreshCopilotModels()
                         }
-                        .droidGlassPlain()
+                        .buttonStyle(GhostButtonStyle())
                         .controlSize(.small)
                         .disabled(!copilotGateway.isRunning)
                     }
@@ -1170,7 +1016,7 @@ struct SettingsView: View {
                     if let failure = copilotGateway.state.failureDescription {
                         Text(failure)
                             .font(.caption)
-                            .foregroundColor(.orange)
+                            .foregroundColor(Theme.danger)
                             .textSelection(.enabled)
                             .padding(.leading, 28)
                             .fixedSize(horizontal: false, vertical: true)
@@ -1180,7 +1026,7 @@ struct SettingsView: View {
                 } else {
                     Text("Connect your Copilot subscription, then choose up to three account-available models for Factory.")
                         .font(.caption)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Theme.textSecondary)
                         .padding(.leading, 28)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1193,11 +1039,11 @@ struct SettingsView: View {
     private var copilotGatewayStatusColor: Color {
         switch copilotGateway.state {
         case .running:
-            return .green
+            return Theme.accent
         case .failed:
-            return .red
+            return Theme.danger
         case .idle, .starting:
-            return .orange
+            return Theme.textSecondary
         }
     }
 
@@ -1220,7 +1066,7 @@ struct SettingsView: View {
             if let copilotDeviceCode {
                 Text("Complete GitHub Copilot sign-in with this device code:")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
                 HStack(spacing: 8) {
                     Text(copilotDeviceCode)
                         .font(.system(.body, design: .monospaced))
@@ -1229,11 +1075,11 @@ struct SettingsView: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(copilotDeviceCode, forType: .string)
                     }
-                    .droidGlassPlain()
+                    .buttonStyle(GhostButtonStyle())
                     .controlSize(.small)
                     if let copilotVerificationURL {
                         Link("Open GitHub", destination: copilotVerificationURL)
-                            .droidGlassPlain()
+                            .buttonStyle(GhostButtonStyle())
                             .controlSize(.small)
                             .pointingHandCursor()
                     }
@@ -1241,7 +1087,7 @@ struct SettingsView: View {
             } else {
                 Text("Waiting for GitHub to provide a device code…")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
             }
         }
         .padding(.leading, 28)
@@ -1253,10 +1099,10 @@ struct SettingsView: View {
             HStack(spacing: 4) {
                 Text("Factory models (\(CopilotModelPreferences.selectedModelIDs.count)/\(CopilotModelPreferences.maximumSelectedModels))")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
                 Image(systemName: copilotModelsExpanded ? "chevron.down" : "chevron.right")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
                 Spacer()
             }
             .contentShape(Rectangle())
@@ -1270,7 +1116,7 @@ struct SettingsView: View {
                 if copilotGateway.availableModels.isEmpty {
                     Text("Refresh Models to load the models available to this Copilot account.")
                         .font(.caption2)
-                        .foregroundColor(.secondary)
+                        .foregroundColor(Theme.textSecondary)
                         .fixedSize(horizontal: false, vertical: true)
                 } else {
                     ForEach(0..<CopilotModelPreferences.maximumSelectedModels, id: \.self) { index in
@@ -1297,7 +1143,7 @@ struct SettingsView: View {
 
                 Text("Only the selected models are written into Factory settings when you press Apply or Re-apply.")
                     .font(.caption2)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
@@ -1408,7 +1254,7 @@ struct SettingsView: View {
     private func metaServiceRow() -> some View {
         VStack(alignment: .leading, spacing: 6) {
             providerServiceRow(
-                .meta, iconName: "icon-meta.svg", toggleTint: metaSelectionColor,
+                .meta, iconName: "icon-meta.svg", toggleTint: metaColor,
                 helpText: "Add Meta Muse accounts for automatic account failover.",
                 onToggleEnabled: { enabled in
                     if !enabled { cancelMetaAuthentication() }
@@ -1420,14 +1266,14 @@ struct SettingsView: View {
                 if metaMuseAuth.state == .authenticating {
                     metaDeviceCodeRow()
                     Button("Cancel sign-in") { cancelMetaAuthentication() }
-                        .droidGlassPlain()
+                        .buttonStyle(GhostButtonStyle())
                         .controlSize(.small)
                         .padding(.leading, 28)
                 }
                 if let error = metaMuseAuth.lastError {
                     Text(error)
                         .font(.caption)
-                        .foregroundColor(.orange)
+                        .foregroundColor(Theme.danger)
                         .padding(.leading, 28)
                         .fixedSize(horizontal: false, vertical: true)
                 }
@@ -1441,7 +1287,7 @@ struct SettingsView: View {
             if let metaDeviceCode {
                 Text("Complete Meta sign-in with this device code:")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
                 HStack(spacing: 8) {
                     Text(metaDeviceCode)
                         .font(.system(.body, design: .monospaced))
@@ -1450,11 +1296,11 @@ struct SettingsView: View {
                         NSPasteboard.general.clearContents()
                         NSPasteboard.general.setString(metaDeviceCode, forType: .string)
                     }
-                    .droidGlassPlain()
+                    .buttonStyle(GhostButtonStyle())
                     .controlSize(.small)
                     if let metaVerificationURL {
                         Link("Open Meta", destination: metaVerificationURL)
-                            .droidGlassPlain()
+                            .buttonStyle(GhostButtonStyle())
                             .controlSize(.small)
                             .pointingHandCursor()
                     }
@@ -1462,7 +1308,7 @@ struct SettingsView: View {
             } else {
                 Text("Waiting for Meta to provide a device code…")
                     .font(.caption)
-                    .foregroundColor(.secondary)
+                    .foregroundColor(Theme.textSecondary)
             }
         }
         .padding(.leading, 28)
@@ -1507,7 +1353,7 @@ struct SettingsView: View {
         HStack {
             Text("Muse Spark")
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Theme.textSecondary)
             Spacer()
             Toggle("Contributor mode", isOn: $metaContributorMode)
                 .toggleStyle(.checkbox)
@@ -1556,7 +1402,7 @@ struct SettingsView: View {
         HStack {
             Text(title)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Theme.textSecondary)
             Spacer()
             Toggle("Fast mode", isOn: isOn)
                 .toggleStyle(.checkbox)
@@ -1802,13 +1648,13 @@ struct SettingsView: View {
                 .frame(width: 8, height: 8)
             Text(cursorProxyStatusText)
                 .font(.caption)
-                .foregroundColor(.secondary)
+                .foregroundColor(Theme.textSecondary)
             Spacer()
             if case .failed = cursorAgentProxy.state {
                 Button("Retry") {
                     cursorAgentProxy.start()
                 }
-                .droidGlassPlain()
+                .buttonStyle(GhostButtonStyle())
                 .controlSize(.mini)
             }
         }
@@ -1816,10 +1662,10 @@ struct SettingsView: View {
 
     private var cursorProxyStatusColor: Color {
         switch cursorAgentProxy.state {
-        case .running: return .green
-        case .starting: return .yellow
-        case .failed: return .red
-        case .idle: return .secondary
+        case .running: return Theme.accent
+        case .starting: return Theme.textSecondary
+        case .failed: return Theme.danger
+        case .idle: return Theme.textTertiary
         }
     }
 

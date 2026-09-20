@@ -1,4 +1,5 @@
 import { providers } from '../content'
+import { noOrphan } from '../typography'
 
 export default function ProvidersSection() {
   return (
@@ -6,7 +7,7 @@ export default function ProvidersSection() {
       <div className="container">
         <div className="providers-head">
           <span className="logos-label">Bring your own subscription</span>
-          <p>Sign in to the labs you already pay. The rest stay off.</p>
+          <p>{noOrphan('Sign in to the labs you already have. Unused labs stay off.')}</p>
         </div>
         <div className="providers-grid">
           {providers.map((p) => (

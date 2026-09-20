@@ -1,4 +1,5 @@
 import { VERSION, GITHUB, RELEASES } from '../content'
+import { noOrphan } from '../typography'
 import Eyebrow from './Eyebrow'
 
 export default function HeroSection() {
@@ -8,10 +9,10 @@ export default function HeroSection() {
         <div className="hero-copy">
           <Eyebrow index="00">v{VERSION} · macos · mit</Eyebrow>
           <h1 className="title">
-            Run Factory Droid on the subscriptions you already pay for.
+            Use the plans you already pay for.
           </h1>
           <p className="lede">
-            DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie through the plans you already have. Same Droid CLI. Same agent. No Factory token markup.
+            {noOrphan('DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie through the plans you already have — same Droid CLI, same agent, no Factory token markup.')}
           </p>
           <div className="hero-cta">
             <a href={RELEASES} className="btn btn-primary btn-lg" target="_blank" rel="noopener">

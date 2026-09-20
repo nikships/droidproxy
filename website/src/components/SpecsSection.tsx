@@ -1,4 +1,5 @@
 import Eyebrow from './Eyebrow'
+import { noOrphan } from '../typography'
 
 const specs = [
   { label: 'Platform', value: 'macOS 13.0+', small: 'Ventura through current' },
@@ -20,7 +21,7 @@ export default function SpecsSection() {
             <Eyebrow index="07">Spec sheet</Eyebrow>
             <h2>The boring numbers.</h2>
           </div>
-          <p>Runtime, ports, and licensing — at a glance. All local backends bind to localhost only.</p>
+          <p>{noOrphan('Runtime, ports, and licensing at a glance. All local backends bind localhost-only.')}</p>
         </div>
 
         <div className="specs">

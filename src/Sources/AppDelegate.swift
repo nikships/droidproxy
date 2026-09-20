@@ -16,7 +16,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private let notificationCenter = UNUserNotificationCenter.current()
     private let updaterController: SPUStandardUpdaterController
     private var authDirectoryMonitor: AuthDirectoryMonitor?
-    private var themeObserver: NSObjectProtocol?
     private var metaKeyRefreshTimer: Timer?
     /// Re-mint well inside the ~24h Model API key lifetime
     /// (`MetaMuseAuthManager`'s own margin re-mints starting 6h before expiry).
@@ -224,21 +223,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         window.titlebarAppearsTransparent = true
         window.titleVisibility = .hidden
         window.isMovableByWindowBackground = true
-        window.backgroundColor = .clear
-        window.isOpaque = false
+        // Factory product treatment: fully opaque #020202 window so macOS
+        // doesn't composite the desktop behind the flat dark surface.
+        window.backgroundColor = NSColor(red: 2 / 255, green: 2 / 255, blue: 2 / 255, alpha: 1)
+        window.isOpaque = true
         window.hasShadow = true
-        // Alpha depends on theme: opaque OLED vs translucent Liquid Glass.
-        applyTheme(to: window)
-
-        // Listen for theme changes from SettingsView and update alphaValue live.
-        themeObserver = NotificationCenter.default.addObserver(
-            forName: .droidProxyThemeChanged,
-            object: nil,
-            queue: .main
-        ) { [weak self] _ in
-            guard let win = self?.settingsWindow else { return }
-            self?.applyTheme(to: win)
-        }
 
         let contentView = SettingsView(
             serverManager: serverManager,
@@ -249,17 +238,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         window.contentView = NSHostingView(rootView: contentView)
 
         settingsWindow = window
-    }
-    
-    private func applyTheme(to window: NSWindow) {
-        // Fully opaque: solid NSWindow so macOS doesn't composite the desktop
-        // behind it regardless of SwiftUI layers.
-        // Translucent: keep non-opaque so VisualEffectBlur can show the desktop
-        // blur; SwiftUI layers control the visible opacity.
-        let isOpaque = AppPreferences.backgroundOpacity >= 1.0
-        window.isOpaque = isOpaque
-        window.backgroundColor = isOpaque ? .black : .clear
-        window.alphaValue = 1.0
     }
 
     @objc func toggleServer() {
@@ -434,7 +412,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     func applicationWillTerminate(_ notification: Notification) {
         NotificationCenter.default.removeObserver(self, name: .serverStatusChanged, object: nil)
         NotificationCenter.default.removeObserver(self, name: .authDirectoryChanged, object: nil)
-        removeThemeObserver()
         authDirectoryMonitor?.stop()
         authDirectoryMonitor = nil
         metaKeyRefreshTimer?.invalidate()
@@ -451,12 +428,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         return .terminateNow
     }
 
-    private func removeThemeObserver() {
-        guard let themeObserver else { return }
-        NotificationCenter.default.removeObserver(themeObserver)
-        self.themeObserver = nil
-    }
-    
     // MARK: - Auth Directory Monitoring
 
     private func startMonitoringAuthDirectory() {
@@ -474,14 +445,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
 }
 
-extension Notification.Name {
-    static let droidProxyThemeChanged = Notification.Name("DroidProxyThemeChanged")
-}
-
 extension AppDelegate {
     func windowDidClose(_ notification: Notification) {
         guard notification.object as? NSWindow === settingsWindow else { return }
-        removeThemeObserver()
         settingsWindow = nil
     }
 }

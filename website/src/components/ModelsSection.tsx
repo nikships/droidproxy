@@ -1,4 +1,5 @@
 import { models } from '../content'
+import { noOrphan } from '../typography'
 import Eyebrow from './Eyebrow'
 
 export default function ModelsSection() {
@@ -13,9 +14,9 @@ export default function ModelsSection() {
         <div className="section-head">
           <div>
             <Eyebrow index="03">Models</Eyebrow>
-            <h2>Current flagships, your subscription.</h2>
+            <h2>Current flagships on your plan.</h2>
           </div>
-          <p>Reasoning effort is chosen per session in Droid CLI — not in the proxy. DroidProxy registers each model with its native levels so the selector shows every option the lab actually supports.</p>
+          <p>{noOrphan('Reasoning effort is chosen per session in Droid CLI — not in the proxy. DroidProxy registers each model with its native levels so the selector shows every option the lab actually supports.')}</p>
         </div>
 
         <div className="table-wrap">

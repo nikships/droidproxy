@@ -11,7 +11,8 @@ export default function Navbar() {
         </a>
         <nav className="nav-links">
           <a href="#why">Why</a>
-          <a href="#how-it-works">How it works</a>
+          <a href="#how-it-works">How</a>
+          <a href="#features">Features</a>
           <a href="#models">Models</a>
           <a href="#install">Install</a>
           <a href={GITHUB} target="_blank" rel="noopener">GitHub</a>

@@ -1,21 +1,25 @@
 import Eyebrow from './Eyebrow'
+import { noOrphan } from '../typography'
 
-const features = [
+const rowA = [
   {
     tag: 'Auth',
     title: 'One-click OAuth',
-    body: 'Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie login from Settings. Multiple accounts per lab, per-account disable, and automatic token refresh.',
+    body: 'Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie login from Settings. Multiple accounts per lab, per-account disable, and automatic token refresh on every session.',
   },
   {
     tag: 'Quota',
     title: 'Live usage windows',
-    body: 'Claude and Codex 5-hour and weekly OAuth windows render in Settings. Refresh on demand. No extra CLI to install.',
+    body: 'Claude and Codex 5-hour and weekly OAuth windows render in Settings. Refresh on demand — no extra CLI to install or configure.',
   },
   {
     tag: 'Routing',
     title: 'Sequential failover',
-    body: 'Stack several accounts on one provider. DroidProxy can stay on one seat until quota runs out, then move mid-request without an error reaching Droid.',
+    body: 'Stack several accounts on one provider. DroidProxy can stay on one seat until quota runs out, then move mid-request without an error reaching Droid CLI.',
   },
+]
+
+const rowB = [
   {
     tag: 'Images',
     title: 'Grok Imagine & GPT Image',
@@ -24,9 +28,19 @@ const features = [
   {
     tag: 'Copilot',
     title: 'Local Copilot gateway',
-    body: 'Device-code login, then pick up to three models your Copilot subscription actually has. Only those three land in Factory.',
+    body: 'Device-code login, then pick up to three models your Copilot subscription actually has. Only those three land in Factory’s picker.',
   },
 ]
+
+function Card({ tag, title, body }: { tag: string; title: string; body: string }) {
+  return (
+    <article className="feature">
+      <span className="usecase-tag">{tag}</span>
+      <h3>{title}</h3>
+      <p>{noOrphan(body)}</p>
+    </article>
+  )
+}
 
 export default function FeaturesSection() {
   return (
@@ -37,16 +51,15 @@ export default function FeaturesSection() {
             <Eyebrow index="05">Also in the menu bar</Eyebrow>
             <h2>More than a port forward.</h2>
           </div>
-          <p>Auth, quota, failover, image gen, and the Copilot gateway all live in the same app that sits next to Wi-Fi.</p>
+          <p>{noOrphan('Auth, quota, failover, image gen, and the Copilot gateway all live in the same menu-bar app that sits next to Wi-Fi.')}</p>
         </div>
-        <div className="feature-grid">
-          {features.map((f) => (
-            <article className="feature" key={f.title}>
-              <span className="usecase-tag">{f.tag}</span>
-              <h3>{f.title}</h3>
-              <p>{f.body}</p>
-            </article>
-          ))}
+        <div className="feature-stack">
+          <div className="feature-row feature-row-3">
+            {rowA.map((f) => <Card key={f.title} {...f} />)}
+          </div>
+          <div className="feature-row feature-row-2">
+            {rowB.map((f) => <Card key={f.title} {...f} />)}
+          </div>
         </div>
       </div>
     </section>

@@ -1,4 +1,5 @@
 import Eyebrow from './Eyebrow'
+import { noOrphan } from '../typography'
 
 const faqs = [
   {
@@ -36,13 +37,13 @@ export default function FaqSection() {
             <Eyebrow index="08">FAQ</Eyebrow>
             <h2>Quick answers.</h2>
           </div>
-          <p>The short version of how DroidProxy sits next to Factory without becoming Factory.</p>
+          <p>{noOrphan('Short answers on billing, keys, reasoning, traffic, and which models still ship.')}</p>
         </div>
         <div className="faq">
           {faqs.map((item) => (
             <details key={item.q} className="faq-item">
               <summary>{item.q}</summary>
-              <p>{item.a}</p>
+              <p>{noOrphan(item.a)}</p>
             </details>
           ))}
         </div>
