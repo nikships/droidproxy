@@ -57,7 +57,7 @@ Then in Droid, ask to generate an image (or invoke the skill). Both skills post 
 - **Grok** — model `grok-imagine-image-2.0`; ThinkingProxy injects your Grok OAuth token and forwards to xAI.
 - **GPT** — model `gpt-image-2.5-flare` (fast default) or `gpt-image-2.5-sunburst` (maximum quality); CLIProxyAPI injects your Codex OAuth token. Requires ChatGPT Plus/Pro (Free is rejected).
 
-**Requirements:** DroidProxy running, the matching provider connected in Settings. Image gen is separate from chat — selecting “DroidProxy: Grok 4.6” or “DroidProxy: GPT 5.x” alone does not generate images.
+**Requirements:** DroidProxy running, the matching provider connected in Settings. Image gen is separate from chat — selecting “DroidProxy: Grok 4.7” or “DroidProxy: GPT 5.x” alone does not generate images.
 
 ## Requirements
 

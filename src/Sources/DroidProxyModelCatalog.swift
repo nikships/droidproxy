@@ -428,11 +428,11 @@ enum DroidProxyModelCatalog {
 
             // Grok OAuth (SuperGrok / X Premium+) via api.x.ai.
             // provider="openai" + /v1 → Responses API; ThinkingProxy attaches the bearer.
-            // Context window from docs.x.ai: grok-4.6=500k.
+            // Context window from docs.x.ai: grok-4.7=500k.
             DroidProxyModelDefinition(
-                baseModel: "grok-4.6",
-                idSlug: "grok-4.6",
-                displayName: "Grok 4.6",
+                baseModel: "grok-4.7",
+                idSlug: "grok-4.7",
+                displayName: "Grok 4.7",
                 maxOutputTokens: 128000,
                 maxContextLimit: 500_000,
                 provider: "openai",

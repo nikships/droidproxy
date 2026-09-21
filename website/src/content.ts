@@ -132,8 +132,8 @@ export const models: ModelRow[] = [
   },
   {
     icon: '/assets/icon-grok.svg',
-    name: 'Grok 4.6',
-    id: 'grok-4.6',
+    name: 'Grok 4.7',
+    id: 'grok-4.7',
     levels: ['low', 'medium', 'high', 'xhigh'],
     max: '128,000',
     context: '500k',
