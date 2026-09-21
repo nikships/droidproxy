@@ -130,13 +130,13 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(gemini["supportedReasoningEfforts"] as? [String], ["high"])
     }
 
-    func testGrok46UsesOpenAIProviderAndApiXAIProxy() throws {
-        let grok = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-4.6"))
+    func testGrok47UsesOpenAIProviderAndApiXAIProxy() throws {
+        let grok = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-4.7"))
 
-        XCTAssertEqual(grok["model"] as? String, "grok-4.6")
+        XCTAssertEqual(grok["model"] as? String, "grok-4.7")
         XCTAssertEqual(grok["provider"] as? String, "openai")
         XCTAssertEqual(grok["baseUrl"] as? String, "http://localhost:8317/v1")
-        XCTAssertEqual(grok["displayName"] as? String, "DroidProxy: Grok 4.6")
+        XCTAssertEqual(grok["displayName"] as? String, "DroidProxy: Grok 4.7")
         XCTAssertEqual(grok["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh"])
         XCTAssertEqual(grok["defaultReasoningEffort"] as? String, "high")
         XCTAssertEqual(grok["maxContextLimit"] as? Int, 500_000)
@@ -145,13 +145,13 @@ final class DroidProxyModelCatalogTests: XCTestCase {
     func testGrokProviderModelsAreRegistered() {
         let grokModels = DroidProxyModelCatalog.settingsModels { $0 == "grok" }
         let ids = grokModels.compactMap { $0["id"] as? String }
-        XCTAssertEqual(ids, ["custom:droidproxy:grok-4.6"])
+        XCTAssertEqual(ids, ["custom:droidproxy:grok-4.7"])
     }
 
     func testGrokContextLimitsMatchXAIDocs() throws {
-        let grok46 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-4.6"))
+        let grok47 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-4.7"))
 
-        XCTAssertEqual(grok46["maxContextLimit"] as? Int, 500_000)
+        XCTAssertEqual(grok47["maxContextLimit"] as? Int, 500_000)
     }
 
     func testCursorGrokModelsAppearWhenBetaEnabled() throws {
@@ -174,6 +174,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
 
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:cursor-grok-4.6-fast"))
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:grok-4.5"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:grok-4.6"))
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:cursor-grok-4.5"))
     }
 

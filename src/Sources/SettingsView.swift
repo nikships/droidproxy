@@ -883,7 +883,7 @@ struct SettingsView: View {
                         .grok,
                         iconName: "icon-grok.svg",
                         toggleTint: grokEffortSelectionColor,
-                        helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.6 via api.x.ai (supported tiers; no xAI API key)."
+                        helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.7 via api.x.ai (supported tiers; no xAI API key)."
                     )
 
                     if serverManager.isProviderEnabled(.grok) {
@@ -1749,7 +1749,7 @@ struct SettingsView: View {
                         self.grokLoginSession = nil
                         self.authManager.checkAuthStatus()
                         let who = creds.email ?? "grok-user"
-                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.6 in Droid with `/model`."
+                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.7 in Droid with `/model`."
                         self.showingAuthResult = true
                     case .failure(.cancelled):
                         // Replaced session already cleared `grokLoginSession` above.
@@ -1915,6 +1915,7 @@ struct SettingsView: View {
     /// so users don't end up with stale entries next to the current ones.
     private static let legacyDroidProxyModelIds: Set<String> = [
         "custom:droidproxy:grok-4.5",
+        "custom:droidproxy:grok-4.6",
         "custom:droidproxy:cursor-grok-4.5",
         "custom:droidproxy:cursor-grok-4.5-fast",
         "custom:droidproxy:cursor-grok-4.6-fast",
