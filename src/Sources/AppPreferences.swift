@@ -5,11 +5,6 @@ enum AppPreferences {
     static let gpt56SolFastModeKey = "gpt56SolFastMode"
     static let gpt56LunaFastModeKey = "gpt56LunaFastMode"
     static let gpt6AstraFastModeKey = "gpt6AstraFastMode"
-    /// Grok 4.6 Fast Mode (divert grok-4.6 to Cursor CLI `cursor-grok-4.6-fast`).
-    /// Default is off — same opt-in pattern as Codex GPT Fast Mode keys.
-    static let grok46FastModeKey = "grok46FastMode"
-    /// Cursor Fast Mode (append `-fast` to Composer 2.5 and Cursor Grok 4.6).
-    static let cursorFastModeKey = "cursorFastMode"
     /// Meta Muse Contributor Mode: apply `muse-spark-1.3-contributor` instead of
     /// `muse-spark-1.3` when Factory custom models are applied. Exactly one of
     /// the two variants is ever active - never both.
@@ -27,8 +22,6 @@ enum AppPreferences {
     static let defaultGpt56SolFastMode = false
     static let defaultGpt56LunaFastMode = false
     static let defaultGpt6AstraFastMode = false
-    static let defaultGrok46FastMode = false
-    static let defaultCursorFastMode = false
     static let defaultMetaContributorMode = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
@@ -55,14 +48,6 @@ enum AppPreferences {
 
     static var gpt6AstraFastMode: Bool {
         UserDefaults.standard.bool(forKey: gpt6AstraFastModeKey)
-    }
-
-    static var grok46FastMode: Bool {
-        UserDefaults.standard.bool(forKey: grok46FastModeKey)
-    }
-
-    static var cursorFastMode: Bool {
-        UserDefaults.standard.bool(forKey: cursorFastModeKey)
     }
 
     static var metaContributorMode: Bool {

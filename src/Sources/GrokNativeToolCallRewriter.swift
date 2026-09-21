@@ -3,7 +3,7 @@ import Foundation
 /// Converts Factory/Droid native Grok tool markup leaked into `message.content`
 /// into OpenAI `tool_calls` so `generic-chat-completion-api` actually executes them.
 ///
-/// Grok-via-DroidProxy (especially `cursor-grok-4.6-fast`) often writes:
+/// Grok-via-DroidProxy often writes:
 ///
 /// ```
 /// prefix text<|tool_calls_begin|><|tool_call_begin|>
@@ -22,8 +22,7 @@ enum GrokNativeToolCallRewriter {
     static let callsEnd = "<|tool_calls_end|>"
     static let sep = "<|tool_sep|>"
 
-    /// Catalog ids (`cursor-grok-4.6`, `cursor-grok-4.6-fast`) and upstream ids
-    /// (`grok-4.6`, `grok-4.6-fast`) all contain `grok`. Composer/Junie do not.
+    /// Any model id containing `grok` (for example `grok-4.7`). Composer and Junie do not.
     static func shouldRewrite(model: String?) -> Bool {
         guard let model, !model.isEmpty else { return false }
         return model.range(of: "grok", options: .caseInsensitive) != nil
@@ -274,7 +273,7 @@ enum GrokNativeToolCallRewriter {
         return canonicalize(name: name, arguments: rest)
     }
 
-    /// Droid's file tools are Create/Edit/Execute. Cursor/Grok emit Write/Delete.
+    /// Droid's file tools are Create/Edit/Execute. Grok emits Write/Delete.
     static func canonicalize(name: String, arguments: [String: Any]) -> NativeCall {
         var args = arguments
         if name == "Write" || name == "write" || name == "Create" {

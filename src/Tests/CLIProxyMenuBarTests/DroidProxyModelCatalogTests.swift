@@ -171,28 +171,13 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(grok47["maxContextLimit"] as? Int, 500_000)
     }
 
-    func testCursorGrokModelsAppearWhenBetaEnabled() throws {
-        let previous = BETA_FLAG
-        BETA_FLAG = true
-        defer { BETA_FLAG = previous }
-
-        let composer = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:cursor-composer-2.5"))
-        let grok = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:cursor-grok-4.6"))
-
-        XCTAssertEqual(composer["model"] as? String, "cursor-composer-2.5")
-        XCTAssertEqual(composer["provider"] as? String, "generic-chat-completion-api")
-        XCTAssertEqual(composer["displayName"] as? String, "DroidProxy: Cursor Composer 2.5")
-        XCTAssertNil(composer["supportedReasoningEfforts"])
-
-        XCTAssertEqual(grok["model"] as? String, "cursor-grok-4.6")
-        XCTAssertEqual(grok["displayName"] as? String, "DroidProxy: Cursor Grok 4.6")
-        XCTAssertEqual(grok["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh"])
-        XCTAssertEqual(grok["defaultReasoningEffort"] as? String, "high")
-
+    func testCursorModelsAreNotRegistered() {
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:cursor-composer-2.5"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:cursor-grok-4.6"))
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:cursor-grok-4.6-fast"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:cursor-grok-4.5"))
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:grok-4.5"))
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:grok-4.6"))
-        XCTAssertNil(settingsEntry(id: "custom:droidproxy:cursor-grok-4.5"))
     }
 
     func testCopilotModelParserKeepsSelectableChatModels() throws {

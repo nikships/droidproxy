@@ -310,49 +310,6 @@ class ThinkingProxy {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)
             }
-            if isCursorModel(requestFields) {
-                guard BETA_FLAG else {
-                    NSLog("[ThinkingProxy] Warning: Cursor model requested but Beta mode is disabled.")
-                    sendError(to: connection, statusCode: 400, message: "Cursor provider is a beta feature. Please enable Beta mode in DroidProxy settings.")
-                    return
-                }
-                guard isCursorEnabled() else {
-                    NSLog("[ThinkingProxy] Warning: Cursor model requested but the provider is disabled in settings.")
-                    sendError(to: connection, statusCode: 400, message: "Cursor provider is disabled in DroidProxy settings.")
-                    return
-                }
-                if let blocker = CursorModelRewriter.cursorFastPathBlocker(
-                    betaEnabled: true,
-                    cursorEnabled: true,
-                    agentLoggedIn: CursorAgentProxyManager.isAgentAuthenticated
-                ) {
-                    sendError(to: connection, statusCode: 401, message: blocker.errorMessage)
-                    return
-                }
-                if let result = rewriteCursorModelAlias(jsonString: modifiedBody, fields: requestFields) {
-                    modifiedBody = result
-                    requestFields = inspectRequestJSONFields(in: modifiedBody)
-                }
-                if let stripped = stripComposerReasoningFields(jsonString: modifiedBody, fields: requestFields) {
-                    modifiedBody = stripped
-                    requestFields = inspectRequestJSONFields(in: modifiedBody)
-                }
-                if let bridged = CursorClientToolBridge.inject(into: modifiedBody) {
-                    modifiedBody = bridged
-                }
-                // Always lift Factory markup / JSON function calls into OpenAI
-                // tool_calls so Droid executes them. Cursor CLI must not.
-                forwardToCursor(
-                    method: method,
-                    path: rewrittenPath,
-                    version: httpVersion,
-                    headers: headers,
-                    body: modifiedBody,
-                    originalConnection: connection,
-                    rewriteGrokNativeToolCalls: true
-                )
-                return
-            }
             if isJunieModel(requestFields) {
                 guard isJunieEnabled() else {
                     NSLog("[ThinkingProxy] Warning: Junie model requested but the provider is disabled in settings.")
@@ -370,52 +327,6 @@ class ThinkingProxy {
                 guard isGrokEnabled() else {
                     NSLog("[ThinkingProxy] Warning: Grok model requested but the provider is disabled in settings.")
                     sendError(to: connection, statusCode: 400, message: "Grok provider is disabled in DroidProxy settings.")
-                    return
-                }
-                // Grok 4.6 Fast Mode: api.x.ai has no grok-4.6-fast. Divert to
-                // the local Cursor Agent CLI proxy when Fast Mode is on.
-                if let model = requestFields?.model,
-                   CursorModelRewriter.shouldDivertGrokOAuthToCursorFast(
-                    model: model,
-                    grok46FastMode: AppPreferences.grok46FastMode
-                   ) {
-                    if let blocker = CursorModelRewriter.cursorFastPathBlocker(
-                        betaEnabled: BETA_FLAG,
-                        cursorEnabled: isCursorEnabled(),
-                        agentLoggedIn: CursorAgentProxyManager.isAgentAuthenticated
-                    ) {
-                        sendError(
-                            to: connection,
-                            statusCode: 401,
-                            message: blocker.errorMessage
-                        )
-                        return
-                    }
-                    let backendModel = CursorModelRewriter.resolveUpstreamModel(
-                        model,
-                        fastMode: true
-                    )
-                    if let modelLocation = requestFields?.modelLocation, backendModel != model {
-                        modifiedBody.replaceSubrange(
-                            modelLocation.valueRange,
-                            with: "\"\(backendModel)\""
-                        )
-                        ThinkingProxy.fileLog(
-                            "REWRITE MODEL: \(model) -> \(backendModel) (Grok Fast Mode → Cursor Agent CLI)"
-                        )
-                    }
-                    if let bridged = CursorClientToolBridge.inject(into: modifiedBody) {
-                        modifiedBody = bridged
-                    }
-                    forwardToCursor(
-                        method: method,
-                        path: rewrittenPath,
-                        version: httpVersion,
-                        headers: headers,
-                        body: modifiedBody,
-                        originalConnection: connection,
-                        rewriteGrokNativeToolCalls: true
-                    )
                     return
                 }
                 let grokBody = GrokRequestSanitizer.sanitize(modifiedBody)
@@ -541,74 +452,6 @@ class ThinkingProxy {
         result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
         ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Antigravity alias)")
         return result
-    }
-
-    private func rewriteCursorModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
-        guard let model = fields?.model,
-              let modelLocation = fields?.modelLocation else {
-            return nil
-        }
-
-        let backendModel = CursorModelRewriter.resolveUpstreamModel(
-            model,
-            fastMode: AppPreferences.cursorFastMode
-        )
-        guard backendModel != model else { return nil }
-
-        var result = jsonString
-        result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
-        ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Cursor Agent CLI)")
-        return result
-    }
-
-    /// Composer 2.5 has no thinking variants. Drop Droid's reasoning fields so
-    /// cursor-api-proxy does not 400 `unsupported_reasoning_effort`.
-    private func stripComposerReasoningFields(jsonString: String, fields: RequestJSONFields?) -> String? {
-        guard let model = fields?.model, CursorModelRewriter.ignoresReasoningEffort(model) else {
-            return nil
-        }
-        return removeTopLevelJSONFields(jsonString, keys: ["reasoning_effort", "reasoning"])
-    }
-
-    private func removeTopLevelJSONFields(_ jsonString: String, keys: Set<String>) -> String? {
-        guard let locations = findTopLevelFieldLocations(in: jsonString, keys: keys), !locations.isEmpty else {
-            return nil
-        }
-        var result = jsonString
-        let ordered = locations.values.sorted { $0.pairRange.lowerBound > $1.pairRange.lowerBound }
-        for location in ordered {
-            result.replaceSubrange(expandedFieldRemovalRange(in: result, location: location), with: "")
-        }
-        ThinkingProxy.fileLog("STRIPPED composer reasoning fields before Cursor Agent CLI")
-        return result
-    }
-
-    /// Include the neighboring comma so `"a":1,"b":2` stays valid JSON after a deletion.
-    private func expandedFieldRemovalRange(
-        in json: String,
-        location: TopLevelFieldLocation
-    ) -> Range<String.Index> {
-        var start = location.pairRange.lowerBound
-        var end = location.pairRange.upperBound
-
-        if let after = firstNonWhitespaceIndex(in: json, from: end, before: json.endIndex),
-           json[after] == "," {
-            return start..<json.index(after: after)
-        }
-
-        var probe = start
-        while probe > json.startIndex {
-            let previous = json.index(before: probe)
-            if json[previous].isWhitespace {
-                probe = previous
-                continue
-            }
-            if json[previous] == "," {
-                return previous..<end
-            }
-            break
-        }
-        return start..<end
     }
 
     private func objectStringField(in jsonString: String,
@@ -1144,118 +987,10 @@ class ThinkingProxy {
         }))
     }
 
-    // MARK: - Cursor Agent CLI proxying
-    //
-    // Cursor models are served by a localhost `cursor-api-proxy` sidecar
-    // (`127.0.0.1:8320`) that wraps the authenticated `agent` CLI. This replaces
-    // the previous TLS forward to `api-for-cursor.standardagents.ai`.
-
-    private func isCursorModel(_ requestFields: RequestJSONFields?) -> Bool {
-        guard let model = requestFields?.model else {
-            return false
-        }
-        return model.hasPrefix("cursor-")
-    }
-
-    private func isCursorEnabled() -> Bool {
-        if let saved = UserDefaults.standard.dictionary(forKey: "enabledProviders") as? [String: Bool] {
-            return saved["cursor"] ?? true
-        }
-        return true
-    }
-
-    private func forwardToCursor(
-        method: String,
-        path: String,
-        version: String,
-        headers: [(String, String)],
-        body: String,
-        originalConnection: NWConnection,
-        rewriteGrokNativeToolCalls: Bool = false
-    ) {
-        guard let port = NWEndpoint.Port(rawValue: CursorModelRewriter.port) else {
-            sendError(to: originalConnection, statusCode: 500, message: "Internal Server Error")
-            return
-        }
-        let cursorHost = CursorModelRewriter.host
-        let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(cursorHost), port: port)
-        let targetConnection = NWConnection(to: endpoint, using: .tcp)
-
-        targetConnection.stateUpdateHandler = { [weak self] state in
-            guard let self = self else { return }
-            switch state {
-            case .ready:
-                var forwardedRequest = "\(method) \(path) \(version)\r\n"
-                var excludedHeaders: Set<String> = [
-                    "host", "content-length", "connection", "transfer-encoding", "authorization"
-                ]
-                if rewriteGrokNativeToolCalls {
-                    excludedHeaders.insert("accept-encoding")
-                }
-                for (name, value) in headers {
-                    if !excludedHeaders.contains(name.lowercased()) {
-                        forwardedRequest += "\(name): \(value)\r\n"
-                    }
-                }
-
-                forwardedRequest += "Host: \(cursorHost):\(CursorModelRewriter.port)\r\n"
-                if rewriteGrokNativeToolCalls {
-                    forwardedRequest += "Accept-Encoding: identity\r\n"
-                }
-                forwardedRequest += "Connection: close\r\n"
-                forwardedRequest += "Content-Length: \(body.utf8.count)\r\n\r\n"
-                forwardedRequest += body
-
-                if let requestData = forwardedRequest.data(using: .utf8) {
-                    targetConnection.send(content: requestData, completion: .contentProcessed({ error in
-                        if let error = error {
-                            NSLog("[ThinkingProxy] Send error to Cursor agent proxy: %@", "\(error)")
-                            targetConnection.cancel()
-                            originalConnection.cancel()
-                        } else {
-                            self.receiveCursorResponse(
-                                from: targetConnection,
-                                originalConnection: originalConnection,
-                                rewriteGrokNativeToolCalls: rewriteGrokNativeToolCalls
-                            )
-                        }
-                    }))
-                }
-
-            case .failed(let error):
-                NSLog("[ThinkingProxy] Connection to Cursor agent proxy failed: %@", "\(error)")
-                self.sendError(
-                    to: originalConnection,
-                    statusCode: 502,
-                    message: "Bad Gateway - Cursor agent proxy is not running on \(cursorHost):\(CursorModelRewriter.port). Enable Beta → Cursor and wait for the local proxy to start."
-                )
-                targetConnection.cancel()
-
-            default:
-                break
-            }
-        }
-
-        targetConnection.start(queue: .global(qos: .userInitiated))
-    }
-
-    private func receiveCursorResponse(
-        from targetConnection: NWConnection,
-        originalConnection: NWConnection,
-        rewriteGrokNativeToolCalls: Bool
-    ) {
-        relayUpstreamResponse(
-            from: targetConnection,
-            originalConnection: originalConnection,
-            label: "Cursor",
-            rewriteGrokNativeToolCalls: rewriteGrokNativeToolCalls
-        )
-    }
-
     // MARK: - Junie (JetBrains AI) API Proxying
     //
     // Junie models are Anthropic models served by the JetBrains Grazie backend. The
-    // bundled CLIProxyAPI has no JetBrains support, so — like Cursor — we forward these
+    // bundled CLIProxyAPI has no JetBrains support, so we forward these
     // directly over TLS using the permanent API key stored in junie.json. The DroidProxy
     // model IDs carry a `junie-` prefix (e.g. `junie-claude-sonnet-5`) so they stay
     // distinct from the OAuth Claude entries; we strip that prefix before forwarding.
@@ -1388,7 +1123,7 @@ class ThinkingProxy {
     //
     // Credentials live in ~/.cli-proxy-api/grok-cli.json (type: grok-cli).
     // Attach the OAuth bearer and forward to api.x.ai — same TLS pattern as
-    // Cursor/Junie, with path normalization and a single Content-Type.
+    // Junie, with path normalization and a single Content-Type.
 
     private func isGrokModel(_ requestFields: RequestJSONFields?) -> Bool {
         guard let model = requestFields?.model else {
@@ -1622,7 +1357,7 @@ class ThinkingProxy {
         relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection, label: "Meta")
     }
 
-    /// Shared TLS upstream → client relay used by Cursor / Junie / Grok paths.
+    /// Shared TLS upstream → client relay used by Junie / Grok / Meta paths.
     private func relayUpstreamResponse(
         from targetConnection: NWConnection,
         originalConnection: NWConnection,
@@ -1685,7 +1420,7 @@ class ThinkingProxy {
     /// and relay the remaining bytes unchanged.
     private static let grokRewriteBufferLimit = 8 * 1024 * 1024
 
-    /// Buffer a Grok/Cursor-Grok response so native `<|tool_calls_begin|>` markup
+    /// Buffer a Grok response so native `<|tool_calls_begin|>` markup
     /// can be lifted into OpenAI `tool_calls` before Factory sees the stream.
     private func accumulateAndRewriteGrokResponse(
         from targetConnection: NWConnection,

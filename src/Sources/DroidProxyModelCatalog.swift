@@ -5,7 +5,6 @@ enum DroidProxyModelKind {
     case codex
     case kimi
     case antigravity
-    case cursor
     case junie
     case grok
     case copilot
@@ -477,40 +476,6 @@ enum DroidProxyModelCatalog {
             } else {
                 list.append(museModel(baseModel: "muse-spark-1.3", idSlug: "muse-spark-1.3", displayName: "Muse Spark 1.3"))
             }
-        }
-
-        if BETA_FLAG {
-            // Composer 2.5 has no thinking-level variants in `agent --list-models`
-            // (`composer-2.5` / `composer-2.5-fast` only). Fast Mode is a Settings
-            // toggle that appends `-fast`. Grok 4.6 thinking is selected in Droid
-            // (`low` / `medium` / `high` / `xhigh`); cursor-api-proxy maps
-            // `reasoning_effort` onto `cursor-grok-4.6-{level}[-fast]`.
-            list.append(contentsOf: [
-                DroidProxyModelDefinition(
-                    baseModel: "cursor-composer-2.5",
-                    idSlug: "cursor-composer-2.5",
-                    displayName: "Cursor Composer 2.5",
-                    maxOutputTokens: 128000,
-                    provider: "generic-chat-completion-api",
-                    providerKey: "cursor",
-                    baseURL: "http://localhost:8317/v1",
-                    kind: .cursor,
-                    levels: [],
-                    defaultLevelValue: "high"
-                ),
-                DroidProxyModelDefinition(
-                    baseModel: "cursor-grok-4.6",
-                    idSlug: "cursor-grok-4.6",
-                    displayName: "Cursor Grok 4.6",
-                    maxOutputTokens: 128000,
-                    provider: "generic-chat-completion-api",
-                    providerKey: "cursor",
-                    baseURL: "http://localhost:8317/v1",
-                    kind: .cursor,
-                    levels: [low, medium, high, xhigh],
-                    defaultLevelValue: "high"
-                )
-            ])
         }
 
         return list
