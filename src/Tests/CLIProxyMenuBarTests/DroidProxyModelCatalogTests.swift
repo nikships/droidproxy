@@ -143,10 +143,26 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(grok["maxContextLimit"] as? Int, 500_000)
     }
 
+    func testGrok47FastUsesBuildProxyModelID() throws {
+        let grok = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-4.7-build-fast"))
+
+        XCTAssertEqual(grok["model"] as? String, "grok-4.7-build-fast")
+        XCTAssertEqual(grok["provider"] as? String, "openai")
+        XCTAssertEqual(grok["baseUrl"] as? String, "http://localhost:8317/v1")
+        XCTAssertEqual(grok["displayName"] as? String, "DroidProxy: Grok 4.7 Fast")
+        XCTAssertEqual(grok["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh"])
+        XCTAssertEqual(grok["defaultReasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(grok["reasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(grok["maxContextLimit"] as? Int, 500_000)
+    }
+
     func testGrokProviderModelsAreRegistered() {
         let grokModels = DroidProxyModelCatalog.settingsModels { $0 == "grok" }
         let ids = grokModels.compactMap { $0["id"] as? String }
-        XCTAssertEqual(ids, ["custom:droidproxy:grok-4.7"])
+        XCTAssertEqual(ids, [
+            "custom:droidproxy:grok-4.7",
+            "custom:droidproxy:grok-4.7-build-fast"
+        ])
     }
 
     func testGrokContextLimitsMatchXAIDocs() throws {

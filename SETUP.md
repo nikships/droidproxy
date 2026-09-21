@@ -16,11 +16,13 @@
 Only these selected Copilot models are written into `~/.factory/settings.json`. The gateway runs locally on `127.0.0.1:8319`; no Copilot credential is added to Factory settings.
 GitHub Copilot support requires Node.js 20 or later so DroidProxy can run the maintained local gateway. Node.js 22.13 or later additionally enables the gateway's local usage storage.
 
-For **Grok 4.7** (SuperGrok / X Premium+ OAuth → `api.x.ai`):
+For **Grok 4.7** and **Grok 4.7 Fast** (SuperGrok / X Premium+ OAuth):
 
 1. Connect **Grok** in Settings (device-code browser login)
-2. Click **Apply** / **Re-apply** under Factory models (registers `custom:droidproxy:grok-4.7`)
-3. In Droid, `/model` → **DroidProxy: Grok 4.7**
+2. Click **Apply** / **Re-apply** under Factory models (registers `custom:droidproxy:grok-4.7` and `custom:droidproxy:grok-4.7-build-fast`)
+3. In Droid, `/model` → **DroidProxy: Grok 4.7** or **DroidProxy: Grok 4.7 Fast**
+
+Grok 4.7 is forwarded to `api.x.ai`. Grok 4.7 Fast (`grok-4.7-build-fast`) is the same model on faster infrastructure and is forwarded to `cli-chat-proxy.grok.com` with `x-grok-model-override`. The public xAI API does not serve that id.
 
 Optional **Grok 4.6 Fast Mode** (Settings → Grok): rewrites `grok-4.6` → `cursor-grok-4.6-fast` through the local Cursor Agent CLI. Enable Beta → Cursor and `agent login` first; `api.x.ai` does not offer a fast variant. Default off.
 

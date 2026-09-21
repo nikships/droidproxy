@@ -426,13 +426,28 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
 
-            // Grok OAuth (SuperGrok / X Premium+) via api.x.ai.
+            // Grok OAuth (SuperGrok / X Premium+) .
             // provider="openai" + /v1 → Responses API; ThinkingProxy attaches the bearer.
+            // grok-4.7 goes to api.x.ai. grok-4.7-build-fast is the same model on
+            // faster infrastructure (2x price) and is served only by cli-chat-proxy.
             // Context window from docs.x.ai: grok-4.7=500k.
             DroidProxyModelDefinition(
                 baseModel: "grok-4.7",
                 idSlug: "grok-4.7",
                 displayName: "Grok 4.7",
+                maxOutputTokens: 128000,
+                maxContextLimit: 500_000,
+                provider: "openai",
+                providerKey: "grok",
+                baseURL: "http://localhost:8317/v1",
+                kind: .grok,
+                levels: codexLevels,
+                defaultLevelValue: "xhigh"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: GrokAuth.fastModelID,
+                idSlug: GrokAuth.fastModelID,
+                displayName: "Grok 4.7 Fast",
                 maxOutputTokens: 128000,
                 maxContextLimit: 500_000,
                 provider: "openai",

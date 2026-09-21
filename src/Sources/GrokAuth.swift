@@ -20,8 +20,15 @@ enum GrokAuth {
     static let tokenURL = URL(string: "https://auth.x.ai/oauth2/token")!
     static let deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
 
-    /// Public xAI API host.
+    /// Public xAI API host. Serves `grok-4.7`.
     static let apiHost = "api.x.ai"
+
+    /// Grok Build chat proxy. Serves `grok-4.7-build-fast`, which the public API does not.
+    /// Routing uses `x-grok-model-override`; the JSON `model` field is the same id.
+    static let buildProxyHost = "cli-chat-proxy.grok.com"
+    static let fastModelID = "grok-4.7-build-fast"
+    /// Build proxy rejects requests that omit this (`version (none) is outdated`).
+    static let buildProxyClientVersion = "1.0.40"
 
     /// Auth file `type` tag + filename (scanned by AuthManager; loaded via `loadActiveCredentials`).
     static let authFileType = "grok-cli"
@@ -31,7 +38,8 @@ enum GrokAuth {
     static let excludedUpstreamHeaderNames: Set<String> = [
         "host", "content-length", "connection", "transfer-encoding",
         "authorization", "content-type", "anthropic-beta", "anthropic-version",
-        "accept-encoding", "x-api-key"
+        "accept-encoding", "x-api-key", "x-xai-token-auth", "x-grok-model-override",
+        "x-grok-client-version", "x-grok-client-identifier"
     ]
 
     /// Refresh this many ms before access-token expiry so long Droid sessions
@@ -193,6 +201,23 @@ enum GrokAuth {
             }
             return .failure(.tokenError("Unexpected token response (HTTP \(statusCode))"))
         }
+    }
+
+    /// `grok-4.7` stays on `api.x.ai`. The fast variant is a separate model id
+    /// on the Grok Build proxy, using the same SuperGrok OAuth bearer.
+    static func upstreamHost(forModel model: String?) -> String {
+        model == fastModelID ? buildProxyHost : apiHost
+    }
+
+    /// Headers the Build proxy requires to route the fast model. Empty for `api.x.ai`.
+    static func upstreamAuthHeaders(forModel model: String?) -> [(String, String)] {
+        guard model == fastModelID else { return [] }
+        return [
+            ("X-XAI-Token-Auth", "xai-grok-cli"),
+            ("x-grok-model-override", fastModelID),
+            ("x-grok-client-version", buildProxyClientVersion),
+            ("x-grok-client-identifier", "grok-shell")
+        ]
     }
 
     /// Normalize a client path to `/v1/...` for api.x.ai.

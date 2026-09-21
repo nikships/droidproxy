@@ -420,9 +420,17 @@ class ThinkingProxy {
                 }
                 let grokBody = GrokRequestSanitizer.sanitize(modifiedBody)
                 if grokBody != modifiedBody {
-                    ThinkingProxy.fileLog("SANITIZED GROK: remapped custom tools/calls and dropped unsupported fields before api.x.ai")
+                    ThinkingProxy.fileLog("SANITIZED GROK: remapped custom tools/calls and dropped unsupported fields before Grok upstream")
                 }
-                forwardToGrok(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: grokBody, originalConnection: connection)
+                forwardToGrok(
+                    method: method,
+                    path: rewrittenPath,
+                    version: httpVersion,
+                    headers: headers,
+                    body: grokBody,
+                    model: requestFields?.model,
+                    originalConnection: connection
+                )
                 return
             }
             if isMetaModel(requestFields) {
@@ -1401,7 +1409,7 @@ class ThinkingProxy {
         GrokAuth.normalizeUpstreamPath(path)
     }
 
-    private func forwardToGrok(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
+    private func forwardToGrok(method: String, path: String, version: String, headers: [(String, String)], body: String, model: String?, originalConnection: NWConnection) {
         GrokAuth.ensureValidAccessToken { [weak self] result in
             guard let self = self else { return }
             switch result {
@@ -1428,6 +1436,7 @@ class ThinkingProxy {
                     version: version,
                     headers: headers,
                     body: body,
+                    model: model,
                     accessToken: accessToken,
                     originalConnection: originalConnection
                 )
@@ -1441,12 +1450,13 @@ class ThinkingProxy {
         version: String,
         headers: [(String, String)],
         body: String,
+        model: String?,
         accessToken: String,
         originalConnection: NWConnection
     ) {
         let tlsOptions = NWProtocolTLS.Options()
         let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
-        let host = GrokAuth.apiHost
+        let host = GrokAuth.upstreamHost(forModel: model)
         let upstreamPath = grokUpstreamPath(path)
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(host), port: 443)
         let targetConnection = NWConnection(to: endpoint, using: parameters)
@@ -1464,6 +1474,9 @@ class ThinkingProxy {
 
                 forwardedRequest += "Host: \(host)\r\n"
                 forwardedRequest += "Authorization: Bearer \(accessToken)\r\n"
+                for (name, value) in GrokAuth.upstreamAuthHeaders(forModel: model) {
+                    forwardedRequest += "\(name): \(value)\r\n"
+                }
                 forwardedRequest += "Content-Type: application/json\r\n"
                 forwardedRequest += "Accept-Encoding: identity\r\n"
                 forwardedRequest += "Connection: close\r\n"

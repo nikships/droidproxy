@@ -142,6 +142,17 @@ export const models: ModelRow[] = [
     color: brandColor.grok,
   },
   {
+    icon: '/assets/icon-grok.svg',
+    name: 'Grok 4.7 Fast',
+    id: 'grok-4.7-build-fast',
+    levels: ['low', 'medium', 'high', 'xhigh'],
+    max: '128,000',
+    context: '500k',
+    provider: 'xAI',
+    group: 'Grok',
+    color: brandColor.grok,
+  },
+  {
     icon: '/assets/icon-kimi.svg',
     name: 'Kimi K3',
     id: 'kimi-k3',

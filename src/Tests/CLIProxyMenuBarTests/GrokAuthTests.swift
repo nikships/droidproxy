@@ -234,6 +234,21 @@ final class GrokAuthTests: XCTestCase {
         XCTAssertEqual(GrokAuth.apiHost, "api.x.ai")
     }
 
+    func testFastModelRoutesToBuildProxy() {
+        XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-4.7"), "api.x.ai")
+        XCTAssertEqual(GrokAuth.upstreamHost(forModel: nil), "api.x.ai")
+        XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-4.7-build-fast"), "cli-chat-proxy.grok.com")
+        XCTAssertTrue(GrokAuth.upstreamAuthHeaders(forModel: "grok-4.7").isEmpty)
+        XCTAssertEqual(
+            GrokAuth.upstreamAuthHeaders(forModel: "grok-4.7-build-fast").map(\.0),
+            ["X-XAI-Token-Auth", "x-grok-model-override", "x-grok-client-version", "x-grok-client-identifier"]
+        )
+        XCTAssertEqual(
+            GrokAuth.upstreamAuthHeaders(forModel: "grok-4.7-build-fast").map(\.1),
+            ["xai-grok-cli", "grok-4.7-build-fast", "1.0.40", "grok-shell"]
+        )
+    }
+
     func testFormBodyPercentEncodesPlusAsFormUrlEncoded() {
         let body = String(data: GrokAuth.formBody([
             "refresh_token": "abc+def/ghi=",

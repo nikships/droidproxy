@@ -883,7 +883,7 @@ struct SettingsView: View {
                         .grok,
                         iconName: "icon-grok.svg",
                         toggleTint: grokEffortSelectionColor,
-                        helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.7 via api.x.ai (supported tiers; no xAI API key)."
+                        helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.7 and Grok 4.7 Fast (no xAI API key)."
                     )
 
                     if serverManager.isProviderEnabled(.grok) {
@@ -1749,7 +1749,7 @@ struct SettingsView: View {
                         self.grokLoginSession = nil
                         self.authManager.checkAuthStatus()
                         let who = creds.email ?? "grok-user"
-                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.7 in Droid with `/model`."
+                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.7 or DroidProxy: Grok 4.7 Fast in Droid with `/model`."
                         self.showingAuthResult = true
                     case .failure(.cancelled):
                         // Replaced session already cleared `grokLoginSession` above.
