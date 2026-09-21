@@ -138,7 +138,8 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(grok["baseUrl"] as? String, "http://localhost:8317/v1")
         XCTAssertEqual(grok["displayName"] as? String, "DroidProxy: Grok 4.7")
         XCTAssertEqual(grok["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh"])
-        XCTAssertEqual(grok["defaultReasoningEffort"] as? String, "high")
+        XCTAssertEqual(grok["defaultReasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(grok["reasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(grok["maxContextLimit"] as? Int, 500_000)
     }
 

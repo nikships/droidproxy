@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Changed
+- **Grok 4.7 default reasoning** -- Factory custom model `custom:droidproxy:grok-4.7` now defaults to `xhigh`. Re-apply Factory models to replace an existing settings entry.
+
 ### Added
 - **GPT 6 Astra** -- OpenAI's GPT-6 flagship (`gpt-6-astra`) is registered as Factory custom model `custom:droidproxy:gpt-6-astra` with its native effort levels (`low` / `medium` / `high` / `xhigh` / `max`, default `medium`), 1.05M context window, and 128k output-token ceiling. An opt-in Fast Mode toggle injects `service_tier=priority`. The bundled CLIProxyAPI is updated to 7.2.151 for Codex OAuth routing support.
 - **GPT Image skill** -- Bundled `skills/gpt-image` supports only the new `gpt-image-2.5-flare` and `gpt-image-2.5-sunburst` models through `POST http://localhost:8317/v1/images/generations` and `/v1/images/edits` using Codex OAuth. It defaults to Flare for speed and selects Sunburst for maximum quality or editing precision. No `OPENAI_API_KEY`. Requires ChatGPT Plus/Pro; image gen is separate from GPT chat models, same as Grok Imagine.

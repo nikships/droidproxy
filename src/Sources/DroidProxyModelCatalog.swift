@@ -440,7 +440,7 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .grok,
                 levels: codexLevels,
-                defaultLevelValue: "high"
+                defaultLevelValue: "xhigh"
             )
         ]
 
