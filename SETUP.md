@@ -16,26 +16,15 @@
 Only these selected Copilot models are written into `~/.factory/settings.json`. The gateway runs locally on `127.0.0.1:8319`; no Copilot credential is added to Factory settings.
 GitHub Copilot support requires Node.js 20 or later so DroidProxy can run the maintained local gateway. Node.js 22.13 or later additionally enables the gateway's local usage storage.
 
-For **Grok 4.6** (SuperGrok / X Premium+ OAuth → `api.x.ai`):
+For **Grok 4.7** and **Grok 4.7 Fast** (SuperGrok / X Premium+ OAuth):
 
 1. Connect **Grok** in Settings (device-code browser login)
-2. Click **Apply** / **Re-apply** under Factory models (registers `custom:droidproxy:grok-4.6`)
-3. In Droid, `/model` → **DroidProxy: Grok 4.6**
+2. Click **Apply** / **Re-apply** under Factory models (registers `custom:droidproxy:grok-4.7` and `custom:droidproxy:grok-4.7-build-fast`)
+3. In Droid, `/model` → **DroidProxy: Grok 4.7** or **DroidProxy: Grok 4.7 Fast**
 
-Optional **Grok 4.6 Fast Mode** (Settings → Grok): rewrites `grok-4.6` → `cursor-grok-4.6-fast` through the local Cursor Agent CLI. Enable Beta → Cursor and `agent login` first; `api.x.ai` does not offer a fast variant. Default off.
+Grok 4.7 is forwarded to `api.x.ai`. Grok 4.7 Fast (`grok-4.7-build-fast`) is the same model on faster infrastructure and is forwarded to `cli-chat-proxy.grok.com` with `x-grok-model-override`. The public xAI API does not serve that id.
 
-### Cursor Agent CLI (Beta)
-
-Uses your installed Cursor `agent` / `cursor-agent` CLI (already authenticated with `agent login`). No hosted API key.
-
-1. Enable **Beta** in DroidProxy Settings
-2. Enable **Cursor** and wait for `cursor-api-proxy` on `127.0.0.1:8320`
-3. Click **Apply** / **Re-apply** under Factory models (registers `custom:droidproxy:cursor-composer-2.5` and `custom:droidproxy:cursor-grok-4.6`)
-4. In Droid, `/model` → **DroidProxy: Cursor Composer 2.5** or **DroidProxy: Cursor Grok 4.6**
-
-Optional **Cursor Fast Mode** (Settings → Cursor): appends `-fast` to both models. Independent of Grok thinking effort, which you pick in Droid (`low` / `medium` / `high` / `xhigh`). Composer 2.5 has no thinking-level variants.
-
-Apply also removes retired ids (`grok-4.5`, `cursor-grok-4.5`, `cursor-small`, `cursor-grok-4.6-fast`) from `~/.factory/settings.json`.
+Apply also removes retired ids, including the old Cursor models (`cursor-composer-2.5`, `cursor-grok-4.6`, `cursor-grok-4.5`, `cursor-small`, `cursor-grok-4.6-fast`) and `grok-4.5` / `grok-4.6`, from `~/.factory/settings.json`.
 
 > Note: some SuperGrok tiers return HTTP 403 on the OAuth API surface even after a successful login. Fallback is an `XAI_API_KEY` via Factory BYOK.
 

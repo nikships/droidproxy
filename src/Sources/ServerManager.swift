@@ -75,7 +75,6 @@ class ServerManager: ObservableObject {
         .codex: "codex",
         .antigravity: "antigravity",
         .kimi: "kimi",
-        .cursor: "cursor",
         .junie: "junie",
         .grok: "grok"
     ]
@@ -329,12 +328,12 @@ class ServerManager: ObservableObject {
             }
         }
 
-        let browserOpenedMessage = "🌐 Browser opened for authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect when you're authenticated."
+        let browserOpenedMessage = "A browser window opened for authentication.\n\nComplete the login in your browser. DroidProxy will detect when you are authenticated."
 
         do {
             NSLog("[Auth] Starting process: %@ with args: %@", bundledPath, authProcess.arguments?.joined(separator: " ") ?? "none")
             try authProcess.run()
-            addLog("✓ Authentication process started (PID: \(authProcess.processIdentifier)) - browser should open shortly")
+            addLog("Authentication process started (PID: \(authProcess.processIdentifier)) - browser should open shortly")
             NSLog("[Auth] Process started with PID: %d", authProcess.processIdentifier)
 
             // Notify watchers when auth completes successfully so the UI can pick
@@ -476,8 +475,9 @@ class ServerManager: ObservableObject {
             }
         }
 
-        // Each enabled Meta account participates in the backend's existing
-        // round-robin / sequential routing and credential retry policy.
+        // Completions still go through this compatibility block (and its
+        // account failover). Responses are TLS-forwarded by ThinkingProxy —
+        // CLIProxyAPI would otherwise rewrite them into `/chat/completions`.
         configContent += MetaMuseCredentialStore.compatibilityConfig(
             accounts: MetaMuseCredentialStore.shared.accounts,
             enabled: isProviderEnabled(.meta)

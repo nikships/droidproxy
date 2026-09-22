@@ -11,7 +11,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var serverManager: ServerManager!
     var thinkingProxy: ThinkingProxy!
     var copilotGateway: CopilotGatewayManager!
-    var cursorAgentProxy: CursorAgentProxyManager!
     var metaMuseAuth: MetaMuseAuthManager!
     private let notificationCenter = UNUserNotificationCenter.current()
     private let updaterController: SPUStandardUpdaterController
@@ -49,7 +48,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         serverManager = ServerManager()
         thinkingProxy = ThinkingProxy()
         copilotGateway = CopilotGatewayManager()
-        cursorAgentProxy = CursorAgentProxyManager()
         metaMuseAuth = MetaMuseAuthManager()
 
         // Warm commonly used icons to avoid first-use disk hits
@@ -62,7 +60,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         if copilotGateway.hasCredentials, serverManager.isProviderEnabled(.copilot) {
             copilotGateway.start()
         }
-        maybeStartCursorAgentProxy()
         startMetaKeyRefresh()
 
         // Register for notifications
@@ -243,7 +240,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         let contentView = SettingsView(
             serverManager: serverManager,
             copilotGateway: copilotGateway,
-            cursorAgentProxy: cursorAgentProxy,
             metaMuseAuth: metaMuseAuth
         )
         window.contentView = NSHostingView(rootView: contentView)
@@ -286,7 +282,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                 DispatchQueue.main.async {
                     if success {
                         self?.updateMenuBarStatus()
-                        self?.maybeStartCursorAgentProxy()
                         // User always connects to 8317 (thinking proxy)
                         self?.showNotification(title: "Server Started", body: "DroidProxy is now running")
                     } else {
@@ -321,7 +316,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         // then shut down the CLIProxyAPI backend.
         thinkingProxy.stop()
         serverManager.stop()
-        cursorAgentProxy.stop()
         updateMenuBarStatus()
     }
 
@@ -331,23 +325,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         guard serverManager.isRunning else { return }
         thinkingProxy.stop()
         serverManager.stop()
-        cursorAgentProxy.stop()
-    }
-
-    func maybeStartCursorAgentProxy() {
-        DispatchQueue.global(qos: .userInitiated).async { [weak self] in
-            guard let self else { return }
-            let shouldRun = BETA_FLAG
-                && self.serverManager.isProviderEnabled(.cursor)
-                && CursorAgentProxyManager.isAgentAuthenticated
-            DispatchQueue.main.async {
-                if shouldRun {
-                    self.cursorAgentProxy.start()
-                } else {
-                    self.cursorAgentProxy.stop()
-                }
-            }
-        }
     }
 
     /// Re-mints the Meta Muse Model API key before it's needed (if a login has
@@ -425,7 +402,6 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         // Stop servers and give cleanup a moment before actually terminating.
         stopServersIfRunning()
         copilotGateway.stop()
-        cursorAgentProxy.stop()
         DispatchQueue.main.asyncAfter(deadline: .now() + 0.3) {
             NSApp.terminate(nil)
         }
@@ -441,13 +417,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         metaKeyRefreshTimer = nil
         stopServersIfRunning()
         copilotGateway.stop()
-        cursorAgentProxy.stop()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         stopServersIfRunning()
         copilotGateway.stop()
-        cursorAgentProxy.stop()
         return .terminateNow
     }
 

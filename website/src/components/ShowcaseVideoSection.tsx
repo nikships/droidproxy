@@ -1,13 +1,16 @@
+import Eyebrow from './Eyebrow'
+import { noOrphan } from '../typography'
+
 export default function ShowcaseVideoSection() {
   return (
     <section id="showcase-video" className="showcase-video-section">
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 01 — Video walkthrough</div>
-            <h2 style={{ marginTop: 10 }}>See the local adapter path in motion.</h2>
+            <Eyebrow index="09">Walkthrough</Eyebrow>
+            <h2>See the local path in motion.</h2>
           </div>
-          <p>A HyperFrames overview of DroidProxy's menu bar setup, localhost proxy, model registration, and provider routing.</p>
+          <p>{noOrphan('Menu bar setup, localhost proxy, model registration, and provider routing — the same loop as the install steps.')}</p>
         </div>
 
         <div className="showcase-video-card">
@@ -16,7 +19,7 @@ export default function ShowcaseVideoSection() {
             controls
             aria-label="DroidProxy overview video with English captions"
             preload="metadata"
-            poster="/assets/video/droidproxy-overview-poster.png"
+            poster="/assets/droid-cli.png"
           >
             <source src="/assets/video/droidproxy-overview.mp4" type="video/mp4" />
             <track

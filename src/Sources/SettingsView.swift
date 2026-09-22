@@ -329,7 +329,6 @@ struct ServiceRow<ExtraContent: View>: View {
 struct SettingsView: View {
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var copilotGateway: CopilotGatewayManager
-    @ObservedObject var cursorAgentProxy: CursorAgentProxyManager
     @ObservedObject var metaMuseAuth: MetaMuseAuthManager
     @StateObject private var authManager = AuthManager()
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
@@ -338,8 +337,6 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.gpt56LunaFastModeKey) private var gpt56LunaFastMode = AppPreferences.defaultGpt56LunaFastMode
     @AppStorage(AppPreferences.gpt56SolFastModeKey) private var gpt56SolFastMode = AppPreferences.defaultGpt56SolFastMode
     @AppStorage(AppPreferences.gpt6AstraFastModeKey) private var gpt6AstraFastMode = AppPreferences.defaultGpt6AstraFastMode
-    @AppStorage(AppPreferences.grok46FastModeKey) private var grok46FastMode = AppPreferences.defaultGrok46FastMode
-    @AppStorage(AppPreferences.cursorFastModeKey) private var cursorFastMode = AppPreferences.defaultCursorFastMode
     @AppStorage(AppPreferences.metaContributorModeKey) private var metaContributorMode = AppPreferences.defaultMetaContributorMode
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
@@ -365,15 +362,12 @@ struct SettingsView: View {
     @State private var factoryModelsInstalled = false
     @State private var remoteManagementExpanded = false
     @State private var codexFastModeExpanded = true
-    @State private var grokFastModeExpanded = true
-    @State private var cursorFastModeExpanded = true
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
     private let codexEffortSelectionColor = Color(red: 0x74/255, green: 0xAA/255, blue: 0x9C/255)
     private let antigravityEffortSelectionColor = Color(red: 0x42/255, green: 0x85/255, blue: 0xF4/255)
     private let kimiEffortSelectionColor = Color(red: 0x00/255, green: 0xBF/255, blue: 0x91/255)
-    private let cursorEffortSelectionColor = Color(red: 0x5E/255, green: 0x5C/255, blue: 0xFA/255)
     private let junieEffortSelectionColor = Color(red: 0x48/255, green: 0xE0/255, blue: 0x54/255)
     private let grokEffortSelectionColor = Color(red: 0x1D/255, green: 0x9B/255, blue: 0xF0/255)
     private let copilotSelectionColor = Color(red: 0x77/255, green: 0xB9/255, blue: 0xFF/255)
@@ -384,12 +378,10 @@ struct SettingsView: View {
     init(
         serverManager: ServerManager,
         copilotGateway: CopilotGatewayManager,
-        cursorAgentProxy: CursorAgentProxyManager,
         metaMuseAuth: MetaMuseAuthManager
     ) {
         self.serverManager = serverManager
         self.copilotGateway = copilotGateway
-        self.cursorAgentProxy = cursorAgentProxy
         self.metaMuseAuth = metaMuseAuth
         let selected = CopilotModelPreferences.selectedModelIDs
         _copilotModelSlots = State(
@@ -883,81 +875,8 @@ struct SettingsView: View {
                         .grok,
                         iconName: "icon-grok.svg",
                         toggleTint: grokEffortSelectionColor,
-                        helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.6 via api.x.ai (supported tiers; no xAI API key)."
+                        helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.7 and Grok 4.7 Fast (no xAI API key)."
                     )
-
-                    if serverManager.isProviderEnabled(.grok) {
-                        VStack(alignment: .leading, spacing: 6) {
-                            HStack(spacing: 4) {
-                                Text("Fast Mode")
-                                    .font(.caption)
-                                    .foregroundColor(.secondary)
-                                Image(systemName: grokFastModeExpanded ? "chevron.down" : "chevron.right")
-                                    .font(.caption2)
-                                    .foregroundColor(.secondary)
-                                Spacer()
-                            }
-                            .contentShape(Rectangle())
-                            .onTapGesture {
-                                withAnimation(.easeInOut(duration: 0.2)) {
-                                    grokFastModeExpanded.toggle()
-                                }
-                            }
-                            if grokFastModeExpanded {
-                                codexFastModeToggleRow(
-                                    "Grok 4.6",
-                                    isOn: $grok46FastMode,
-                                    helpText: "Rewrites grok-4.6 → cursor-grok-4.6-fast via the local Cursor Agent CLI (api.x.ai has no grok-4.6-fast). Requires Beta → Cursor and `agent login`."
-                                )
-                            }
-                        }
-                        .padding(.leading, 28)
-                    }
-
-                    if betaFlag {
-                        providerServiceRow(
-                            .cursor,
-                            iconName: "icon-cursor.png",
-                            toggleTint: cursorEffortSelectionColor,
-                            helpText: "Uses your local Cursor Agent CLI (`agent login`). Exposes Composer 2.5 and Grok 4.6 through cursor-api-proxy. Fast Mode and thinking levels are independent: Fast is this toggle, thinking is Droid's per-session effort selector.",
-                            onToggleEnabled: { enabled in
-                                if enabled {
-                                    cursorAgentProxy.start()
-                                } else {
-                                    cursorAgentProxy.stop()
-                                }
-                                factoryModelsInstalled = checkFactoryModelsInstalled()
-                            }
-                        )
-                        if serverManager.isProviderEnabled(.cursor) {
-                            VStack(alignment: .leading, spacing: 6) {
-                                cursorProxyStatusRow()
-                                HStack(spacing: 4) {
-                                    Text("Fast Mode")
-                                        .font(.caption)
-                                        .foregroundColor(.secondary)
-                                    Image(systemName: cursorFastModeExpanded ? "chevron.down" : "chevron.right")
-                                        .font(.caption2)
-                                        .foregroundColor(.secondary)
-                                    Spacer()
-                                }
-                                .contentShape(Rectangle())
-                                .onTapGesture {
-                                    withAnimation(.easeInOut(duration: 0.2)) {
-                                        cursorFastModeExpanded.toggle()
-                                    }
-                                }
-                                if cursorFastModeExpanded {
-                                    codexFastModeToggleRow(
-                                        "Composer 2.5 + Grok 4.6",
-                                        isOn: $cursorFastMode,
-                                        helpText: "Appends -fast to Composer 2.5 and Cursor Grok 4.6. Independent of Droid thinking/reasoning effort."
-                                    )
-                                }
-                            }
-                            .padding(.leading, 28)
-                        }
-                    }
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -1047,14 +966,8 @@ struct SettingsView: View {
             startMonitoringAuthDirectory()
             factoryModelsInstalled = checkFactoryModelsInstalled()
             refreshOAuthUsage()
-            cursorAgentProxy.refreshLoginStatus()
         }
-        .onChange(of: betaFlag) { enabled in
-            if enabled, serverManager.isProviderEnabled(.cursor) {
-                cursorAgentProxy.start()
-            } else if !enabled {
-                cursorAgentProxy.stop()
-            }
+        .onChange(of: betaFlag) { _ in
             factoryModelsInstalled = checkFactoryModelsInstalled()
         }
         .onChange(of: codexUsageAccountSignature) { _ in
@@ -1634,11 +1547,6 @@ struct SettingsView: View {
     }
     
     private func connectService(_ serviceType: ServiceType) {
-        if serviceType == .cursor {
-            startCursorAgentLogin()
-            return
-        }
-
         if serviceType == .junie {
             junieApiKey = ""
             showingJunieApiKeyAlert = true
@@ -1669,7 +1577,6 @@ struct SettingsView: View {
         case .codex: command = .codexLogin
         case .antigravity: command = .antigravityLogin
         case .kimi: command = .kimiLogin
-        case .cursor: return // handled by the early-return above; defensive
         case .junie: return // handled by the early-return above; defensive
         case .grok: return // handled by the early-return above; defensive
         case .copilot: return // handled by the early-return above; defensive
@@ -1701,8 +1608,6 @@ struct SettingsView: View {
             return "🌐 Browser opened for Antigravity authentication.\n\nYou must have Google Antigravity installed before adding an Antigravity account.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
         case .kimi:
             return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
-        case .cursor:
-            return "✓ Cursor Agent CLI is signed in."
         case .junie:
             return "✓ Successfully saved Junie API Key."
         case .grok:
@@ -1749,7 +1654,7 @@ struct SettingsView: View {
                         self.grokLoginSession = nil
                         self.authManager.checkAuthStatus()
                         let who = creds.email ?? "grok-user"
-                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.6 in Droid with `/model`."
+                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.7 or DroidProxy: Grok 4.7 Fast in Droid with `/model`."
                         self.showingAuthResult = true
                     case .failure(.cancelled):
                         // Replaced session already cleared `grokLoginSession` above.
@@ -1770,76 +1675,6 @@ struct SettingsView: View {
         )
         sessionRef.value = session
         grokLoginSession = session
-    }
-
-    private func startCursorAgentLogin() {
-        authenticatingService = .cursor
-        NSLog("[SettingsView] Starting Cursor Agent CLI login")
-        CursorAgentProxyManager.runAgentLogin { success, output in
-            self.authenticatingService = nil
-            self.authManager.checkAuthStatus()
-            self.cursorAgentProxy.refreshLoginStatus()
-            if success {
-                self.authResultMessage = "✓ Cursor Agent CLI signed in as \(CursorAgentProxyManager.currentLoginEmail() ?? "your account")."
-                if self.serverManager.isProviderEnabled(.cursor) {
-                    self.cursorAgentProxy.start()
-                }
-            } else {
-                let details = output.isEmpty
-                    ? "Install the Cursor Agent CLI and run `agent login` if the browser did not open."
-                    : output
-                self.authResultMessage = "Cursor CLI login failed.\n\nDetails: \(details)"
-            }
-            self.showingAuthResult = true
-        }
-    }
-
-    @ViewBuilder
-    private func cursorProxyStatusRow() -> some View {
-        HStack(spacing: 6) {
-            Circle()
-                .fill(cursorProxyStatusColor)
-                .frame(width: 8, height: 8)
-            Text(cursorProxyStatusText)
-                .font(.caption)
-                .foregroundColor(.secondary)
-            Spacer()
-            if case .failed = cursorAgentProxy.state {
-                Button("Retry") {
-                    cursorAgentProxy.start()
-                }
-                .droidGlassPlain()
-                .controlSize(.mini)
-            }
-        }
-    }
-
-    private var cursorProxyStatusColor: Color {
-        switch cursorAgentProxy.state {
-        case .running: return .green
-        case .starting: return .yellow
-        case .failed: return .red
-        case .idle: return .secondary
-        }
-    }
-
-    private var cursorProxyStatusText: String {
-        switch cursorAgentProxy.state {
-        case .running:
-            return "Cursor agent proxy on 127.0.0.1:\(CursorAgentProxyManager.proxyPort)"
-        case .starting:
-            return "Starting cursor-api-proxy…"
-        case .failed(let detail):
-            return detail
-        case .idle:
-            if CursorAgentProxyManager.isAgentAuthenticated {
-                return "Cursor CLI signed in. Enable the provider to start the proxy."
-            }
-            if CursorAgentProxyManager.isAgentInstalled {
-                return "Cursor CLI installed. Click Connect to run `agent login`."
-            }
-            return "Cursor Agent CLI not found on PATH."
-        }
     }
 
     private func saveJunieApiKey(_ apiKey: String) {
@@ -1872,11 +1707,6 @@ struct SettingsView: View {
     }
 
     private func disconnectAccount(_ account: AuthAccount) {
-        if account.type == .cursor {
-            authResultMessage = "Cursor stays signed in via the Agent CLI. Disable the Cursor provider to stop routing, or run `agent logout` in a terminal to sign out of Cursor."
-            showingAuthResult = true
-            return
-        }
         if account.type == .meta {
             let removed = authManager.deleteAccount(account)
             authResultMessage = removed ? "Removed \(account.displayName) from Meta Muse" : "Failed to remove account"
@@ -1915,8 +1745,11 @@ struct SettingsView: View {
     /// so users don't end up with stale entries next to the current ones.
     private static let legacyDroidProxyModelIds: Set<String> = [
         "custom:droidproxy:grok-4.5",
+        "custom:droidproxy:grok-4.6",
+        "custom:droidproxy:cursor-composer-2.5",
         "custom:droidproxy:cursor-grok-4.5",
         "custom:droidproxy:cursor-grok-4.5-fast",
+        "custom:droidproxy:cursor-grok-4.6",
         "custom:droidproxy:cursor-grok-4.6-fast",
         "custom:droidproxy:cursor-small"
     ]

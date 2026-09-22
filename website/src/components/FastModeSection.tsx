@@ -1,27 +1,28 @@
-const fastModeCode = `<span class="c">// Fast Mode adds one field to your GPT requests.</span>
+import Eyebrow from './Eyebrow'
+import { noOrphan } from '../typography'
+
+const fastModeCode = `<span class="c">// Fast Mode: one extra field on GPT Responses.</span>
 {
-  <span class="k">"model"</span>: <span class="s">"gpt-5.6-terra"</span>,
-  <span class="k">"service_tier"</span>: <span class="s">"priority"</span>,   <span class="c">// ← added by Fast Mode</span>
-  <span class="k">"reasoning"</span>: { <span class="k">"effort"</span>: <span class="s">"high"</span> }   <span class="c">// ← chosen in Droid CLI</span>
+  <span class="k">"model"</span>: <span class="s">"gpt-6-astra"</span>,
+  <span class="k">"service_tier"</span>: <span class="s">"priority"</span>,
+  <span class="k">"reasoning"</span>: { <span class="k">"effort"</span>: <span class="s">"high"</span> }
 }`
 
 export default function FastModeSection() {
   return (
-    <section id="fast-mode" style={{ background: 'var(--bg-alt)' }}>
+    <section id="fast-mode">
       <div className="container spotlight">
         <div>
-          <span className="spot-pill">⚡ Fast Mode</span>
-          <h2>A priority lane for GPT.</h2>
-          <p>Flip Fast Mode and DroidProxy asks OpenAI to run your GPT requests on the priority service tier — same model, same reasoning effort, just lower latency when you want the answer now.</p>
+          <Eyebrow index="04">Fast Mode</Eyebrow>
+          <h2>A priority lane when you want the answer now.</h2>
+          <p>{noOrphan('Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy asks OpenAI for the priority service tier on GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol.')}</p>
           <dl className="spot-list">
             <dt>What it does</dt>
-            <dd>Adds <span className="mono">service_tier: priority</span> to GPT requests on the Responses API for lower-latency responses</dd>
+            <dd>Injects <span className="mono">service_tier: priority</span> on GPT Responses API calls</dd>
             <dt>Works with</dt>
-            <dd>GPT 5.6 Terra and GPT 5.6 Sol — toggle each one in the Settings window</dd>
-            <dt>When to use</dt>
-            <dd>Interactive sessions where responsiveness matters more than conserving priority capacity</dd>
-            <dt>Reasoning effort</dt>
-            <dd>Left untouched — you still pick the thinking level per session in Droid CLI</dd>
+            <dd>{noOrphan('GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol — toggle each model from Settings')}</dd>
+            <dt>Reasoning</dt>
+            <dd>{noOrphan('Left untouched. You still pick the thinking level per session inside Droid CLI')}</dd>
           </dl>
         </div>
         <div className="code-block">

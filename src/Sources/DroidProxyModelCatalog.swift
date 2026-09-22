@@ -5,7 +5,6 @@ enum DroidProxyModelKind {
     case codex
     case kimi
     case antigravity
-    case cursor
     case junie
     case grok
     case copilot
@@ -121,9 +120,10 @@ enum DroidProxyModelCatalog {
     // `none`/`minimal`/`ultra` which aren't meaningful defaults for a coding model.
     private static let museLevels = [low, medium, high, xhigh, max]
 
-    /// Muse Spark 1.3 and its cheaper/faster "contributor" companion, served via
-    /// CLIProxyAPI's generic `openai-compatibility` passthrough to
-    /// `https://api.meta.ai/v1` once `MetaMuseAuthManager` has minted a key.
+    /// Muse Spark 1.3 and its cheaper/faster "contributor" companion. Completions
+    /// go through CLIProxyAPI's `openai-compatibility` passthrough; Responses are
+    /// TLS-forwarded by ThinkingProxy to `https://api.meta.ai/v1` so encrypted
+    /// reasoning can persist across turns.
     static func museModel(baseModel: String, idSlug: String, displayName: String) -> DroidProxyModelDefinition {
         DroidProxyModelDefinition(
             baseModel: baseModel,
@@ -449,13 +449,15 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
 
-            // Grok OAuth (SuperGrok / X Premium+) via api.x.ai.
+            // Grok OAuth (SuperGrok / X Premium+) .
             // provider="openai" + /v1 → Responses API; ThinkingProxy attaches the bearer.
-            // Context window from docs.x.ai: grok-4.6=500k.
+            // grok-4.7 goes to api.x.ai. grok-4.7-build-fast is the same model on
+            // faster infrastructure (2x price) and is served only by cli-chat-proxy.
+            // Context window from docs.x.ai: grok-4.7=500k.
             DroidProxyModelDefinition(
-                baseModel: "grok-4.6",
-                idSlug: "grok-4.6",
-                displayName: "Grok 4.6",
+                baseModel: "grok-4.7",
+                idSlug: "grok-4.7",
+                displayName: "Grok 4.7",
                 maxOutputTokens: 128000,
                 maxContextLimit: 500_000,
                 provider: "openai",
@@ -463,7 +465,20 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .grok,
                 levels: codexLevels,
-                defaultLevelValue: "high"
+                defaultLevelValue: "xhigh"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: GrokAuth.fastModelID,
+                idSlug: GrokAuth.fastModelID,
+                displayName: "Grok 4.7 Fast",
+                maxOutputTokens: 128000,
+                maxContextLimit: 500_000,
+                provider: "openai",
+                providerKey: "grok",
+                baseURL: "http://localhost:8317/v1",
+                kind: .grok,
+                levels: codexLevels,
+                defaultLevelValue: "xhigh"
             )
         ]
 
@@ -485,40 +500,6 @@ enum DroidProxyModelCatalog {
             } else {
                 list.append(museModel(baseModel: "muse-spark-1.3", idSlug: "muse-spark-1.3", displayName: "Muse Spark 1.3"))
             }
-        }
-
-        if BETA_FLAG {
-            // Composer 2.5 has no thinking-level variants in `agent --list-models`
-            // (`composer-2.5` / `composer-2.5-fast` only). Fast Mode is a Settings
-            // toggle that appends `-fast`. Grok 4.6 thinking is selected in Droid
-            // (`low` / `medium` / `high` / `xhigh`); cursor-api-proxy maps
-            // `reasoning_effort` onto `cursor-grok-4.6-{level}[-fast]`.
-            list.append(contentsOf: [
-                DroidProxyModelDefinition(
-                    baseModel: "cursor-composer-2.5",
-                    idSlug: "cursor-composer-2.5",
-                    displayName: "Cursor Composer 2.5",
-                    maxOutputTokens: 128000,
-                    provider: "generic-chat-completion-api",
-                    providerKey: "cursor",
-                    baseURL: "http://localhost:8317/v1",
-                    kind: .cursor,
-                    levels: [],
-                    defaultLevelValue: "high"
-                ),
-                DroidProxyModelDefinition(
-                    baseModel: "cursor-grok-4.6",
-                    idSlug: "cursor-grok-4.6",
-                    displayName: "Cursor Grok 4.6",
-                    maxOutputTokens: 128000,
-                    provider: "generic-chat-completion-api",
-                    providerKey: "cursor",
-                    baseURL: "http://localhost:8317/v1",
-                    kind: .cursor,
-                    levels: [low, medium, high, xhigh],
-                    defaultLevelValue: "high"
-                )
-            ])
         }
 
         return list

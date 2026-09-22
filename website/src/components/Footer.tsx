@@ -1,3 +1,5 @@
+import { GITHUB, ISSUES, LICENSE, CLIPROXY, VERSION } from '../content'
+
 export default function Footer() {
   return (
     <footer className="foot">
@@ -5,14 +7,14 @@ export default function Footer() {
         <a href="#" className="brand">
           <img src="/assets/logo.png" alt="" />
           <span>DroidProxy</span>
-          <small>v1.8.32 · MIT</small>
+          <small>v{VERSION} · MIT</small>
         </a>
         <div className="foot-links">
-          <a href="https://github.com/anand-92/droidproxy" target="_blank" rel="noopener">GitHub</a>
-          <a href="https://github.com/anand-92/droidproxy/releases" target="_blank" rel="noopener">Releases</a>
-          <a href="https://github.com/anand-92/droidproxy/issues" target="_blank" rel="noopener">Issues</a>
-          <a href="https://github.com/anand-92/droidproxy/blob/main/LICENSE" target="_blank" rel="noopener">License</a>
-          <a href="https://github.com/router-for-me/CLIProxyAPI" target="_blank" rel="noopener">CLIProxyAPI</a>
+          <a href={GITHUB} target="_blank" rel="noopener">GitHub</a>
+          <a href={`${GITHUB}/releases`} target="_blank" rel="noopener">Releases</a>
+          <a href={ISSUES} target="_blank" rel="noopener">Issues</a>
+          <a href={LICENSE} target="_blank" rel="noopener">License</a>
+          <a href={CLIPROXY} target="_blank" rel="noopener">CLIProxyAPI</a>
         </div>
       </div>
     </footer>

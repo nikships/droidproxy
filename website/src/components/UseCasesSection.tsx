@@ -1,48 +1,54 @@
+import Eyebrow from './Eyebrow'
+import { noOrphan } from '../typography'
+
 const cases = [
   {
-    tag: '01 — Save money',
-    title: 'Factory tokens are expensive. Your Claude Pro plan isn\'t.',
-    body: 'Factory bills per token because they pay full API rates upstream. Big AI labs subsidize their own consumer plans — so a $20 Claude or ChatGPT subscription gets you way more usage than the equivalent Factory tokens.',
+    index: '01',
+    tag: 'Stop paying twice',
+    title: 'Factory tokens are API-priced. Your Claude and ChatGPT plans are not.',
+    body: 'Factory bills per token because they pay full API rates upstream. Consumer subscriptions from Anthropic, OpenAI, Google, xAI, Meta, and the rest are subsidized. DroidProxy lets Droid ride those plans instead of a second bill.',
     footLabel: 'You pay',
-    footValue: 'only the AI lab',
+    footValue: 'the lab you already use',
     footRight: 'BYO plan',
   },
   {
-    tag: '02 — Same Droid',
+    index: '02',
+    tag: 'Same Droid',
     title: 'Nothing about Factory Droid changes.',
-    body: 'DroidProxy installs custom models in your Factory client with one click. Pick "DroidProxy: Fable 5" instead of the default — same UI, same agent, same models. Your subscription handles the bill.',
+    body: 'One click writes custom models into ~/.factory/settings.json. Restart the session, pick “DroidProxy: Fable 5.1” or “DroidProxy: GPT 6 Astra,” and keep using /model, skills, missions, and the rest of the CLI.',
     footLabel: 'Setup',
     footValue: 'install · sign in · apply',
     footRight: '1 click',
   },
   {
-    tag: '03 — Pick your lab',
-    title: 'Mix and match Claude, ChatGPT & Gemini.',
-    body: 'Got a Claude Pro plan? Use Fable 5, Opus 5, and Sonnet 4.6. ChatGPT Plus? Run GPT-5 inside Droid. Gemini Advanced? Same. Sign in to whichever ones you have — the rest just stay disabled.',
-    footLabel: 'Models',
-    footValue: '8 supported · all optional',
-    footRight: '3 labs',
+    index: '03',
+    tag: 'Mix labs',
+    title: 'Fable 5.1, GPT 6 Astra, Grok 4.7 — one picker.',
+    body: 'Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, or Junie. Each account stays on your Mac. Disable any provider without touching the others.',
+    footLabel: 'Providers',
+    footValue: '8 labs',
+    footRight: 'OAuth',
   },
 ]
 
 export default function UseCasesSection() {
   return (
-    <section id="use-cases">
+    <section id="why">
       <div className="container">
         <div className="section-head">
           <div>
-            <div className="meta">§ 01 — Why it exists</div>
-            <h2 style={{ marginTop: 10 }}>Stop paying twice for the same models.</h2>
+            <Eyebrow index="01">Why it exists</Eyebrow>
+            <h2>Stop paying twice for the same models.</h2>
           </div>
-          <p>You already pay Anthropic, OpenAI, or Google for Claude, ChatGPT, and Gemini. Factory Droid is just another coding agent that talks to those same models — and they charge a steep markup to handle billing for you. DroidProxy cuts the middleman.</p>
+          <p>{noOrphan('You already pay the labs. Factory Droid talks to those same models and charges a steep markup to handle billing. DroidProxy removes that extra bill.')}</p>
         </div>
 
         <div className="usecase-grid">
           {cases.map((c) => (
-            <div className="usecase" key={c.tag}>
-              <span className="usecase-tag">{c.tag}</span>
+            <div className="usecase" key={c.index}>
+              <Eyebrow index={c.index}>{c.tag}</Eyebrow>
               <h3>{c.title}</h3>
-              <p>{c.body}</p>
+              <p>{noOrphan(c.body)}</p>
               <div className="usecase-foot">
                 <span><b>{c.footLabel}</b> {c.footValue}</span>
                 <span>{c.footRight}</span>

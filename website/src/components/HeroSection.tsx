@@ -1,40 +1,45 @@
-import { DownloadIcon, GitHubIcon } from './icons'
+import { VERSION, GITHUB, RELEASES } from '../content'
+import { noOrphan } from '../typography'
+import Eyebrow from './Eyebrow'
 
 export default function HeroSection() {
   return (
-    <section className="hero" style={{ borderBottom: '1px solid var(--border)' }}>
+    <section className="hero">
       <div className="container hero-grid">
-        <div>
-          <span className="eyebrow"><span className="dot"></span>v1.8.32 · macOS · free & open source</span>
+        <div className="hero-copy">
+          <Eyebrow index="00">v{VERSION} · macos · mit</Eyebrow>
           <h1 className="title">
-            Use your <em>Claude, ChatGPT & Gemini</em> subscriptions inside Factory Droid.
+            Use the plans you already pay for.
           </h1>
           <p className="lede">
-            Factory Droid is a great coding agent — but its token packages are pricey because they pay full API rates upstream. DroidProxy is a tiny macOS menu bar app that lets Factory Droid run on the Claude, ChatGPT, and Gemini subscriptions you already pay for. Same Droid, same models, your existing plan.
+            {noOrphan('DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie through the plans you already have — same Droid CLI, same agent, no Factory token markup.')}
           </p>
           <div className="hero-cta">
-            <a href="https://github.com/anand-92/droidproxy/releases/latest" className="btn btn-primary btn-lg" target="_blank" rel="noopener">
-              Download for macOS
-              <DownloadIcon />
+            <a href={RELEASES} className="btn btn-primary btn-lg" target="_blank" rel="noopener">
+              Download for macOS →
             </a>
-            <a href="https://github.com/anand-92/droidproxy" className="btn btn-ghost btn-lg" target="_blank" rel="noopener">
-              <GitHubIcon />
+            <a href={GITHUB} className="btn btn-ghost btn-lg" target="_blank" rel="noopener">
               View on GitHub
             </a>
           </div>
           <div className="hero-meta">
-            <span><span className="pip"></span>Free forever</span>
-            <span><span className="pip"></span>macOS · Apple Silicon</span>
-            <span><span className="pip"></span>Open source</span>
-            <span><span className="pip"></span>Signed & notarized by Apple</span>
+            <span>Free forever · MIT</span>
+            <span>macOS · Apple Silicon</span>
+            <span>Signed & notarized</span>
           </div>
         </div>
 
-        <div className="product-shot-wrap">
+        <div className="hero-visual">
           <img
-            className="product-shot"
+            className="cli-shot"
+            src="/assets/droid-cli.png"
+            alt="Factory Droid CLI — a New Chat Session with tool calls, a plan, and the prompt composer."
+            loading="eager"
+          />
+          <img
+            className="settings-shot"
             src="/assets/settings-screenshot.png"
-            alt="DroidProxy settings window — Factory custom models applied, Claude, ChatGPT, and Gemini connected."
+            alt="DroidProxy Settings — Claude, ChatGPT, and Gemini connected, Factory custom models applied."
             loading="eager"
           />
         </div>
