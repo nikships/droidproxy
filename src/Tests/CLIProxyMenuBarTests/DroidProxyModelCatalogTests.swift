@@ -15,18 +15,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
                            ["low", "medium", "high", "xhigh", "max"])
         }
     }
-    func testFable5MatchesOpus48EffortLevels() throws {
-        let fable = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:fable-5"))
-
-        XCTAssertEqual(fable["model"] as? String, "claude-fable-5")
-        XCTAssertEqual(fable["enableThinking"] as? Bool, true)
-        XCTAssertEqual(fable["reasoningEffort"] as? String, "xhigh")
-        XCTAssertEqual(fable["defaultReasoningEffort"] as? String, "xhigh")
-        XCTAssertEqual(fable["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
-        XCTAssertEqual(fable["maxOutputTokens"] as? Int, 128000)
-    }
-
-    func testFable51MatchesOpus48EffortLevels() throws {
+    func testFable51ExposesFullEffortLevels() throws {
         let fable = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:fable-5-1"))
 
         XCTAssertEqual(fable["model"] as? String, "claude-fable-5-1")
@@ -37,7 +26,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(fable["maxOutputTokens"] as? Int, 128000)
     }
 
-    func testOpus55MatchesOpus5EffortLevels() throws {
+    func testOpus55ExposesFullEffortLevels() throws {
         let opus55 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5-5"))
 
         XCTAssertEqual(opus55["model"] as? String, "claude-opus-5-5")
@@ -51,33 +40,29 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(opus55["maxOutputTokens"] as? Int, 128000)
     }
 
-    func testApplyWritesBothOpus5AndOpus48ForClaudeProvider() throws {
+    func testApplyWritesOnlyLatestOpusAndFableForClaudeProvider() throws {
         // Apply/Re-apply serializes every enabled definition via settingsModels();
-        // Claude OAuth writes Opus 5.5, Opus 5, and Opus 4.8.
+        // Claude OAuth writes only the latest Opus (5.5) and Fable (5.1).
         let claudeModels = DroidProxyModelCatalog.settingsModels { $0 == "claude" }
         let ids = Set(claudeModels.compactMap { $0["id"] as? String })
         XCTAssertTrue(ids.contains("custom:droidproxy:opus-5-5"))
-        XCTAssertTrue(ids.contains("custom:droidproxy:opus-5"))
-        XCTAssertTrue(ids.contains("custom:droidproxy:opus-4-8"))
+        XCTAssertTrue(ids.contains("custom:droidproxy:fable-5-1"))
+        for retired in ["opus-5", "opus-4-8", "fable-5"] {
+            XCTAssertFalse(ids.contains("custom:droidproxy:\(retired)"))
+        }
 
         let opus55 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5-5"))
         XCTAssertEqual(opus55["model"] as? String, "claude-opus-5-5")
         XCTAssertEqual(opus55["displayName"] as? String, "DroidProxy: Opus 5.5")
 
-        let opus5 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5"))
-        XCTAssertEqual(opus5["model"] as? String, "claude-opus-5")
-        XCTAssertEqual(opus5["displayName"] as? String, "DroidProxy: Opus 5")
-
-        let opus48 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-4-8"))
-        XCTAssertEqual(opus48["model"] as? String, "claude-opus-4-8")
-        XCTAssertEqual(opus48["displayName"] as? String, "DroidProxy: Opus 4.8")
-
-        // Junie exposes Opus 5.5 and Opus 5 but not Opus 4.8.
+        // Junie likewise exposes only Opus 5.5 and Fable 5.1.
         let junieIds = Set(DroidProxyModelCatalog.settingsModels { $0 == "junie" }
             .compactMap { $0["id"] as? String })
         XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-opus-5-5"))
-        XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-opus-5"))
-        XCTAssertFalse(junieIds.contains("custom:droidproxy:junie-claude-opus-4-8"))
+        XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-fable-5-1"))
+        for retired in ["junie-claude-opus-5", "junie-claude-fable-5"] {
+            XCTAssertFalse(junieIds.contains("custom:droidproxy:\(retired)"))
+        }
     }
 
     func testSonnet5UsesNativeModelIDAndExposesFullLevels() throws {
@@ -90,18 +75,31 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(sonnet["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
     }
 
-    func testGpt56LunaUsesNativeModelMetadata() throws {
-        let luna = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:gpt-5.6-luna"))
+    func testGpt6SolAndLunaUseNativeModelMetadata() throws {
+        for (slug, name) in [("gpt-6-sol", "GPT 6 Sol"), ("gpt-6-luna", "GPT 6 Luna")] {
+            let entry = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:\(slug)"))
 
-        XCTAssertEqual(luna["model"] as? String, "gpt-5.6-luna")
-        XCTAssertEqual(luna["provider"] as? String, "openai")
-        XCTAssertEqual(luna["baseUrl"] as? String, "http://localhost:8317/v1")
-        XCTAssertEqual(luna["displayName"] as? String, "DroidProxy: GPT 5.6 Luna")
-        XCTAssertEqual(luna["maxOutputTokens"] as? Int, 128000)
-        XCTAssertEqual(luna["enableThinking"] as? Bool, true)
-        XCTAssertEqual(luna["reasoningEffort"] as? String, "medium")
-        XCTAssertEqual(luna["defaultReasoningEffort"] as? String, "medium")
-        XCTAssertEqual(luna["supportedReasoningEfforts"] as? [String], ["none", "low", "medium", "high", "xhigh", "max"])
+            XCTAssertEqual(entry["model"] as? String, slug)
+            XCTAssertEqual(entry["provider"] as? String, "openai")
+            XCTAssertEqual(entry["baseUrl"] as? String, "http://localhost:8317/v1")
+            XCTAssertEqual(entry["displayName"] as? String, "DroidProxy: \(name)")
+            XCTAssertEqual(entry["maxOutputTokens"] as? Int, 128000)
+            XCTAssertEqual(entry["maxContextLimit"] as? Int, 272_000)
+            XCTAssertEqual(entry["enableThinking"] as? Bool, true)
+            XCTAssertEqual(entry["reasoningEffort"] as? String, "xhigh")
+            XCTAssertEqual(entry["defaultReasoningEffort"] as? String, "xhigh")
+            XCTAssertEqual(entry["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+        }
+    }
+
+    func testCodexProviderWritesOnlyGpt6Models() {
+        let ids = Set(DroidProxyModelCatalog.settingsModels { $0 == "codex" }
+            .compactMap { $0["id"] as? String })
+        XCTAssertEqual(ids, [
+            "custom:droidproxy:gpt-6-astra",
+            "custom:droidproxy:gpt-6-sol",
+            "custom:droidproxy:gpt-6-luna"
+        ])
     }
 
     func testGpt6AstraUsesNativeModelMetadata() throws {
@@ -112,10 +110,10 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(astra["baseUrl"] as? String, "http://localhost:8317/v1")
         XCTAssertEqual(astra["displayName"] as? String, "DroidProxy: GPT 6 Astra")
         XCTAssertEqual(astra["maxOutputTokens"] as? Int, 128000)
-        XCTAssertEqual(astra["maxContextLimit"] as? Int, 1_050_000)
+        XCTAssertEqual(astra["maxContextLimit"] as? Int, 272_000)
         XCTAssertEqual(astra["enableThinking"] as? Bool, true)
-        XCTAssertEqual(astra["reasoningEffort"] as? String, "medium")
-        XCTAssertEqual(astra["defaultReasoningEffort"] as? String, "medium")
+        XCTAssertEqual(astra["reasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(astra["defaultReasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(astra["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
     }
 

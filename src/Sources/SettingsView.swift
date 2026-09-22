@@ -333,10 +333,9 @@ struct SettingsView: View {
     @StateObject private var authManager = AuthManager()
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
-    @AppStorage(AppPreferences.gpt56TerraFastModeKey) private var gpt56TerraFastMode = AppPreferences.defaultGpt56TerraFastMode
-    @AppStorage(AppPreferences.gpt56LunaFastModeKey) private var gpt56LunaFastMode = AppPreferences.defaultGpt56LunaFastMode
-    @AppStorage(AppPreferences.gpt56SolFastModeKey) private var gpt56SolFastMode = AppPreferences.defaultGpt56SolFastMode
     @AppStorage(AppPreferences.gpt6AstraFastModeKey) private var gpt6AstraFastMode = AppPreferences.defaultGpt6AstraFastMode
+    @AppStorage(AppPreferences.gpt6SolFastModeKey) private var gpt6SolFastMode = AppPreferences.defaultGpt6SolFastMode
+    @AppStorage(AppPreferences.gpt6LunaFastModeKey) private var gpt6LunaFastMode = AppPreferences.defaultGpt6LunaFastMode
     @AppStorage(AppPreferences.metaContributorModeKey) private var metaContributorMode = AppPreferences.defaultMetaContributorMode
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
     @AppStorage(AppPreferences.secretKeyKey) private var secretKey = AppPreferences.defaultSecretKey
@@ -818,24 +817,19 @@ struct SettingsView: View {
                             }
                             if codexFastModeExpanded {
                                 codexFastModeToggleRow(
-                                    "GPT 5.6 Terra",
-                                    isOn: $gpt56TerraFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.6 Terra Responses API requests (Codex fast mode)"
-                                )
-                                codexFastModeToggleRow(
-                                    "GPT 5.6 Luna",
-                                    isOn: $gpt56LunaFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.6 Luna Responses API requests (Codex fast mode)"
-                                )
-                                codexFastModeToggleRow(
-                                    "GPT 5.6 Sol",
-                                    isOn: $gpt56SolFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 5.6 Sol Responses API requests (Codex fast mode)"
-                                )
-                                codexFastModeToggleRow(
                                     "GPT 6 Astra",
                                     isOn: $gpt6AstraFastMode,
                                     helpText: "Injects service_tier=priority for GPT 6 Astra Responses API requests (Codex fast mode)"
+                                )
+                                codexFastModeToggleRow(
+                                    "GPT 6 Sol",
+                                    isOn: $gpt6SolFastMode,
+                                    helpText: "Injects service_tier=priority for GPT 6 Sol Responses API requests (Codex fast mode)"
+                                )
+                                codexFastModeToggleRow(
+                                    "GPT 6 Luna",
+                                    isOn: $gpt6LunaFastMode,
+                                    helpText: "Injects service_tier=priority for GPT 6 Luna Responses API requests (Codex fast mode)"
                                 )
                             }
                         }
@@ -868,7 +862,7 @@ struct SettingsView: View {
                         .junie,
                         iconName: "icon-junie.svg",
                         toggleTint: junieEffortSelectionColor,
-                        helpText: "Enter your JetBrains Junie API key to use your JetBrains AI subscription for Junie Sonnet 5, Opus 5.5, Opus 5, and Fable 5."
+                        helpText: "Enter your JetBrains Junie API key to use your JetBrains AI subscription for Junie Sonnet 5, Opus 5.5, and Fable 5.1."
                     )
 
                     providerServiceRow(

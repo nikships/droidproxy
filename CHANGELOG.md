@@ -6,7 +6,12 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Fixed
+- **Claude Code version gate** -- Anthropic now rejects OAuth requests from Claude Code builds older than 2.1.280 (`Claude Code 2.1.258 does not support this model`). The bundled CLIProxyAPI still identifies as 2.1.258, so `config.yaml` sets `claude-header-defaults.user-agent` to `claude-cli/2.1.280 (external, cli)`. Keep it in step with `claude --version` when a new Claude model ships.
+
 ### Changed
+- **GPT lineup is GPT 6 only** -- Codex OAuth now registers GPT 6 Astra, GPT 6 Sol (`gpt-6-sol`), and GPT 6 Luna (`gpt-6-luna`), each with `low` / `medium` / `high` / `xhigh` / `max` effort (default `xhigh`), a 272k context window matching CLIProxyAPI's Codex registry, a 128k output-token ceiling, and an opt-in Fast Mode toggle (`service_tier=priority`). `custom:droidproxy:gpt-5.6-terra`, `gpt-5.6-luna`, and `gpt-5.6-sol` are dropped from the catalog and pruned from `~/.factory/settings.json` on the next Apply/Re-apply, along with their Fast Mode toggles.
+- **Older Opus / Fable models retired** -- Only the latest Claude flagships remain: Opus 5.5 and Fable 5.1 (Anthropic OAuth and Junie). `custom:droidproxy:opus-5`, `opus-4-8`, `fable-5`, `junie-claude-opus-5`, and `junie-claude-fable-5` are dropped from the catalog and pruned from `~/.factory/settings.json` on the next Apply/Re-apply.
 - **Grok 4.7 default reasoning** -- Factory custom model `custom:droidproxy:grok-4.7` now defaults to `xhigh`. Re-apply Factory models to replace an existing settings entry.
 
 ### Added

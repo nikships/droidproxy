@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS = {
   requestTimeout: "10m",
   requestRetry: 3,
   debug: false,
-  model: "gpt-5.6-terra",
+  model: "gpt-6-sol",
   maxOutputTokens: 128000,
   enableThinking: true,
   reasoningEffort: "medium"
@@ -24,15 +24,15 @@ const DEFAULT_SETTINGS = {
 
 const FACTORY_MODELS = [
   {
-    model: "gpt-5.6-terra",
-    displayName: "DroidProxy: GPT 5.6 Terra",
-    supportedReasoningEfforts: ["none", "low", "medium", "high", "xhigh", "max"],
+    model: "gpt-6-sol",
+    displayName: "DroidProxy: GPT 6 Sol",
+    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
     defaultReasoningEffort: "medium"
   },
   {
-    model: "gpt-5.6-sol",
-    displayName: "DroidProxy: GPT 5.6 Sol",
-    supportedReasoningEfforts: ["dynamic", "low", "medium", "high", "xhigh", "max"],
+    model: "gpt-6-luna",
+    displayName: "DroidProxy: GPT 6 Luna",
+    supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
     defaultReasoningEffort: "medium"
   }
 ];

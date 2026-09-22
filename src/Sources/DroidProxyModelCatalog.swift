@@ -102,8 +102,6 @@ struct DroidProxyModelDefinition: Equatable {
 }
 
 enum DroidProxyModelCatalog {
-    private static let none = DroidProxyThinkingLevel(value: "none", displayName: "None")
-    private static let dynamic = DroidProxyThinkingLevel(value: "dynamic", displayName: "Dynamic")
     private static let low = DroidProxyThinkingLevel(value: "low", displayName: "Low")
     private static let medium = DroidProxyThinkingLevel(value: "medium", displayName: "Medium")
     private static let high = DroidProxyThinkingLevel(value: "high", displayName: "High")
@@ -112,9 +110,7 @@ enum DroidProxyModelCatalog {
 
     private static let claudeAdvancedLevels = [low, medium, high, xhigh, max]
     private static let codexLevels = [low, medium, high, xhigh]
-    private static let gpt56Levels = [none, low, medium, high, xhigh, max]
-    private static let gpt56SolLevels = [dynamic, low, medium, high, xhigh, max]
-    private static let gpt6AstraLevels = [low, medium, high, xhigh, max]
+    private static let gpt6Levels = [low, medium, high, xhigh, max]
     // Full reasoning-effort range the `muse` CLI itself exposes for Muse Spark
     // (`--reasoning-effort none|minimal|low|medium|high|xhigh|max|ultra`), minus
     // `none`/`minimal`/`ultra` which aren't meaningful defaults for a coding model.
@@ -207,45 +203,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "claude-fable-5",
-                idSlug: "fable-5",
-                displayName: "Fable 5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeAdaptive,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
                 baseModel: "claude-opus-5-5",
                 idSlug: "opus-5-5",
                 displayName: "Opus 5.5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeAdaptive,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "claude-opus-5",
-                idSlug: "opus-5",
-                displayName: "Opus 5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeAdaptive,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "claude-opus-4-8",
-                idSlug: "opus-4-8",
-                displayName: "Opus 4.8",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "claude",
@@ -267,54 +227,45 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
 
-            DroidProxyModelDefinition(
-                baseModel: "gpt-5.6-terra",
-                idSlug: "gpt-5.6-terra",
-                displayName: "GPT 5.6 Terra",
-                maxOutputTokens: 128000,
-                provider: "openai",
-                providerKey: "codex",
-                baseURL: "http://localhost:8317/v1",
-                kind: .codex,
-                levels: gpt56Levels,
-                defaultLevelValue: "medium"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "gpt-5.6-luna",
-                idSlug: "gpt-5.6-luna",
-                displayName: "GPT 5.6 Luna",
-                maxOutputTokens: 128000,
-                provider: "openai",
-                providerKey: "codex",
-                baseURL: "http://localhost:8317/v1",
-                kind: .codex,
-                levels: gpt56Levels,
-                defaultLevelValue: "medium"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "gpt-5.6-sol",
-                idSlug: "gpt-5.6-sol",
-                displayName: "GPT 5.6 Sol",
-                maxOutputTokens: 128000,
-                provider: "openai",
-                providerKey: "codex",
-                baseURL: "http://localhost:8317/v1",
-                kind: .codex,
-                levels: gpt56SolLevels,
-                defaultLevelValue: "medium"
-            ),
+            // Context windows match CLIProxyAPI's Codex model registry.
             DroidProxyModelDefinition(
                 baseModel: "gpt-6-astra",
                 idSlug: "gpt-6-astra",
                 displayName: "GPT 6 Astra",
                 maxOutputTokens: 128000,
-                maxContextLimit: 1_050_000,
+                maxContextLimit: 272_000,
                 provider: "openai",
                 providerKey: "codex",
                 baseURL: "http://localhost:8317/v1",
                 kind: .codex,
-                levels: gpt6AstraLevels,
-                defaultLevelValue: "medium"
+                levels: gpt6Levels,
+                defaultLevelValue: "xhigh"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gpt-6-sol",
+                idSlug: "gpt-6-sol",
+                displayName: "GPT 6 Sol",
+                maxOutputTokens: 128000,
+                maxContextLimit: 272_000,
+                provider: "openai",
+                providerKey: "codex",
+                baseURL: "http://localhost:8317/v1",
+                kind: .codex,
+                levels: gpt6Levels,
+                defaultLevelValue: "xhigh"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "gpt-6-luna",
+                idSlug: "gpt-6-luna",
+                displayName: "GPT 6 Luna",
+                maxOutputTokens: 128000,
+                maxContextLimit: 272_000,
+                provider: "openai",
+                providerKey: "codex",
+                baseURL: "http://localhost:8317/v1",
+                kind: .codex,
+                levels: gpt6Levels,
+                defaultLevelValue: "xhigh"
             ),
             // Antigravity subscription models routed through the antigravity executor via
             // OpenAI-compatible chat-completions. provider="openai" + baseURL ending in
@@ -413,33 +364,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "junie-claude-opus-5",
-                idSlug: "junie-claude-opus-5",
-                displayName: "Junie Opus 5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "junie",
-                baseURL: "http://localhost:8317",
-                kind: .junie,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
                 baseModel: "junie-claude-fable-5-1",
                 idSlug: "junie-claude-fable-5-1",
                 displayName: "Junie Fable 5.1",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "junie",
-                baseURL: "http://localhost:8317",
-                kind: .junie,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "junie-claude-fable-5",
-                idSlug: "junie-claude-fable-5",
-                displayName: "Junie Fable 5",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "junie",

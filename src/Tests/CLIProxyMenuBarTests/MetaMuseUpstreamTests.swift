@@ -32,7 +32,7 @@ final class MetaMuseUpstreamTests: XCTestCase {
         XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-spark-1.3"))
         XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-spark-1.3-contributor"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel("muse-spark-1.2"))
-        XCTAssertFalse(MetaMuseUpstream.isMetaModel("gpt-5.6-terra"))
+        XCTAssertFalse(MetaMuseUpstream.isMetaModel("gpt-6-sol"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel("grok-4.6"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel(nil))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel(""))
