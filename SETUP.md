@@ -79,9 +79,20 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "anthropic"
     },
     {
+      "model": "claude-opus-5-5",
+      "id": "custom:droidproxy:opus-5-5",
+      "index": 2,
+      "baseUrl": "http://localhost:8317",
+      "apiKey": "dummy-not-used",
+      "displayName": "DroidProxy: Opus 5.5",
+      "maxOutputTokens": 128000,
+      "noImageSupport": false,
+      "provider": "anthropic"
+    },
+    {
       "model": "claude-opus-5",
       "id": "custom:droidproxy:opus-5",
-      "index": 2,
+      "index": 3,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Opus 5",
@@ -92,7 +103,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "claude-sonnet-4-6",
       "id": "custom:droidproxy:sonnet-4-6",
-      "index": 3,
+      "index": 4,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Sonnet 4.6",
@@ -103,7 +114,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gpt-5.6-terra",
       "id": "custom:droidproxy:gpt-5.6-terra",
-      "index": 4,
+      "index": 5,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 5.6 Terra",
@@ -114,7 +125,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gpt-5.6-sol",
       "id": "custom:droidproxy:gpt-5.6-sol",
-      "index": 5,
+      "index": 6,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 5.6 Sol",
@@ -125,7 +136,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gemini-3.1-pro-preview",
       "id": "custom:droidproxy:gemini-3.1-pro",
-      "index": 6,
+      "index": 7,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3.1 Pro",
@@ -136,7 +147,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gemini-3-flash-preview",
       "id": "custom:droidproxy:gemini-3-flash",
-      "index": 7,
+      "index": 8,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3 Flash",
@@ -147,7 +158,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "kimi-k3",
       "id": "custom:droidproxy:kimi-k3",
-      "index": 8,
+      "index": 9,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Kimi K3",
@@ -170,6 +181,7 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 
 - Fable 5.1: `low`, `medium`, `high`, `xhigh`, or `max`
 - Fable 5: `low`, `medium`, `high`, `xhigh`, or `max`
+- Opus 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Opus 5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Sonnet 4.6: `low`, `medium`, `high`, or `max`
 - GPT 5.6 Terra: `none`, `low`, `medium`, `high`, `xhigh`, or `max`
