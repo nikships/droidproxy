@@ -71,16 +71,6 @@ export const models: ModelRow[] = [
   },
   {
     icon: '/assets/icon-claude.png',
-    name: 'Claude Opus 5',
-    id: 'opus-5',
-    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
-    max: '128,000',
-    provider: 'Anthropic',
-    group: 'Claude',
-    color: brandColor.claude,
-  },
-  {
-    icon: '/assets/icon-claude.png',
     name: 'Claude Sonnet 5',
     id: 'sonnet-5',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],

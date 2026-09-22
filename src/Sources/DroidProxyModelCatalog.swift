@@ -207,45 +207,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "claude-fable-5",
-                idSlug: "fable-5",
-                displayName: "Fable 5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeAdaptive,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
                 baseModel: "claude-opus-5-5",
                 idSlug: "opus-5-5",
                 displayName: "Opus 5.5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeAdaptive,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "claude-opus-5",
-                idSlug: "opus-5",
-                displayName: "Opus 5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "claude",
-                baseURL: "http://localhost:8317",
-                kind: .claudeAdaptive,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "claude-opus-4-8",
-                idSlug: "opus-4-8",
-                displayName: "Opus 4.8",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "claude",
@@ -413,33 +377,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "junie-claude-opus-5",
-                idSlug: "junie-claude-opus-5",
-                displayName: "Junie Opus 5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "junie",
-                baseURL: "http://localhost:8317",
-                kind: .junie,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
                 baseModel: "junie-claude-fable-5-1",
                 idSlug: "junie-claude-fable-5-1",
                 displayName: "Junie Fable 5.1",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "junie",
-                baseURL: "http://localhost:8317",
-                kind: .junie,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
-            DroidProxyModelDefinition(
-                baseModel: "junie-claude-fable-5",
-                idSlug: "junie-claude-fable-5",
-                displayName: "Junie Fable 5",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "junie",

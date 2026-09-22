@@ -16,7 +16,7 @@ const faqs = [
   },
   {
     q: 'What happened to older model names?',
-    a: 'The catalog ships the current flagship of each family — Fable 5.1, Opus 5.5, Opus 5, Sonnet 5, GPT 6 Astra, Gemini 3.8 Flash, Kimi K3. Re-applying Factory models prunes sunset ids from ~/.factory/settings.json.',
+    a: 'The catalog ships the current flagship of each family — Fable 5.1, Opus 5.5, Sonnet 5, GPT 6 Astra, Gemini 3.8 Flash, Kimi K3. Re-applying Factory models prunes sunset ids from ~/.factory/settings.json.',
   },
   {
     q: 'Is traffic leaving my machine encrypted?',

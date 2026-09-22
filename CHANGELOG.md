@@ -7,6 +7,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ## [Unreleased]
 
 ### Changed
+- **Older Opus / Fable models retired** -- Only the latest Claude flagships remain: Opus 5.5 and Fable 5.1 (Anthropic OAuth and Junie). `custom:droidproxy:opus-5`, `opus-4-8`, `fable-5`, `junie-claude-opus-5`, and `junie-claude-fable-5` are dropped from the catalog and pruned from `~/.factory/settings.json` on the next Apply/Re-apply.
 - **Grok 4.7 default reasoning** -- Factory custom model `custom:droidproxy:grok-4.7` now defaults to `xhigh`. Re-apply Factory models to replace an existing settings entry.
 
 ### Added
