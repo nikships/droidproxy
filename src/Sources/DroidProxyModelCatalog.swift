@@ -219,9 +219,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "claude-opus-5-2",
-                idSlug: "opus-5-2",
-                displayName: "Opus 5.2",
+                baseModel: "claude-opus-5-5",
+                idSlug: "opus-5-5",
+                displayName: "Opus 5.5",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "claude",
@@ -401,9 +401,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "junie-claude-opus-5-2",
-                idSlug: "junie-claude-opus-5-2",
-                displayName: "Junie Opus 5.2",
+                baseModel: "junie-claude-opus-5-5",
+                idSlug: "junie-claude-opus-5-5",
+                displayName: "Junie Opus 5.5",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "junie",

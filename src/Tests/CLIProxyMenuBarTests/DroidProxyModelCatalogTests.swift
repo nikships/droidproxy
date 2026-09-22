@@ -37,32 +37,32 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(fable["maxOutputTokens"] as? Int, 128000)
     }
 
-    func testOpus52MatchesOpus5EffortLevels() throws {
-        let opus52 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5-2"))
+    func testOpus55MatchesOpus5EffortLevels() throws {
+        let opus55 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5-5"))
 
-        XCTAssertEqual(opus52["model"] as? String, "claude-opus-5-2")
-        XCTAssertEqual(opus52["displayName"] as? String, "DroidProxy: Opus 5.2")
-        XCTAssertEqual(opus52["provider"] as? String, "anthropic")
-        XCTAssertEqual(opus52["baseUrl"] as? String, "http://localhost:8317")
-        XCTAssertEqual(opus52["enableThinking"] as? Bool, true)
-        XCTAssertEqual(opus52["reasoningEffort"] as? String, "xhigh")
-        XCTAssertEqual(opus52["defaultReasoningEffort"] as? String, "xhigh")
-        XCTAssertEqual(opus52["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
-        XCTAssertEqual(opus52["maxOutputTokens"] as? Int, 128000)
+        XCTAssertEqual(opus55["model"] as? String, "claude-opus-5-5")
+        XCTAssertEqual(opus55["displayName"] as? String, "DroidProxy: Opus 5.5")
+        XCTAssertEqual(opus55["provider"] as? String, "anthropic")
+        XCTAssertEqual(opus55["baseUrl"] as? String, "http://localhost:8317")
+        XCTAssertEqual(opus55["enableThinking"] as? Bool, true)
+        XCTAssertEqual(opus55["reasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(opus55["defaultReasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(opus55["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+        XCTAssertEqual(opus55["maxOutputTokens"] as? Int, 128000)
     }
 
     func testApplyWritesBothOpus5AndOpus48ForClaudeProvider() throws {
         // Apply/Re-apply serializes every enabled definition via settingsModels();
-        // Claude OAuth writes Opus 5.2, Opus 5, and Opus 4.8.
+        // Claude OAuth writes Opus 5.5, Opus 5, and Opus 4.8.
         let claudeModels = DroidProxyModelCatalog.settingsModels { $0 == "claude" }
         let ids = Set(claudeModels.compactMap { $0["id"] as? String })
-        XCTAssertTrue(ids.contains("custom:droidproxy:opus-5-2"))
+        XCTAssertTrue(ids.contains("custom:droidproxy:opus-5-5"))
         XCTAssertTrue(ids.contains("custom:droidproxy:opus-5"))
         XCTAssertTrue(ids.contains("custom:droidproxy:opus-4-8"))
 
-        let opus52 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5-2"))
-        XCTAssertEqual(opus52["model"] as? String, "claude-opus-5-2")
-        XCTAssertEqual(opus52["displayName"] as? String, "DroidProxy: Opus 5.2")
+        let opus55 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5-5"))
+        XCTAssertEqual(opus55["model"] as? String, "claude-opus-5-5")
+        XCTAssertEqual(opus55["displayName"] as? String, "DroidProxy: Opus 5.5")
 
         let opus5 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:opus-5"))
         XCTAssertEqual(opus5["model"] as? String, "claude-opus-5")
@@ -72,10 +72,10 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(opus48["model"] as? String, "claude-opus-4-8")
         XCTAssertEqual(opus48["displayName"] as? String, "DroidProxy: Opus 4.8")
 
-        // Junie exposes Opus 5.2 and Opus 5 but not Opus 4.8.
+        // Junie exposes Opus 5.5 and Opus 5 but not Opus 4.8.
         let junieIds = Set(DroidProxyModelCatalog.settingsModels { $0 == "junie" }
             .compactMap { $0["id"] as? String })
-        XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-opus-5-2"))
+        XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-opus-5-5"))
         XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-opus-5"))
         XCTAssertFalse(junieIds.contains("custom:droidproxy:junie-claude-opus-4-8"))
     }

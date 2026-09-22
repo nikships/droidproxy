@@ -24,12 +24,12 @@ const codePlain = `// What "Apply" writes for you — no need to touch this your
     "provider": "anthropic"
   },
   {
-    "model": "claude-opus-5-2",
-    "id": "custom:droidproxy:opus-5-2",
+    "model": "claude-opus-5-5",
+    "id": "custom:droidproxy:opus-5-5",
     "index": 2,
     "baseUrl": "http://localhost:8317",
     "apiKey": "***",
-    "displayName": "DroidProxy: Opus 5.2",
+    "displayName": "DroidProxy: Opus 5.5",
     "maxOutputTokens": 128000,
     "provider": "anthropic"
   },
@@ -79,12 +79,12 @@ const codeHtml = `<span class="c">// What "Apply" writes for you — no need to 
     <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
   },
   {
-    <span class="k">"model"</span>: <span class="s">"claude-opus-5-2"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:opus-5-2"</span>,
+    <span class="k">"model"</span>: <span class="s">"claude-opus-5-5"</span>,
+    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:opus-5-5"</span>,
     <span class="k">"index"</span>: <span class="n">2</span>,
     <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Opus 5.2"</span>,
+    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Opus 5.5"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
     <span class="k">"provider"</span>: <span class="s">"anthropic"</span>
   },

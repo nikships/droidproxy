@@ -90,12 +90,12 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "anthropic"
     },
     {
-      "model": "claude-opus-5-2",
-      "id": "custom:droidproxy:opus-5-2",
+      "model": "claude-opus-5-5",
+      "id": "custom:droidproxy:opus-5-5",
       "index": 2,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
-      "displayName": "DroidProxy: Opus 5.2",
+      "displayName": "DroidProxy: Opus 5.5",
       "maxOutputTokens": 128000,
       "noImageSupport": false,
       "provider": "anthropic"
@@ -192,7 +192,7 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 
 - Fable 5.1: `low`, `medium`, `high`, `xhigh`, or `max`
 - Fable 5: `low`, `medium`, `high`, `xhigh`, or `max`
-- Opus 5.2: `low`, `medium`, `high`, `xhigh`, or `max`
+- Opus 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Opus 5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Sonnet 4.6: `low`, `medium`, `high`, or `max`
 - GPT 5.6 Terra: `none`, `low`, `medium`, `high`, `xhigh`, or `max`

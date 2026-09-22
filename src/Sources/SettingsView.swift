@@ -876,7 +876,7 @@ struct SettingsView: View {
                         .junie,
                         iconName: "icon-junie.svg",
                         toggleTint: junieEffortSelectionColor,
-                        helpText: "Enter your JetBrains Junie API key to use your JetBrains AI subscription for Junie Sonnet 5, Opus 5.2, Opus 5, and Fable 5."
+                        helpText: "Enter your JetBrains Junie API key to use your JetBrains AI subscription for Junie Sonnet 5, Opus 5.5, Opus 5, and Fable 5."
                     )
 
                     providerServiceRow(
