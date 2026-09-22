@@ -36,6 +36,14 @@ max-retry-credentials: 0
 # Important for Extended Thinking requests which may take 5-10+ minutes.
 request-timeout: "10m"
 
+# Claude Code identity sent to Anthropic for OAuth requests. Anthropic gates new
+# models on a minimum Claude Code version ("version 2.1.280 or newer is
+# required"), and CLIProxyAPI's built-in baseline lags behind. Keep these in
+# step with the current Claude Code release (`claude --version`).
+claude-header-defaults:
+  user-agent: "claude-cli/2.1.280 (external, cli)"
+  package-version: "0.112.1"
+
 # ---------------------------------------------------------------------------
 # The four values below are rewritten by the "Sequential account failover"
 # setting in Settings. The values checked in here are the OFF state, i.e. the

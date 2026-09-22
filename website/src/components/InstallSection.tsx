@@ -24,13 +24,13 @@ const codePlain = `// What Apply writes.
     "apiKey": "***",
     "displayName": "DroidProxy: GPT 6 Astra",
     "maxOutputTokens": 128000,
-    "maxContextLimit": 1050000,
+    "maxContextLimit": 272000,
     "provider": "openai",
     "enableThinking": true,
     "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
-    "defaultReasoningEffort": "medium"
+    "defaultReasoningEffort": "xhigh"
   }
-  // + Opus 5.5, Sonnet 5, GPT 5.6, Gemini 3.8 Flash, Grok 4.7, …
+  // + Opus 5.5, Sonnet 5, GPT 6 Sol, GPT 6 Luna, Gemini 3.8 Flash, Grok 4.7, …
 ]`
 
 const codeHtml = `<span class="c">// What Apply writes.</span>
@@ -54,13 +54,13 @@ const codeHtml = `<span class="c">// What Apply writes.</span>
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
     <span class="k">"displayName"</span>: <span class="s">"DroidProxy: GPT 6 Astra"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
-    <span class="k">"maxContextLimit"</span>: <span class="n">1050000</span>,
+    <span class="k">"maxContextLimit"</span>: <span class="n">272000</span>,
     <span class="k">"provider"</span>: <span class="s">"openai"</span>,
     <span class="k">"enableThinking"</span>: true,
     <span class="k">"supportedReasoningEfforts"</span>: [<span class="s">"low"</span>, <span class="s">"medium"</span>, <span class="s">"high"</span>, <span class="s">"xhigh"</span>, <span class="s">"max"</span>],
-    <span class="k">"defaultReasoningEffort"</span>: <span class="s">"medium"</span>
+    <span class="k">"defaultReasoningEffort"</span>: <span class="s">"xhigh"</span>
   }
-  <span class="c">// + Opus 5.5, Sonnet 5, GPT 5.6, Gemini 3.8 Flash, Grok 4.7, …</span>
+  <span class="c">// + Opus 5.5, Sonnet 5, GPT 6 Sol, GPT 6 Luna, Gemini 3.8 Flash, Grok 4.7, …</span>
 ]`
 
 export default function InstallSection() {

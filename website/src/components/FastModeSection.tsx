@@ -15,12 +15,12 @@ export default function FastModeSection() {
         <div>
           <Eyebrow index="04">Fast Mode</Eyebrow>
           <h2>A priority lane when you want the answer now.</h2>
-          <p>{noOrphan('Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy asks OpenAI for the priority service tier on GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol.')}</p>
+          <p>{noOrphan('Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy asks OpenAI for the priority service tier on GPT 6 Astra, Sol, and Luna.')}</p>
           <dl className="spot-list">
             <dt>What it does</dt>
             <dd>Injects <span className="mono">service_tier: priority</span> on GPT Responses API calls</dd>
             <dt>Works with</dt>
-            <dd>{noOrphan('GPT 6 Astra, GPT 5.6 Terra, Luna, and Sol — toggle each model from Settings')}</dd>
+            <dd>{noOrphan('GPT 6 Astra, Sol, and Luna — toggle each model from Settings')}</dd>
             <dt>Reasoning</dt>
             <dd>{noOrphan('Left untouched. You still pick the thinking level per session inside Droid CLI')}</dd>
           </dl>

@@ -812,14 +812,12 @@ class ThinkingProxy {
         }
 
         switch model {
-        case "gpt-5.6-terra":
-            guard AppPreferences.gpt56TerraFastMode else { return nil }
-        case "gpt-5.6-luna":
-            guard AppPreferences.gpt56LunaFastMode else { return nil }
-        case "gpt-5.6-sol":
-            guard AppPreferences.gpt56SolFastMode else { return nil }
         case "gpt-6-astra":
             guard AppPreferences.gpt6AstraFastMode else { return nil }
+        case "gpt-6-sol":
+            guard AppPreferences.gpt6SolFastMode else { return nil }
+        case "gpt-6-luna":
+            guard AppPreferences.gpt6LunaFastMode else { return nil }
         default:
             return nil
         }

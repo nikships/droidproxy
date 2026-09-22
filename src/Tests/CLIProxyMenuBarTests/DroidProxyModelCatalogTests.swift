@@ -75,18 +75,31 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(sonnet["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
     }
 
-    func testGpt56LunaUsesNativeModelMetadata() throws {
-        let luna = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:gpt-5.6-luna"))
+    func testGpt6SolAndLunaUseNativeModelMetadata() throws {
+        for (slug, name) in [("gpt-6-sol", "GPT 6 Sol"), ("gpt-6-luna", "GPT 6 Luna")] {
+            let entry = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:\(slug)"))
 
-        XCTAssertEqual(luna["model"] as? String, "gpt-5.6-luna")
-        XCTAssertEqual(luna["provider"] as? String, "openai")
-        XCTAssertEqual(luna["baseUrl"] as? String, "http://localhost:8317/v1")
-        XCTAssertEqual(luna["displayName"] as? String, "DroidProxy: GPT 5.6 Luna")
-        XCTAssertEqual(luna["maxOutputTokens"] as? Int, 128000)
-        XCTAssertEqual(luna["enableThinking"] as? Bool, true)
-        XCTAssertEqual(luna["reasoningEffort"] as? String, "medium")
-        XCTAssertEqual(luna["defaultReasoningEffort"] as? String, "medium")
-        XCTAssertEqual(luna["supportedReasoningEfforts"] as? [String], ["none", "low", "medium", "high", "xhigh", "max"])
+            XCTAssertEqual(entry["model"] as? String, slug)
+            XCTAssertEqual(entry["provider"] as? String, "openai")
+            XCTAssertEqual(entry["baseUrl"] as? String, "http://localhost:8317/v1")
+            XCTAssertEqual(entry["displayName"] as? String, "DroidProxy: \(name)")
+            XCTAssertEqual(entry["maxOutputTokens"] as? Int, 128000)
+            XCTAssertEqual(entry["maxContextLimit"] as? Int, 272_000)
+            XCTAssertEqual(entry["enableThinking"] as? Bool, true)
+            XCTAssertEqual(entry["reasoningEffort"] as? String, "xhigh")
+            XCTAssertEqual(entry["defaultReasoningEffort"] as? String, "xhigh")
+            XCTAssertEqual(entry["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+        }
+    }
+
+    func testCodexProviderWritesOnlyGpt6Models() {
+        let ids = Set(DroidProxyModelCatalog.settingsModels { $0 == "codex" }
+            .compactMap { $0["id"] as? String })
+        XCTAssertEqual(ids, [
+            "custom:droidproxy:gpt-6-astra",
+            "custom:droidproxy:gpt-6-sol",
+            "custom:droidproxy:gpt-6-luna"
+        ])
     }
 
     func testGpt6AstraUsesNativeModelMetadata() throws {
@@ -97,10 +110,10 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(astra["baseUrl"] as? String, "http://localhost:8317/v1")
         XCTAssertEqual(astra["displayName"] as? String, "DroidProxy: GPT 6 Astra")
         XCTAssertEqual(astra["maxOutputTokens"] as? Int, 128000)
-        XCTAssertEqual(astra["maxContextLimit"] as? Int, 1_050_000)
+        XCTAssertEqual(astra["maxContextLimit"] as? Int, 272_000)
         XCTAssertEqual(astra["enableThinking"] as? Bool, true)
-        XCTAssertEqual(astra["reasoningEffort"] as? String, "medium")
-        XCTAssertEqual(astra["defaultReasoningEffort"] as? String, "medium")
+        XCTAssertEqual(astra["reasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(astra["defaultReasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(astra["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
     }
 

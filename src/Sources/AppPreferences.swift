@@ -1,10 +1,9 @@
 import Foundation
 
 enum AppPreferences {
-    static let gpt56TerraFastModeKey = "******************"
-    static let gpt56SolFastModeKey = "gpt56SolFastMode"
-    static let gpt56LunaFastModeKey = "gpt56LunaFastMode"
     static let gpt6AstraFastModeKey = "gpt6AstraFastMode"
+    static let gpt6SolFastModeKey = "gpt6SolFastMode"
+    static let gpt6LunaFastModeKey = "gpt6LunaFastMode"
     /// Meta Muse Contributor Mode: apply `muse-spark-1.3-contributor` instead of
     /// `muse-spark-1.3` when Factory custom models are applied. Exactly one of
     /// the two variants is ever active - never both.
@@ -18,10 +17,9 @@ enum AppPreferences {
     static let verboseLoggingKey = "verboseLogging"
     static let sequentialAccountFailoverKey = "sequentialAccountFailover"
 
-    static let defaultGpt56TerraFastMode = false
-    static let defaultGpt56SolFastMode = false
-    static let defaultGpt56LunaFastMode = false
     static let defaultGpt6AstraFastMode = false
+    static let defaultGpt6SolFastMode = false
+    static let defaultGpt6LunaFastMode = false
     static let defaultMetaContributorMode = false
     static let defaultAllowRemote = false
     static let defaultSecretKey = ""
@@ -34,20 +32,16 @@ enum AppPreferences {
     /// disabled cooldowns, so existing single-account users see no change.
     static let defaultSequentialAccountFailover = false
 
-    static var gpt56TerraFastMode: Bool {
-        UserDefaults.standard.bool(forKey: gpt56TerraFastModeKey)
-    }
-
-    static var gpt56SolFastMode: Bool {
-        UserDefaults.standard.bool(forKey: gpt56SolFastModeKey)
-    }
-
-    static var gpt56LunaFastMode: Bool {
-        UserDefaults.standard.bool(forKey: gpt56LunaFastModeKey)
-    }
-
     static var gpt6AstraFastMode: Bool {
         UserDefaults.standard.bool(forKey: gpt6AstraFastModeKey)
+    }
+
+    static var gpt6SolFastMode: Bool {
+        UserDefaults.standard.bool(forKey: gpt6SolFastModeKey)
+    }
+
+    static var gpt6LunaFastMode: Bool {
+        UserDefaults.standard.bool(forKey: gpt6LunaFastModeKey)
     }
 
     static var metaContributorMode: Bool {
