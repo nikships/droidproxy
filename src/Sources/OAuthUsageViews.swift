@@ -120,21 +120,13 @@ struct OAuthUsageAccountGroup: View {
             if account.isLoading {
                 ProgressView()
                     .scaleEffect(0.5)
-                    .frame(width: UsageRingGauge.diameter, height: UsageRingGauge.diameter)
+                    .frame(width: DualUsageRingGauge.diameter, height: DualUsageRingGauge.diameter)
             } else if let error = account.error {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 9))
                     .foregroundColor(.orange)
                     .lineLimit(2)
                     .help(error)
-            } else if account.windows.count == 2 {
-                // Two limits share one gauge: the shorter window keeps the
-                // normal ring and the longer wraps it in an outer ring.
-                DualUsageRingGauge(
-                    inner: account.windows[0],
-                    outer: account.windows[1],
-                    provider: account.provider
-                )
             } else if account.windows.count > 2 {
                 // Three or more windows (only Claude's per-model buckets)
                 // fall back to a compact stack so no limit is dropped.
@@ -143,12 +135,14 @@ struct OAuthUsageAccountGroup: View {
                         UsageRingGauge(window: window, provider: account.provider, compact: true)
                     }
                 }
+            } else if let first = account.windows.first {
+                DualUsageRingGauge(
+                    inner: first,
+                    outer: account.windows.count > 1 ? account.windows[1] : nil,
+                    provider: account.provider
+                )
             } else {
-                HStack(alignment: .top, spacing: 8) {
-                    ForEach(account.windows) { window in
-                        UsageRingGauge(window: window, provider: account.provider)
-                    }
-                }
+                EmptyView()
             }
         }
     }
@@ -237,9 +231,10 @@ struct UsageRingGauge: View {
     }
 }
 
-/// One gauge for a two-limit subscription: the shorter window keeps the
+/// The one gauge every subscription renders: the shorter window keeps the
 /// normal ring (with the logo) and the longer window wraps it in an outer
-/// ring. The hover popover lists both limits.
+/// ring. Without a second limit the outer track stays permanently empty so
+/// every gauge shares one size and placement. The popover lists real limits.
 struct DualUsageRingGauge: View {
     static let gap: CGFloat = 2.5
     static let outerStroke: CGFloat = 3
@@ -247,14 +242,14 @@ struct DualUsageRingGauge: View {
         UsageRingGauge.diameter + (gap + outerStroke) * 2
     }
     let inner: OAuthUsageWindow
-    let outer: OAuthUsageWindow
+    let outer: OAuthUsageWindow?
     let provider: ServiceType
 
     private var tint: Color {
         ProviderUsageColors.color(for: provider)
     }
 
-    private var outerRemaining: Double? { outer.remainingPercent }
+    private var outerRemaining: Double? { outer?.remainingPercent }
 
     @State private var isHovering = false
 
@@ -262,11 +257,13 @@ struct DualUsageRingGauge: View {
         ZStack {
             Circle()
                 .stroke(Color.white.opacity(0.10), lineWidth: Self.outerStroke)
-            Circle()
-                .trim(from: 0, to: CGFloat((outerRemaining ?? 0) / 100))
-                .stroke(tint, style: StrokeStyle(lineWidth: Self.outerStroke, lineCap: .round))
-                .rotationEffect(.degrees(-90))
-                .animation(.easeOut(duration: 0.4), value: outerRemaining)
+            if outer != nil {
+                Circle()
+                    .trim(from: 0, to: CGFloat((outerRemaining ?? 0) / 100))
+                    .stroke(tint, style: StrokeStyle(lineWidth: Self.outerStroke, lineCap: .round))
+                    .rotationEffect(.degrees(-90))
+                    .animation(.easeOut(duration: 0.4), value: outerRemaining)
+            }
             UsageRingGauge(window: inner, provider: provider, showsPopover: false)
         }
         .frame(width: Self.diameter, height: Self.diameter)
@@ -279,10 +276,11 @@ struct DualUsageRingGauge: View {
     }
 
     private var helpText: String {
-        [
-            usageHelpText(title: inner.title, remaining: inner.remainingPercent, resetText: inner.resetText),
-            usageHelpText(title: outer.title, remaining: outer.remainingPercent, resetText: outer.resetText),
-        ].joined(separator: "\n")
+        var parts = [usageHelpText(title: inner.title, remaining: inner.remainingPercent, resetText: inner.resetText)]
+        if let outer {
+            parts.append(usageHelpText(title: outer.title, remaining: outer.remainingPercent, resetText: outer.resetText))
+        }
+        return parts.joined(separator: "\n")
     }
 }
 
