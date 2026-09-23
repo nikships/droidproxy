@@ -1,4 +1,4 @@
-export const VERSION = '1.8.143'
+export const VERSION = '1.8.144'
 export const GITHUB = 'https://github.com/anand-92/droidproxy'
 export const RELEASES = `${GITHUB}/releases/latest`
 export const ISSUES = `${GITHUB}/issues`
