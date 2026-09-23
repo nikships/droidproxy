@@ -112,6 +112,14 @@ struct OAuthUsageAccountGroup: View {
                     .foregroundColor(.orange)
                     .lineLimit(2)
                     .help(error)
+            } else if account.windows.count > 1 {
+                // One subscription's coupled limits stack half-size into a
+                // single spot, shorter window on top; hover names each window.
+                VStack(alignment: .leading, spacing: 2) {
+                    ForEach(account.windows) { window in
+                        UsageRingGauge(window: window, provider: account.provider, compact: true)
+                    }
+                }
             } else {
                 HStack(alignment: .top, spacing: 8) {
                     ForEach(account.windows) { window in
@@ -137,14 +145,19 @@ private func usageIconName(for provider: ServiceType) -> String? {
 /// The provider logo sits inside the ring, aspect-fit so it never clips or distorts;
 /// the exact percent and reset time appear in an instant hover popover (`.help()`
 /// tooltips inherit the multi-second system delay, which buries the numbers).
+/// Compact rings are exactly half size with no title, for stacking one
+/// subscription's windows into a single spot; the popover still names the window.
 struct UsageRingGauge: View {
     static let diameter: CGFloat = 34
     /// Logo box: well inside the ~30.5pt clear inner diameter, with room to spare.
     static let logoLength: CGFloat = 20
+    static let strokeWidth: CGFloat = 3.5
     let window: OAuthUsageWindow
     let provider: ServiceType
+    var compact: Bool = false
 
     private var remaining: Double? { window.remainingPercent }
+    private var scale: CGFloat { compact ? 0.5 : 1 }
 
     private var tint: Color {
         ProviderUsageColors.color(for: provider)
@@ -152,9 +165,10 @@ struct UsageRingGauge: View {
 
     private var logo: NSImage? {
         guard let iconName = usageIconName(for: provider) else { return nil }
+        let length = Self.logoLength * scale
         return IconCatalog.shared.image(
             named: iconName,
-            resizedTo: NSSize(width: Self.logoLength, height: Self.logoLength),
+            resizedTo: NSSize(width: length, height: length),
             template: true
         )
     }
@@ -165,10 +179,10 @@ struct UsageRingGauge: View {
         VStack(spacing: 2) {
             ZStack {
                 Circle()
-                    .stroke(Color.white.opacity(0.10), lineWidth: 3.5)
+                    .stroke(Color.white.opacity(0.10), lineWidth: Self.strokeWidth * scale)
                 Circle()
                     .trim(from: 0, to: CGFloat((remaining ?? 0) / 100))
-                    .stroke(tint, style: StrokeStyle(lineWidth: 3.5, lineCap: .round))
+                    .stroke(tint, style: StrokeStyle(lineWidth: Self.strokeWidth * scale, lineCap: .round))
                     .rotationEffect(.degrees(-90))
                     .animation(.easeOut(duration: 0.4), value: remaining)
                 if let logo {
@@ -176,19 +190,21 @@ struct UsageRingGauge: View {
                         .resizable()
                         .renderingMode(.template)
                         .aspectRatio(contentMode: .fit)
-                        .frame(width: Self.logoLength, height: Self.logoLength)
+                        .frame(width: Self.logoLength * scale, height: Self.logoLength * scale)
                         .foregroundColor(tint)
                 } else {
                     Text(remaining.map { "\(Int($0.rounded()))" } ?? "–")
-                        .font(.system(size: 10, weight: .semibold, design: .rounded))
+                        .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
                         .monospacedDigit()
                 }
             }
-            .frame(width: Self.diameter, height: Self.diameter)
-            Text(window.title)
-                .font(.system(size: 9))
-                .foregroundColor(.secondary)
-                .lineLimit(1)
+            .frame(width: Self.diameter * scale, height: Self.diameter * scale)
+            if !compact {
+                Text(window.title)
+                    .font(.system(size: 9))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+            }
         }
         .onHover { hovering in isHovering = hovering }
         .popover(isPresented: $isHovering, arrowEdge: .bottom) {
