@@ -56,19 +56,34 @@ struct FlowRowLayout: Layout {
     }
 
     func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
-        var x = bounds.minX
-        var y = bounds.minY
-        var rowHeight: CGFloat = 0
-        for view in subviews {
-            let size = view.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
-            if x > bounds.minX && x + size.width > bounds.maxX {
-                x = bounds.minX
-                y += rowHeight + verticalSpacing
-                rowHeight = 0
+        let sizes = subviews.map { $0.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil)) }
+        var rows: [Range<Int>] = []
+        var start = 0
+        var x: CGFloat = 0
+        for i in subviews.indices {
+            if i > start && x + sizes[i].width > bounds.width {
+                rows.append(start..<i)
+                start = i
+                x = 0
             }
-            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
-            x += size.width + horizontalSpacing
-            rowHeight = max(rowHeight, size.height)
+            x += sizes[i].width + horizontalSpacing
+        }
+        rows.append(start..<subviews.count)
+
+        // Bottom-align within each row so ring rows line up even when a
+        // headerless group shares the row with headed ones.
+        var y = bounds.minY
+        for row in rows {
+            let rowHeight = row.map { sizes[$0].height }.max() ?? 0
+            var rx = bounds.minX
+            for i in row {
+                subviews[i].place(
+                    at: CGPoint(x: rx, y: y + rowHeight - sizes[i].height),
+                    proposal: ProposedViewSize(sizes[i])
+                )
+                rx += sizes[i].width + horizontalSpacing
+            }
+            y += rowHeight + verticalSpacing
         }
     }
 }
@@ -114,11 +129,17 @@ struct OAuthUsageAccountGroup: View {
                     .help(error)
             } else if account.windows.count > 1 {
                 // One subscription's coupled limits stack half-size into a
-                // single spot, shorter window on top; hover names each window.
+                // single spot, shorter window on top, titles captioned below.
+                // The caption keeps stack groups the same height as titled
+                // singles so bottom-aligned rows line up ring to ring.
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(account.windows) { window in
                         UsageRingGauge(window: window, provider: account.provider, compact: true)
                     }
+                    Text(account.windows.map(\.title).joined(separator: " · "))
+                        .font(.system(size: 9))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
                 }
             } else {
                 HStack(alignment: .top, spacing: 8) {
