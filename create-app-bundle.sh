@@ -20,11 +20,28 @@ APP_DIR="$PROJECT_DIR/$APP_NAME.app"
 # Build the Swift executable first
 echo -e "${BLUE}Building Swift executable (release)...${NC}"
 cd "$SRC_DIR"
+# Force the true platform/SDK versions at link time. Xcode 27 beta's clang
+# records the deployment target as the linked SDK (13.0) instead of the real
+# SDK, because SwiftBuild passes --sysroot= (equals form), which breaks this
+# beta's SDK version detection. AppKit/SwiftUI gate modern control styling
+# (switches, form frames) on the linked SDK, so without this a beta-built app
+# renders legacy controls unlike CI-built prod. ld honors the last
+# -platform_version, so this overrides the wrong one. Values are derived
+# dynamically, making this a no-op on toolchains that record correctly.
+MIN_OS="$(sed -nE 's/^[[:space:]]*\.macOS\(\.v([0-9]+)\).*/\1/p' Package.swift | head -n 1)"
+SDK_VER="$(xcrun --show-sdk-version 2>/dev/null || true)"
+LINK_OVERRIDE=()
+if [ -n "$MIN_OS" ] && [ -n "$SDK_VER" ]; then
+    echo "Overriding recorded platform version: macos ${MIN_OS}.0 + sdk ${SDK_VER}"
+    LINK_OVERRIDE=(-Xlinker -platform_version -Xlinker macos -Xlinker "${MIN_OS}.0" -Xlinker "${SDK_VER}")
+else
+    echo -e "${YELLOW}⚠️ Could not derive platform/SDK versions; skipping link override${NC}"
+fi
 if [ -n "$TARGET_ARCH" ]; then
     echo "Building for architecture: $TARGET_ARCH"
-    swift build -c release --arch "$TARGET_ARCH"
+    swift build -c release --arch "$TARGET_ARCH" "${LINK_OVERRIDE[@]}"
 else
-    swift build -c release
+    swift build -c release "${LINK_OVERRIDE[@]}"
 fi
 cd "$PROJECT_DIR"
 echo -e "${GREEN}✅ Build complete${NC}"

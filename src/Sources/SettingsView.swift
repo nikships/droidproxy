@@ -360,6 +360,9 @@ struct SettingsView: View {
     @State private var expandedRowCount = 0
     @State private var factoryModelsInstalled = false
     @State private var remoteManagementExpanded = false
+    @State private var advancedExpanded = false
+    @State private var factoryCTAPulse = false
+    @State private var factoryJustApplied = false
     @State private var codexFastModeExpanded = true
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
@@ -544,169 +547,7 @@ struct SettingsView: View {
                 }
 
                 Section {
-                    Toggle("Launch at login", isOn: $launchAtLogin)
-                        .onChange(of: launchAtLogin) { newValue in
-                            toggleLaunchAtLogin(newValue)
-                        }
-
-                    HStack {
-                        Text("Auth files")
-                        Spacer()
-                        Button("Open Folder") {
-                            openAuthFolder()
-                        }
-                        .droidGlassPlain()
-                        .controlSize(.small)
-                    }
-
-                    VStack(alignment: .leading, spacing: 6) {
-                        HStack {
-                            Text("Factory custom models")
-                            Spacer()
-                            if factoryModelsInstalled {
-                                HStack(spacing: 4) {
-                                    Image(systemName: "checkmark.circle.fill")
-                                        .foregroundColor(.green)
-                                        .font(.caption)
-                                    Text("Applied")
-                                        .font(.caption)
-                                        .foregroundColor(.green)
-                                }
-                            }
-                            Button(factoryModelsInstalled ? "Re-apply" : "Apply") {
-                                applyFactoryCustomModels()
-                            }
-                            .droidGlassProminent()
-                            .controlSize(.small)
-                        }
-
-                        Text("Apply writes DroidProxy model aliases into ~/.factory/settings.json and makes a timestamped backup first. Reasoning effort is selected from Droid CLI when the model exposes multiple levels.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                        }
-                }
-                .listRowBackground(glassRowBackground)
-
-                Section {
-                    if remoteManagementExpanded {
-                        Toggle("Allow remote access", isOn: $allowRemote)
-                            .onChange(of: allowRemote) { _ in
-                                _ = serverManager.getConfigPath()
-                            }
-
-                        HStack {
-                            Text("Secret key")
-                            Spacer()
-                            SecureField("Enter secret key", text: $secretKey)
-                                .textFieldStyle(.roundedBorder)
-                                .frame(maxWidth: 200)
-                                .onSubmit {
-                                    _ = serverManager.getConfigPath()
-                                }
-                        }
-
-                        if betaFlag {
-                            HStack {
-                                Text("Bind address")
-                                Spacer()
-                                TextField("127.0.0.1", text: $bindAddress)
-                                    .textFieldStyle(.roundedBorder)
-                                    .frame(maxWidth: 200)
-                                    .disableAutocorrection(true)
-                                    // Regenerate the merged config when the user commits the
-                                    // value (Return / focus loss), not on every keystroke — the
-                                    // previous .onChange rewrote the config file on every typed
-                                    // character. The new address applies on the next server restart.
-                                    .onSubmit {
-                                        _ = serverManager.getConfigPath()
-                                    }
-                            }
-
-                            Text("Default is 127.0.0.1. Set to 0.0.0.0 to allow access from other devices on your network (e.g. Tailscale). Requires server restart.")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                                .fixedSize(horizontal: false, vertical: true)
-                        }
-
-                        if allowRemote && secretKey.isEmpty {
-                            HStack(spacing: 4) {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                                Text("Set a secret key to secure remote access")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                            }
-                        }
-                    } else {
-                        HStack(spacing: 6) {
-                            Text(allowRemote ? "Remote access: On" : "Remote access: Off")
-                                .font(.caption)
-                                .foregroundColor(.secondary)
-                            if allowRemote && secretKey.isEmpty {
-                                Image(systemName: "exclamationmark.triangle.fill")
-                                    .foregroundColor(.orange)
-                                    .font(.caption)
-                                Text("Secret key missing")
-                                    .font(.caption)
-                                    .foregroundColor(.orange)
-                            }
-                        }
-                    }
-                } header: {
-                    Button {
-                        withAnimation(.easeInOut(duration: 0.2)) {
-                            remoteManagementExpanded.toggle()
-                        }
-                    } label: {
-                        HStack(spacing: 4) {
-                            Text("Remote Management")
-                            Image(systemName: remoteManagementExpanded ? "chevron.down" : "chevron.right")
-                                .font(.caption2)
-                                .foregroundColor(.secondary)
-                        }
-                        .contentShape(Rectangle())
-                    }
-                    .buttonStyle(.plain)
-                    .accessibilityLabel("Remote Management")
-                    .accessibilityValue(remoteManagementExpanded ? "Expanded" : "Collapsed")
-                }
-                .listRowBackground(glassRowBackground)
-
-                Section("Logging") {
-                    Toggle("Verbose logging", isOn: $verboseLogging)
-                        .onChange(of: verboseLogging) { _ in
-                            _ = serverManager.getConfigPath()
-                        }
-                        .help("Writes verbose backend request/response logs to ~/.cli-proxy-api/logs/. CLIProxyAPI hot-reloads, so no restart is required.")
-
-                    HStack {
-                        Text("Logs folder")
-                        Spacer()
-                        Button("Open Logs") {
-                            openLogsFolder()
-                        }
-                        .droidGlassProminent()
-                        .controlSize(.small)
-                        .help("Opens ~/.cli-proxy-api/logs/ in Finder. Double-click any log to view it in your default text editor.")
-                    }
-                }
-                .listRowBackground(glassRowBackground)
-
-                Section("Account Routing") {
-                    VStack(alignment: .leading, spacing: 6) {
-                        Toggle("Sequential account failover", isOn: $sequentialAccountFailover)
-                            .onChange(of: sequentialAccountFailover) { newValue in
-                                serverManager.setSequentialAccountFailover(newValue)
-                            }
-                            .help("Use one account at a time instead of spreading requests across all of them. CLIProxyAPI hot-reloads, so no restart is required.")
-
-                        Text("With multiple accounts on the same provider, requests stay on one account until its quota runs out, then move to the next automatically without surfacing an error. The exhausted account is skipped until its quota resets. Leave off to spread requests evenly across every account.")
-                            .font(.caption2)
-                            .foregroundColor(.secondary)
-                            .fixedSize(horizontal: false, vertical: true)
-                    }
+                    factoryApplySection()
                 }
                 .listRowBackground(glassRowBackground)
 
@@ -796,6 +637,31 @@ struct SettingsView: View {
                         toggleTint: grokEffortSelectionColor,
                         helpText: "Log in with SuperGrok / X Premium+ to use Grok 4.7 and Grok 4.7 Fast (no xAI API key)."
                     )
+                }
+                .listRowBackground(glassRowBackground)
+
+                Section {
+                    advancedSectionContent()
+                } header: {
+                    // Deliberately NOT animated: easing a height change this
+                    // large through SwiftUI Form leaves the NSTableView row
+                    // cache out of sync and rows above (Codex Fast Mode)
+                    // render overlapped until relaunch. Provider toggles flip
+                    // large row groups instantly with no issue — same here.
+                    Button {
+                        advancedExpanded.toggle()
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Advanced")
+                            Image(systemName: advancedExpanded ? "chevron.down" : "chevron.right")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Advanced")
+                    .accessibilityValue(advancedExpanded ? "Expanded" : "Collapsed")
                 }
                 .listRowBackground(glassRowBackground)
             }
@@ -912,6 +778,239 @@ struct SettingsView: View {
             Button("Cancel", role: .cancel) { }
         } message: {
             Text("Please enter your JetBrains Junie API key. It will be saved under ~/.cli-proxy-api/junie.json.")
+        }
+    }
+
+    // MARK: - Factory Apply + Advanced
+
+    /// The single most important control in the app: without Apply, Droid
+    /// cannot see any DroidProxy model. The not-applied state is loud (solid
+    /// accent fill + pulsing glow); the applied state settles into a quiet
+    /// green outline so it stops competing for attention.
+    @ViewBuilder
+    private func factoryApplySection() -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            HStack(spacing: 10) {
+                ZStack {
+                    Circle()
+                        .fill(factoryModelsInstalled ? Color.green.opacity(0.15) : AccountRowView.accent.opacity(0.15))
+                        .frame(width: 34, height: 34)
+                    Image(systemName: factoryModelsInstalled ? "checkmark.circle.fill" : "arrow.down.circle.fill")
+                        .font(.system(size: 18, weight: .semibold))
+                        .foregroundColor(factoryModelsInstalled ? .green : AccountRowView.accent)
+                        .scaleEffect(factoryJustApplied ? 1.25 : 1.0)
+                }
+                VStack(alignment: .leading, spacing: 2) {
+                    Text("Factory custom models")
+                        .fontWeight(.semibold)
+                    Text(factoryModelsInstalled
+                         ? "Applied — Droid can see DroidProxy models"
+                         : "Not applied — Droid can't see models until you apply")
+                        .font(.caption)
+                        .foregroundColor(factoryModelsInstalled ? .green : AccountRowView.accent)
+                }
+                Spacer()
+            }
+
+            Text("Apply writes DroidProxy model aliases into ~/.factory/settings.json and makes a timestamped backup first. Reasoning effort is selected from Droid CLI when the model exposes multiple levels.")
+                .font(.caption2)
+                .foregroundColor(.secondary)
+                .fixedSize(horizontal: false, vertical: true)
+
+            Button(action: {
+                applyFactoryCustomModels()
+                withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                    factoryJustApplied = true
+                }
+                DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                    factoryJustApplied = false
+                }
+            }) {
+                HStack(spacing: 8) {
+                    Image(systemName: factoryJustApplied ? "checkmark" : (factoryModelsInstalled ? "arrow.trianglehead.2.counterclockwise" : "arrow.down.circle.fill"))
+                        .font(.system(size: 14, weight: .semibold))
+                    Text(factoryJustApplied ? "Applied!" : (factoryModelsInstalled ? "Re-apply Factory Models" : "Apply Factory Models"))
+                        .fontWeight(.semibold)
+                }
+                .frame(maxWidth: .infinity)
+                .padding(.vertical, 10)
+                .foregroundColor(factoryModelsInstalled && !factoryJustApplied ? .green : .white)
+                .background(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .fill(factoryModelsInstalled && !factoryJustApplied
+                              ? Color.green.opacity(0.12)
+                              : AccountRowView.accent)
+                )
+                .overlay(
+                    RoundedRectangle(cornerRadius: 10, style: .continuous)
+                        .strokeBorder(factoryModelsInstalled && !factoryJustApplied ? Color.green.opacity(0.5) : Color.clear, lineWidth: 1)
+                )
+                .shadow(color: factoryModelsInstalled ? .clear : AccountRowView.accent.opacity(factoryCTAPulse ? 0.55 : 0.25), radius: factoryCTAPulse ? 12 : 6)
+                .scaleEffect(factoryModelsInstalled ? 1.0 : (factoryCTAPulse ? 1.015 : 1.0))
+            }
+            .buttonStyle(.plain)
+            .pointingHandCursor()
+            .accessibilityLabel(factoryModelsInstalled ? "Re-apply Factory custom models" : "Apply Factory custom models")
+            .onAppear {
+                withAnimation(.easeInOut(duration: 1.4).repeatForever(autoreverses: true)) {
+                    factoryCTAPulse = true
+                }
+            }
+        }
+        .padding(.vertical, 6)
+    }
+
+    /// Collapsed-by-default catch-all at the bottom of the stack for settings
+    /// most users touch rarely: launch-at-login, auth files, remote
+    /// management, logging, and account routing.
+    @ViewBuilder
+    private func advancedSectionContent() -> some View {
+        if advancedExpanded {
+            VStack(alignment: .leading, spacing: 12) {
+                Toggle("Launch at login", isOn: $launchAtLogin)
+                    .onChange(of: launchAtLogin) { newValue in
+                        toggleLaunchAtLogin(newValue)
+                    }
+
+                HStack {
+                    Text("Auth files")
+                    Spacer()
+                    Button("Open Folder") {
+                        openAuthFolder()
+                    }
+                    .droidGlassPlain()
+                    .controlSize(.small)
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Button {
+                        withAnimation(.easeInOut(duration: 0.2)) {
+                            remoteManagementExpanded.toggle()
+                        }
+                    } label: {
+                        HStack(spacing: 4) {
+                            Text("Remote Management")
+                                .fontWeight(.medium)
+                            Image(systemName: remoteManagementExpanded ? "chevron.down" : "chevron.right")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                        }
+                        .contentShape(Rectangle())
+                    }
+                    .buttonStyle(.plain)
+                    .accessibilityLabel("Remote Management")
+                    .accessibilityValue(remoteManagementExpanded ? "Expanded" : "Collapsed")
+
+                    if remoteManagementExpanded {
+                        Toggle("Allow remote access", isOn: $allowRemote)
+                            .onChange(of: allowRemote) { _ in
+                                _ = serverManager.getConfigPath()
+                            }
+
+                        HStack {
+                            Text("Secret key")
+                            Spacer()
+                            SecureField("Enter secret key", text: $secretKey)
+                                .textFieldStyle(.roundedBorder)
+                                .frame(maxWidth: 200)
+                                .onSubmit {
+                                    _ = serverManager.getConfigPath()
+                                }
+                        }
+
+                        if betaFlag {
+                            HStack {
+                                Text("Bind address")
+                                Spacer()
+                                TextField("127.0.0.1", text: $bindAddress)
+                                    .textFieldStyle(.roundedBorder)
+                                    .frame(maxWidth: 200)
+                                    .disableAutocorrection(true)
+                                    .onSubmit {
+                                        _ = serverManager.getConfigPath()
+                                    }
+                            }
+
+                            Text("Default is 127.0.0.1. Set to 0.0.0.0 to allow access from other devices on your network (e.g. Tailscale). Requires server restart.")
+                                .font(.caption2)
+                                .foregroundColor(.secondary)
+                                .fixedSize(horizontal: false, vertical: true)
+                        }
+
+                        if allowRemote && secretKey.isEmpty {
+                            HStack(spacing: 4) {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                Text("Set a secret key to secure remote access")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                    } else {
+                        HStack(spacing: 6) {
+                            Text(allowRemote ? "Remote access: On" : "Remote access: Off")
+                                .font(.caption)
+                                .foregroundColor(.secondary)
+                            if allowRemote && secretKey.isEmpty {
+                                Image(systemName: "exclamationmark.triangle.fill")
+                                    .foregroundColor(.orange)
+                                    .font(.caption)
+                                Text("Secret key missing")
+                                    .font(.caption)
+                                    .foregroundColor(.orange)
+                            }
+                        }
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Logging")
+                        .fontWeight(.medium)
+                    Toggle("Verbose logging", isOn: $verboseLogging)
+                        .onChange(of: verboseLogging) { _ in
+                            _ = serverManager.getConfigPath()
+                        }
+                        .help("Writes verbose backend request/response logs to ~/.cli-proxy-api/logs/. CLIProxyAPI hot-reloads, so no restart is required.")
+
+                    HStack {
+                        Text("Logs folder")
+                        Spacer()
+                        Button("Open Logs") {
+                            openLogsFolder()
+                        }
+                        .droidGlassProminent()
+                        .controlSize(.small)
+                        .help("Opens ~/.cli-proxy-api/logs/ in Finder. Double-click any log to view it in your default text editor.")
+                    }
+                }
+
+                Divider()
+
+                VStack(alignment: .leading, spacing: 6) {
+                    Text("Account Routing")
+                        .fontWeight(.medium)
+                    Toggle("Sequential account failover", isOn: $sequentialAccountFailover)
+                        .onChange(of: sequentialAccountFailover) { newValue in
+                            serverManager.setSequentialAccountFailover(newValue)
+                        }
+                        .help("Use one account at a time instead of spreading requests across all of them. CLIProxyAPI hot-reloads, so no restart is required.")
+
+                    Text("With multiple accounts on the same provider, requests stay on one account until its quota runs out, then move to the next automatically without surfacing an error. The exhausted account is skipped until its quota resets. Leave off to spread requests evenly across every account.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+            .padding(.vertical, 4)
+        } else {
+            Text("Launch at login, remote access, logging, account routing")
+                .font(.caption)
+                .foregroundColor(.secondary)
         }
     }
 
