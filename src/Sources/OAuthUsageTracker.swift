@@ -43,13 +43,14 @@ final class OAuthUsageTracker: ObservableObject {
         refreshTask?.cancel()
     }
 
-    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount]) {
+    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount], grokAccounts: [AuthAccount] = []) {
         refreshTask?.cancel()
 
         let enabledCodex = codexAccounts.filter { !$0.isDisabled && !$0.isExpired }
         let enabledClaude = claudeAccounts.filter { !$0.isDisabled && !$0.isExpired }
+        let enabledGrok = Self.activeGrokAccounts(grokAccounts)
 
-        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty else {
+        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty || !enabledGrok.isEmpty else {
             accounts = []
             isRefreshing = false
             return
@@ -58,14 +59,18 @@ final class OAuthUsageTracker: ObservableObject {
         isRefreshing = true
         accounts = enabledCodex.map { Self.loadingPlaceholder(for: $0, provider: .codex) }
             + enabledClaude.map { Self.loadingPlaceholder(for: $0, provider: .claude) }
+            + enabledGrok.map { Self.loadingPlaceholder(for: $0, provider: .grok) }
 
-        refreshTask = Task { [enabledCodex, enabledClaude] in
+        refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok] in
             let results = await withTaskGroup(of: OAuthAccountUsage.self) { group in
                 for account in enabledCodex {
                     group.addTask { await Self.fetchCodexUsage(for: account) }
                 }
                 for account in enabledClaude {
                     group.addTask { await Self.fetchClaudeUsage(for: account) }
+                }
+                for account in enabledGrok {
+                    group.addTask { await Self.fetchGrokUsage(for: account) }
                 }
 
                 var values: [OAuthAccountUsage] = []
@@ -237,6 +242,100 @@ final class OAuthUsageTracker: ObservableObject {
         return request
     }
 
+    /// `GrokAuth.ensureValidAccessToken` only serves the newest enabled Grok credential file,
+    /// so other Grok auth files have no token source here and are not used for requests either.
+    nonisolated private static func activeGrokAccounts(_ accounts: [AuthAccount]) -> [AuthAccount] {
+        guard let activeFile = GrokAuth.loadActiveCredentials()?.url.lastPathComponent else {
+            return []
+        }
+        return accounts.filter { !$0.isDisabled && !$0.isExpired && $0.id == activeFile }
+    }
+
+    nonisolated private static func fetchGrokUsage(for account: AuthAccount) async -> OAuthAccountUsage {
+        guard let url = URL(string: "https://cli-chat-proxy.grok.com/v1/billing?format=credits") else {
+            return failedAccount(account, "Invalid usage endpoint")
+        }
+
+        let tokenResult: Result<String, GrokAuth.GrokAuthError> = await withCheckedContinuation { continuation in
+            GrokAuth.ensureValidAccessToken { result in
+                continuation.resume(returning: result)
+            }
+        }
+
+        let token: String
+        switch tokenResult {
+        case .success(let value):
+            token = value
+        case .failure(let error):
+            return failedAccount(account, error.localizedDescription)
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "GET"
+        request.timeoutInterval = OAuthUsageParsing.requestTimeout
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("xai-grok-cli", forHTTPHeaderField: "x-xai-token-auth")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await URLSession.shared.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return failedAccount(account, "No HTTP response")
+            }
+            // No retry on 401: ensureValidAccessToken refreshes only on local expiry,
+            // so a retry would resend the same rejected token.
+            if http.statusCode == 401 || http.statusCode == 403 {
+                return failedAccount(account, "Grok rejected the stored credentials (HTTP \(http.statusCode)). Reconnect Grok in Settings.")
+            }
+            guard (200..<300).contains(http.statusCode) else {
+                return failedAccount(account, "Grok usage API returned \(http.statusCode)")
+            }
+            let windows = parseGrokWindows(data)
+            guard !windows.isEmpty else {
+                return failedAccount(account, "Usage response did not include quota windows")
+            }
+            return successAccount(account, windows: windows)
+        } catch {
+            return failedAccount(account, error.localizedDescription)
+        }
+    }
+
+    /// SuperGrok reports one pooled credit window per billing period.
+    nonisolated static func parseGrokWindows(_ data: Data) -> [OAuthUsageWindow] {
+        guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
+              let config = raw["config"] as? [String: Any] else {
+            return []
+        }
+
+        let usedPercent: Double
+        if let creditPercent = numberValue(config["creditUsagePercent"]) {
+            usedPercent = creditPercent
+        } else if let cap = numberValue((config["onDemandCap"] as? [String: Any])?["val"]), cap > 0,
+                  let used = numberValue((config["onDemandUsed"] as? [String: Any])?["val"]) {
+            usedPercent = used / cap * 100
+        } else {
+            return []
+        }
+
+        let period = config["currentPeriod"] as? [String: Any]
+        let title: String
+        switch period?["type"] as? String {
+        case "USAGE_PERIOD_TYPE_WEEKLY": title = "Weekly"
+        case "USAGE_PERIOD_TYPE_MONTHLY": title = "Monthly"
+        default: title = "Credits"
+        }
+
+        let resetString = (period?["end"] as? String) ?? (config["billingPeriodEnd"] as? String)
+        let resetDate = resetString.flatMap(parseISO8601Date)
+
+        return [OAuthUsageWindow(
+            title: title,
+            usedPercent: max(0.0, min(100.0, usedPercent)),
+            resetText: resetDate.map(resetText(for:)) ?? resetString,
+            resetDate: resetDate
+        )]
+    }
+
     nonisolated private static func successAccount(_ account: AuthAccount, windows: [OAuthUsageWindow]) -> OAuthAccountUsage {
         OAuthAccountUsage(
             id: account.id,
@@ -331,27 +430,44 @@ final class OAuthUsageTracker: ObservableObject {
         }
     }
 
-    nonisolated private static func parseCodexWindows(_ object: Any) -> [OAuthUsageWindow] {
+    nonisolated static func parseCodexWindows(_ object: Any) -> [OAuthUsageWindow] {
         guard let root = object as? [String: Any],
               let rateLimit = root["rate_limit"] as? [String: Any] else {
             return parseGenericWindows(object)
         }
 
         return [
-            codexWindow(title: "5-hour", from: rateLimit["primary_window"]),
-            codexWindow(title: "Weekly", from: rateLimit["secondary_window"])
+            codexWindow(fallbackTitle: "5-hour", from: rateLimit["primary_window"]),
+            codexWindow(fallbackTitle: "Weekly", from: rateLimit["secondary_window"])
         ].compactMap { $0 }
     }
 
-    nonisolated private static func codexWindow(title: String, from value: Any?) -> OAuthUsageWindow? {
+    /// Codex plans differ: some have 5-hour + weekly, some only weekly, some only monthly,
+    /// and whichever limit exists is reported as `primary_window`. The title therefore
+    /// comes from `limit_window_seconds`, with the slot position only as a fallback.
+    nonisolated private static func codexWindow(fallbackTitle: String, from value: Any?) -> OAuthUsageWindow? {
         guard let window = value as? [String: Any] else { return nil }
         let resetDate = resetDate(from: window)
         return OAuthUsageWindow(
-            title: title,
+            title: codexWindowTitle(seconds: numberValue(window["limit_window_seconds"]), fallback: fallbackTitle),
             usedPercent: numberValue(window["used_percent"]),
             resetText: resetDate.map(resetText(for:)) ?? resetText(from: window),
             resetDate: resetDate
         )
+    }
+
+    nonisolated static func codexWindowTitle(seconds: Double?, fallback: String) -> String {
+        guard let seconds, seconds > 0 else { return fallback }
+        let hours = seconds / 3600
+        if hours <= 24 {
+            return "\(max(1, Int(hours.rounded())))-hour"
+        }
+        let days = seconds / 86_400
+        switch days {
+        case 6...8: return "Weekly"
+        case 27...32: return "Monthly"
+        default: return "\(Int(days.rounded()))-day"
+        }
     }
 
     nonisolated private static func parseGenericWindows(_ object: Any) -> [OAuthUsageWindow] {
@@ -487,7 +603,8 @@ final class OAuthUsageTracker: ObservableObject {
         case "5-hour": return 0
         case "Session": return 1
         case "Weekly": return 2
-        case "Full": return 3
+        case "Monthly": return 3
+        case "Full": return 4
         default: return 9
         }
     }

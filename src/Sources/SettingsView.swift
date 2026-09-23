@@ -391,82 +391,6 @@ struct SettingsView: View {
         )
     }
 
-    private var oauthUsageDashboard: some View {
-        VStack(alignment: .leading, spacing: 8) {
-            if oauthUsageTracker.accounts.isEmpty {
-                Text("Connect Codex or Claude OAuth accounts to show quota windows.")
-                    .font(.caption)
-                    .foregroundColor(.secondary)
-            } else {
-                ForEach(oauthUsageTracker.accounts) { account in
-                    oauthUsageAccountRow(account)
-                }
-            }
-        }
-        .padding(.top, 4)
-    }
-
-    private func oauthUsageAccountRow(_ account: OAuthAccountUsage) -> some View {
-        VStack(alignment: .leading, spacing: 6) {
-            HStack(spacing: 6) {
-                Text(account.provider.displayName)
-                    .font(.caption)
-                    .fontWeight(.semibold)
-                Text(account.email)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                Spacer()
-                if account.isLoading {
-                    ProgressView()
-                        .scaleEffect(0.55)
-                }
-            }
-
-            if let error = account.error {
-                Text(error)
-                    .font(.caption2)
-                    .foregroundColor(.orange)
-            } else {
-                ForEach(account.windows) { window in
-                    usageWindowRow(window)
-                }
-            }
-        }
-        .padding(8)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
-    }
-
-    private func usageWindowRow(_ window: OAuthUsageWindow) -> some View {
-        let remaining = window.remainingPercent
-        return VStack(alignment: .leading, spacing: 3) {
-            HStack {
-                Text(window.title)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-                Spacer()
-                if let remaining {
-                    Text("\(Int(remaining.rounded()))% left")
-                        .font(.caption2)
-                        .foregroundColor(.secondary)
-                }
-            }
-            if let remaining {
-                ProgressView(value: remaining, total: 100)
-                    .tint(remaining < 20 ? .orange : .green)
-            } else {
-                Text("Usage unavailable")
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-            if let resetText = window.resetText {
-                Text(resetText)
-                    .font(.caption2)
-                    .foregroundColor(.secondary)
-            }
-        }
-    }
-
     // Translucent row background that reveals the colourful window backdrop.
     // We deliberately avoid .ultraThinMaterial here — on dark appearance it
     // vibrancy-composites to an almost-opaque grey which fights the glass look.
@@ -599,7 +523,8 @@ struct SettingsView: View {
                 .listRowBackground(glassRowBackground)
 
                 if serverManager.isProviderEnabled(.codex) || authManager.hasAccounts(for: .codex) ||
-                   serverManager.isProviderEnabled(.claude) || authManager.hasAccounts(for: .claude) {
+                   serverManager.isProviderEnabled(.claude) || authManager.hasAccounts(for: .claude) ||
+                   serverManager.isProviderEnabled(.grok) || authManager.hasAccounts(for: .grok) {
                     Section {
                         HStack {
                             Text("OAuth Quota Usage")
@@ -613,7 +538,7 @@ struct SettingsView: View {
                             .opacity(oauthUsageTracker.isRefreshing ? 0.5 : 1)
                             .help("Refresh usage quotas")
                         }
-                        oauthUsageDashboard
+                        OAuthUsageDashboard(accounts: oauthUsageTracker.accounts)
                     }
                     .listRowBackground(glassRowBackground)
                 }
@@ -1491,7 +1416,8 @@ struct SettingsView: View {
     private func refreshOAuthUsage() {
         oauthUsageTracker.refresh(
             codexAccounts: authManager.accounts(for: .codex),
-            claudeAccounts: authManager.accounts(for: .claude)
+            claudeAccounts: authManager.accounts(for: .claude),
+            grokAccounts: serverManager.isProviderEnabled(.grok) ? authManager.accounts(for: .grok) : []
         )
     }
 
@@ -1506,7 +1432,14 @@ struct SettingsView: View {
             .map(\.id)
             .sorted()
             .joined(separator: "|")
-        return "\(codexSig)||\(claudeSig)"
+        let grokSig = serverManager.isProviderEnabled(.grok)
+            ? authManager.accounts(for: .grok)
+                .filter { !$0.isDisabled && !$0.isExpired }
+                .map(\.id)
+                .sorted()
+                .joined(separator: "|")
+            : ""
+        return "\(codexSig)||\(claudeSig)||\(grokSig)"
     }
     
     private func openAuthFolder() {

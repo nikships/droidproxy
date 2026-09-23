@@ -77,4 +77,97 @@ final class OAuthUsageTrackerTests: XCTestCase {
         let windows = OAuthUsageTracker.parseClaudeWindows(Data(malformedPayload.utf8))
         XCTAssertTrue(windows.isEmpty)
     }
+
+    func testParseCodexWindowsTitlesWindowsFromDuration() throws {
+        let fiveHourAndWeekly: [String: Any] = ["rate_limit": [
+            "primary_window": ["used_percent": 30, "limit_window_seconds": 18_000],
+            "secondary_window": ["used_percent": 60, "limit_window_seconds": 604_800]
+        ]]
+        XCTAssertEqual(OAuthUsageTracker.parseCodexWindows(fiveHourAndWeekly).map(\.title), ["5-hour", "Weekly"])
+
+        let weeklyOnly: [String: Any] = ["rate_limit": [
+            "primary_window": ["used_percent": 40, "limit_window_seconds": 604_800]
+        ]]
+        XCTAssertEqual(OAuthUsageTracker.parseCodexWindows(weeklyOnly).map(\.title), ["Weekly"])
+
+        let monthlyOnly: [String: Any] = ["rate_limit": [
+            "primary_window": ["used_percent": 10, "limit_window_seconds": 2_592_000],
+            "secondary_window": NSNull()
+        ]]
+        let monthly = OAuthUsageTracker.parseCodexWindows(monthlyOnly)
+        XCTAssertEqual(monthly.map(\.title), ["Monthly"])
+        XCTAssertEqual(monthly.first?.remainingPercent, 90)
+    }
+
+    func testCodexWindowTitleFallsBackToSlotName() {
+        XCTAssertEqual(OAuthUsageTracker.codexWindowTitle(seconds: nil, fallback: "5-hour"), "5-hour")
+        XCTAssertEqual(OAuthUsageTracker.codexWindowTitle(seconds: 0, fallback: "Weekly"), "Weekly")
+        XCTAssertEqual(OAuthUsageTracker.codexWindowTitle(seconds: 3_600, fallback: "x"), "1-hour")
+        XCTAssertEqual(OAuthUsageTracker.codexWindowTitle(seconds: 1_209_600, fallback: "x"), "14-day")
+    }
+
+    func testParseGrokWindowsReadsWeeklyCreditUsage() throws {
+        let payload = """
+        {"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","start":"2026-09-20T05:44:46.220789+00:00","end":"2026-09-27T05:44:46.220789+00:00"},"creditUsagePercent":51.0,"onDemandCap":{"val":0},"onDemandUsed":{"val":0},"productUsage":[{"product":"GrokBuild","usagePercent":51.0}],"isUnifiedBillingUser":true,"prepaidBalance":{"val":0},"topUpMethod":"TOP_UP_METHOD_SAVED_PAYMENT_METHOD","billingPeriodStart":"2026-09-20T05:44:46.220789+00:00","billingPeriodEnd":"2026-09-27T05:44:46.220789+00:00"}}
+        """
+
+        let windows = OAuthUsageTracker.parseGrokWindows(Data(payload.utf8))
+
+        XCTAssertEqual(windows.count, 1)
+        let window = try XCTUnwrap(windows.first)
+        XCTAssertEqual(window.title, "Weekly")
+        XCTAssertEqual(window.usedPercent, 51)
+        XCTAssertEqual(window.remainingPercent, 49)
+
+        let resetDate = try XCTUnwrap(window.resetDate)
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "UTC"))
+        let expected = try XCTUnwrap(calendar.date(from: DateComponents(
+            year: 2026, month: 9, day: 27, hour: 5, minute: 44, second: 46
+        )))
+        XCTAssertEqual(resetDate.timeIntervalSince1970, expected.timeIntervalSince1970 + 0.220789, accuracy: 0.001)
+        XCTAssertNotNil(window.resetText)
+    }
+
+    func testParseGrokWindowsFallsBackToOnDemandUsage() throws {
+        let payload = """
+        {"config":{"onDemandCap":{"val":200},"onDemandUsed":{"val":50},"billingPeriodEnd":"2026-10-01T00:00:00+00:00"}}
+        """
+
+        let windows = OAuthUsageTracker.parseGrokWindows(Data(payload.utf8))
+
+        let window = try XCTUnwrap(windows.first)
+        XCTAssertEqual(windows.count, 1)
+        XCTAssertEqual(window.title, "Credits")
+        XCTAssertEqual(window.usedPercent, 25)
+        XCTAssertEqual(window.remainingPercent, 75)
+        XCTAssertEqual(window.resetDate, Date(timeIntervalSince1970: 1_790_812_800))
+    }
+
+    func testParseGrokWindowsLabelsMonthlyPeriod() throws {
+        let payload = """
+        {"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_MONTHLY","end":"2026-10-20T05:44:46.220789+00:00"},"creditUsagePercent":12.5,"billingPeriodEnd":"2026-09-27T05:44:46.220789+00:00"}}
+        """
+
+        let windows = OAuthUsageTracker.parseGrokWindows(Data(payload.utf8))
+
+        let window = try XCTUnwrap(windows.first)
+        XCTAssertEqual(window.title, "Monthly")
+        XCTAssertEqual(window.usedPercent, 12.5)
+        XCTAssertEqual(window.remainingPercent, 87.5)
+        let resetDate = try XCTUnwrap(window.resetDate)
+        XCTAssertEqual(resetDate.timeIntervalSince1970, 1_792_475_086.220789, accuracy: 0.001)
+    }
+
+    func testParseGrokWindowsReturnsNoWindowWithoutUsagePercent() {
+        let payload = """
+        {"config":{"currentPeriod":{"type":"USAGE_PERIOD_TYPE_WEEKLY","end":"2026-09-27T05:44:46.220789+00:00"},"onDemandCap":{"val":0},"onDemandUsed":{"val":0}}}
+        """
+
+        XCTAssertTrue(OAuthUsageTracker.parseGrokWindows(Data(payload.utf8)).isEmpty)
+    }
+
+    func testParseGrokWindowsHandlesMalformedJSON() {
+        XCTAssertTrue(OAuthUsageTracker.parseGrokWindows(Data("{ invalid json".utf8)).isEmpty)
+    }
 }
