@@ -127,11 +127,17 @@ struct OAuthUsageAccountGroup: View {
                     .foregroundColor(.orange)
                     .lineLimit(2)
                     .help(error)
-            } else if account.windows.count > 1 {
-                // One subscription's coupled limits stack half-size into a
-                // single spot, shorter window on top; titles live only in the
-                // hover popover. Rows bottom-align so ring rows line up across
-                // headed and headerless groups.
+            } else if account.windows.count == 2 {
+                // Two limits share one gauge: the shorter window keeps the
+                // normal ring and the longer wraps it in an outer ring.
+                DualUsageRingGauge(
+                    inner: account.windows[0],
+                    outer: account.windows[1],
+                    provider: account.provider
+                )
+            } else if account.windows.count > 2 {
+                // Three or more windows (only Claude's per-model buckets)
+                // fall back to a compact stack so no limit is dropped.
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(account.windows) { window in
                         UsageRingGauge(window: window, provider: account.provider, compact: true)
@@ -162,9 +168,9 @@ private func usageIconName(for provider: ServiceType) -> String? {
 /// The provider logo sits inside the ring, aspect-fit so it never clips or distorts;
 /// the exact percent and reset time appear in an instant hover popover (`.help()`
 /// tooltips inherit the multi-second system delay, which buries the numbers).
-/// Compact rings are exactly half size, for stacking one subscription's
-/// windows into a single spot. No ring shows a title; the popover names the
-/// window, so all text lives on hover.
+/// Compact rings are exactly half size, for stacking 3+ windows when one
+/// subscription has more limits than a dual gauge can show. No ring shows a
+/// title; the popover names the window, so all text lives on hover.
 struct UsageRingGauge: View {
     static let diameter: CGFloat = 34
     /// Logo box: well inside the ~30.5pt clear inner diameter, with room to spare.
@@ -173,6 +179,8 @@ struct UsageRingGauge: View {
     let window: OAuthUsageWindow
     let provider: ServiceType
     var compact: Bool = false
+    /// False when embedded in a dual gauge, which owns the combined popover.
+    var showsPopover: Bool = true
 
     private var remaining: Double? { window.remainingPercent }
     private var scale: CGFloat { compact ? 0.5 : 1 }
@@ -217,6 +225,52 @@ struct UsageRingGauge: View {
         }
         .frame(width: Self.diameter * scale, height: Self.diameter * scale)
         .onHover { hovering in isHovering = hovering }
+        .popover(isPresented: showsPopover ? $isHovering : .constant(false), arrowEdge: .bottom) {
+            Text(helpText)
+                .font(.system(size: 11))
+                .padding(8)
+        }
+    }
+
+    private var helpText: String {
+        usageHelpText(title: window.title, remaining: remaining, resetText: window.resetText)
+    }
+}
+
+/// One gauge for a two-limit subscription: the shorter window keeps the
+/// normal ring (with the logo) and the longer window wraps it in an outer
+/// ring. The hover popover lists both limits.
+struct DualUsageRingGauge: View {
+    static let gap: CGFloat = 2.5
+    static let outerStroke: CGFloat = 3
+    static var diameter: CGFloat {
+        UsageRingGauge.diameter + (gap + outerStroke) * 2
+    }
+    let inner: OAuthUsageWindow
+    let outer: OAuthUsageWindow
+    let provider: ServiceType
+
+    private var tint: Color {
+        ProviderUsageColors.color(for: provider)
+    }
+
+    private var outerRemaining: Double? { outer.remainingPercent }
+
+    @State private var isHovering = false
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.10), lineWidth: Self.outerStroke)
+            Circle()
+                .trim(from: 0, to: CGFloat((outerRemaining ?? 0) / 100))
+                .stroke(tint, style: StrokeStyle(lineWidth: Self.outerStroke, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.4), value: outerRemaining)
+            UsageRingGauge(window: inner, provider: provider, showsPopover: false)
+        }
+        .frame(width: Self.diameter, height: Self.diameter)
+        .onHover { hovering in isHovering = hovering }
         .popover(isPresented: $isHovering, arrowEdge: .bottom) {
             Text(helpText)
                 .font(.system(size: 11))
@@ -225,8 +279,15 @@ struct UsageRingGauge: View {
     }
 
     private var helpText: String {
-        let usage = remaining.map { "\(Int($0.rounded()))% left" } ?? "Usage unavailable"
-        guard let reset = window.resetText else { return "\(window.title): \(usage)" }
-        return "\(window.title): \(usage)\nResets \(reset)"
+        [
+            usageHelpText(title: inner.title, remaining: inner.remainingPercent, resetText: inner.resetText),
+            usageHelpText(title: outer.title, remaining: outer.remainingPercent, resetText: outer.resetText),
+        ].joined(separator: "\n")
     }
+}
+
+private func usageHelpText(title: String, remaining: Double?, resetText: String?) -> String {
+    let usage = remaining.map { "\(Int($0.rounded()))% left" } ?? "Usage unavailable"
+    guard let reset = resetText else { return "\(title): \(usage)" }
+    return "\(title): \(usage)\nResets \(reset)"
 }
