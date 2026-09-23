@@ -773,9 +773,11 @@ footer.foot {
   -webkit-mask-repeat: no-repeat;
   -webkit-mask-position: center;
   -webkit-mask-size: contain;
+  -webkit-mask-mode: alpha;
   mask-repeat: no-repeat;
   mask-position: center;
   mask-size: contain;
+  mask-mode: alpha;
 }
 
 /* Features — two bands so 3+2 seams stay aligned within each row */

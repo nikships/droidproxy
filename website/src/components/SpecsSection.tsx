@@ -5,9 +5,9 @@ const specs = [
   { label: 'Platform', value: 'macOS 13.0+', small: 'Ventura through current' },
   { label: 'Architecture', value: 'Apple Silicon', small: 'M1 through M5' },
   { label: 'Local ports', value: ':8317', small: ':8318 child · :8319 Copilot', mono: true },
-  { label: 'Auth', value: 'Native OAuth', small: 'no API keys to provision' },
+  { label: 'Auth', value: 'Native OAuth', small: 'Junie is a local API key' },
   { label: 'Auto-update', value: 'Sparkle', small: 'EdDSA-signed · notarized' },
-  { label: 'Quota', value: 'Built-in', small: 'Claude · Codex · 5h + weekly' },
+  { label: 'Quota', value: 'Built-in', small: 'Claude · Codex · SuperGrok' },
   { label: 'Built on', value: 'CLIProxyAPI', small: 'router-for-me · MIT' },
   { label: 'License', value: 'MIT', small: 'open source · free forever' },
 ]

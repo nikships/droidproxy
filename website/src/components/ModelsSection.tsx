@@ -91,7 +91,7 @@ export default function ModelsSection() {
         </div>
 
         <p className="table-note">
-          Copilot is account-specific — pick up to three models from your GitHub plan in Settings. Junie serves Fable 5.1, Opus 5.5, and Sonnet 5 from a JetBrains AI subscription. Image models (Grok Imagine, GPT Image) are separate skills, not chat entries.
+          Copilot is account-specific — pick up to three models from your GitHub plan in Settings. Muse Spark 1.3 Contributor replaces Muse Spark 1.3 when Contributor Mode is on. Image models (Grok Imagine Image 2.0, GPT Image 2.5 Flare and Sunburst) are separate skills, not chat entries.
         </p>
       </div>
     </section>

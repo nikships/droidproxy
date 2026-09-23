@@ -8,7 +8,7 @@ const faqs = [
   },
   {
     q: 'Do I need API keys?',
-    a: 'No. Sign in with the same OAuth flows the official apps use. Tokens stay on your Mac under ~/.cli-proxy-api (Copilot and Muse use their own local stores).',
+    a: 'Not for Claude, ChatGPT, Antigravity, Copilot, Grok, Kimi, or Muse — those use the lab’s own sign-in. Junie is a JetBrains API key you paste in Settings. Credentials stay on your Mac: most under ~/.cli-proxy-api, Copilot and Muse in their own local stores.',
   },
   {
     q: 'Who picks reasoning effort?',
@@ -16,7 +16,7 @@ const faqs = [
   },
   {
     q: 'What happened to older model names?',
-    a: 'The catalog ships the current flagship of each family — Fable 5.1, Opus 5.5, Sonnet 5, GPT 6 Astra, Gemini 3.8 Flash, Kimi K3. Re-applying Factory models prunes sunset ids from ~/.factory/settings.json.',
+    a: 'The catalog ships current flagships: Fable 5.1, Opus 5.5, Sonnet 5, GPT 6 Astra, Sol, and Luna, Antigravity Gemini 3.1 Pro and 3.8 Flash, Grok 4.7, Kimi K3 and K2.6, and Muse Spark 1.3. Re-applying Factory models prunes sunset ids from ~/.factory/settings.json.',
   },
   {
     q: 'Is traffic leaving my machine encrypted?',

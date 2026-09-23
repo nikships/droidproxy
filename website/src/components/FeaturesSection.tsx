@@ -4,13 +4,13 @@ import { noOrphan } from '../typography'
 const rowA = [
   {
     tag: 'Auth',
-    title: 'One-click OAuth',
-    body: 'Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie login from Settings. Multiple accounts per lab, per-account disable, and automatic token refresh on every session.',
+    title: 'Sign in from Settings',
+    body: 'Claude, ChatGPT, Antigravity, Copilot, Grok, Kimi, and Muse sign in from Settings. Junie takes a JetBrains API key. Multiple accounts per lab, per-account disable, and automatic token refresh on every session.',
   },
   {
     tag: 'Quota',
     title: 'Live usage windows',
-    body: 'Claude and Codex 5-hour and weekly OAuth windows render in Settings. Refresh on demand — no extra CLI to install or configure.',
+    body: 'Claude shows 5-hour and weekly windows. Codex shows the 5-hour, weekly, or monthly window the plan reports. SuperGrok shows its pooled weekly credits. Refresh on demand — no extra CLI to install.',
   },
   {
     tag: 'Routing',

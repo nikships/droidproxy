@@ -30,7 +30,7 @@ const codePlain = `// What Apply writes.
     "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
     "defaultReasoningEffort": "xhigh"
   }
-  // + Opus 5.5, Sonnet 5, GPT 6 Sol, GPT 6 Luna, Gemini 3.8 Flash, Grok 4.7, …
+  // + Opus 5.5, Sonnet 5, GPT 6 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …
 ]`
 
 const codeHtml = `<span class="c">// What Apply writes.</span>
@@ -60,7 +60,7 @@ const codeHtml = `<span class="c">// What Apply writes.</span>
     <span class="k">"supportedReasoningEfforts"</span>: [<span class="s">"low"</span>, <span class="s">"medium"</span>, <span class="s">"high"</span>, <span class="s">"xhigh"</span>, <span class="s">"max"</span>],
     <span class="k">"defaultReasoningEffort"</span>: <span class="s">"xhigh"</span>
   }
-  <span class="c">// + Opus 5.5, Sonnet 5, GPT 6 Sol, GPT 6 Luna, Gemini 3.8 Flash, Grok 4.7, …</span>
+  <span class="c">// + Opus 5.5, Sonnet 5, GPT 6 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …</span>
 ]`
 
 export default function InstallSection() {
@@ -96,7 +96,7 @@ export default function InstallSection() {
               <span className="step-n">02</span>
               <div>
                 <h4>Sign in to labs you already have</h4>
-                <p>{noOrphan('Menu bar icon → Settings. Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, or Junie. Skip labs you do not use.')}</p>
+                <p>{noOrphan('Menu bar icon → Settings. Connect Claude, ChatGPT, Antigravity, Copilot, Grok, Kimi, Muse, or Junie. Skip labs you do not use.')}</p>
               </div>
             </div>
 

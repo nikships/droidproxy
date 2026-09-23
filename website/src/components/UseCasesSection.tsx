@@ -24,7 +24,7 @@ const cases = [
     index: '03',
     tag: 'Mix labs',
     title: 'Fable 5.1, GPT 6 Astra, Grok 4.7 — one picker.',
-    body: 'Connect Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, or Junie. Each account stays on your Mac. Disable any provider without touching the others.',
+    body: 'Connect Claude, ChatGPT, Antigravity, Copilot, Grok, Kimi, Muse, or Junie. Each account stays on your Mac. Disable any provider without touching the others.',
     footLabel: 'Providers',
     footValue: '8 labs',
     footRight: 'OAuth',

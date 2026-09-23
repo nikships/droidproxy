@@ -12,7 +12,7 @@ export default function HeroSection() {
             Use the plans you already pay for.
           </h1>
           <p className="lede">
-            {noOrphan('DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, and Junie through the plans you already have — same Droid CLI, same agent, no Factory token markup.')}
+            {noOrphan('DroidProxy is a signed macOS menu bar app that lets Factory Droid talk to Claude, ChatGPT, Antigravity, Copilot, Grok, Kimi, Muse, and Junie through the plans you already have — same Droid CLI, same agent, no Factory token markup.')}
           </p>
           <div className="hero-cta">
             <a href={RELEASES} className="btn btn-primary btn-lg" target="_blank" rel="noopener">

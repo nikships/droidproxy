@@ -5,14 +5,14 @@ const steps = [
   {
     num: '01',
     name: 'You sign in',
-    desc: 'Open Settings from the menu bar and log in with the same browser flow you already use for Claude, ChatGPT, Gemini, Copilot, Grok, Kimi, Muse, or Junie. Connect every lab, or just one.',
+    desc: 'Open Settings from the menu bar and sign in to Claude, ChatGPT, Antigravity, Copilot, Grok, Kimi, or Muse. Junie takes a JetBrains API key. Connect every lab, or just one.',
     portLabel: 'handled by',
     port: 'DroidProxy',
   },
   {
     num: '02',
     name: 'Tokens stay on your Mac',
-    desc: 'OAuth credentials never leave localhost. DroidProxy refreshes them in the background so sessions do not die mid-run. Settings also shows live Claude and Codex quota windows — 5-hour and weekly — so remaining quota is visible before the window resets.',
+    desc: 'Credentials never leave localhost. DroidProxy refreshes them in the background so sessions do not die mid-run. Settings shows Claude 5-hour and weekly windows, Codex windows labeled from the plan (5-hour, weekly, or monthly), and SuperGrok’s weekly credit pool.',
     portLabel: 'stored at',
     port: '~/.cli-proxy-api',
   },
