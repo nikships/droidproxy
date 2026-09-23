@@ -66,7 +66,7 @@ struct OAuthUsageAccountCard: View {
             } else {
                 HStack(alignment: .top, spacing: 8) {
                     ForEach(account.windows) { window in
-                        UsageRingGauge(window: window)
+                        UsageRingGauge(window: window, provider: account.provider)
                     }
                 }
             }
@@ -90,14 +90,12 @@ struct OAuthUsageAccountCard: View {
 struct UsageRingGauge: View {
     static let diameter: CGFloat = 34
     let window: OAuthUsageWindow
+    let provider: ServiceType
 
     private var remaining: Double? { window.remainingPercent }
 
     private var tint: Color {
-        guard let remaining else { return .secondary }
-        if remaining < 10 { return .red }
-        if remaining < 25 { return .orange }
-        return .green
+        ProviderUsageColors.color(for: provider)
     }
 
     var body: some View {
