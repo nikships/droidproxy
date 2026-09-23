@@ -1274,8 +1274,13 @@ class ThinkingProxy {
         return true
     }
 
-    private func loadMetaAPIKey() -> String? {
-        MetaMuseCredentialStore.usableAPIKeys(accounts: MetaMuseCredentialStore.shared.accounts).first
+    /// The account currently serving Meta Responses traffic: the first usable
+    /// key, mirroring `MetaMuseCredentialStore.usableAPIKeys` ordering so the
+    /// sniffed usage snapshot is attributed to the key that was actually sent.
+    private func loadMetaServingAccount() -> MetaMuseAccount? {
+        MetaMuseCredentialStore.shared.accounts.first {
+            !$0.disabled && $0.credentials.apiKeyExpiresAt > Date() && !$0.credentials.apiKey.isEmpty
+        }
     }
 
     private func forwardToMeta(
@@ -1286,7 +1291,7 @@ class ThinkingProxy {
         body: String,
         originalConnection: NWConnection
     ) {
-        guard let apiKey = loadMetaAPIKey() else {
+        guard let servingAccount = loadMetaServingAccount() else {
             NSLog("[ThinkingProxy] Error: No active Meta Muse API key found")
             sendError(
                 to: originalConnection,
@@ -1295,6 +1300,8 @@ class ThinkingProxy {
             )
             return
         }
+        let apiKey = servingAccount.credentials.apiKey
+        let servingAccountID = servingAccount.id
 
         let tlsOptions = NWProtocolTLS.Options()
         let parameters = NWParameters(tls: tlsOptions, tcp: NWProtocolTCP.Options())
@@ -1329,7 +1336,11 @@ class ThinkingProxy {
                             targetConnection.cancel()
                             originalConnection.cancel()
                         } else {
-                            self.receiveMetaResponse(from: targetConnection, originalConnection: originalConnection)
+                            self.receiveMetaResponse(
+                                from: targetConnection,
+                                originalConnection: originalConnection,
+                                accountID: servingAccountID
+                            )
                         }
                     }))
                 } else {
@@ -1351,16 +1362,31 @@ class ThinkingProxy {
         targetConnection.start(queue: .global(qos: .userInitiated))
     }
 
-    private func receiveMetaResponse(from targetConnection: NWConnection, originalConnection: NWConnection) {
-        relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection, label: "Meta")
+    private func receiveMetaResponse(
+        from targetConnection: NWConnection,
+        originalConnection: NWConnection,
+        accountID: String
+    ) {
+        relayUpstreamResponse(
+            from: targetConnection,
+            originalConnection: originalConnection,
+            label: "Meta",
+            metaUsageAccountID: accountID
+        )
     }
 
     /// Shared TLS upstream → client relay used by Junie / Grok / Meta paths.
+    /// `metaUsageAccountID` enables sniffing of `response.subscription_usage`
+    /// SSE events into `MetaMuseUsageStore`; relayed bytes pass through
+    /// unchanged and `metaUsagePending` carries the incomplete trailing SSE
+    /// line across chunks.
     private func relayUpstreamResponse(
         from targetConnection: NWConnection,
         originalConnection: NWConnection,
         label: String,
-        rewriteGrokNativeToolCalls: Bool = false
+        rewriteGrokNativeToolCalls: Bool = false,
+        metaUsageAccountID: String? = nil,
+        metaUsagePending: String = ""
     ) {
         if rewriteGrokNativeToolCalls {
             accumulateAndRewriteGrokResponse(
@@ -1389,11 +1415,15 @@ class ThinkingProxy {
                         from: targetConnection,
                         originalConnection: originalConnection,
                         label: label,
-                        rewriteGrokNativeToolCalls: false
+                        rewriteGrokNativeToolCalls: false,
+                        metaUsageAccountID: metaUsageAccountID,
+                        metaUsagePending: metaUsagePending
                     )
                 }
                 return
             }
+
+            let nextPending = self.sniffMetaUsage(data, accountID: metaUsageAccountID, pending: metaUsagePending)
 
             originalConnection.send(content: data, completion: .contentProcessed({ sendError in
                 if let sendError = sendError {
@@ -1407,11 +1437,29 @@ class ThinkingProxy {
                         from: targetConnection,
                         originalConnection: originalConnection,
                         label: label,
-                        rewriteGrokNativeToolCalls: false
+                        rewriteGrokNativeToolCalls: false,
+                        metaUsageAccountID: metaUsageAccountID,
+                        metaUsagePending: nextPending
                     )
                 }
             }))
         }
+    }
+
+    /// Records Meta subscription-usage snapshots from one relayed chunk and
+    /// returns the incomplete trailing SSE line for the next chunk. Bytes are
+    /// only inspected, never modified.
+    private func sniffMetaUsage(_ data: Data, accountID: String?, pending: String) -> String {
+        guard let accountID else { return pending }
+        let (nextPending, snapshots) = MetaMuseUsageSniffer.scan(chunk: data, pending: pending)
+        for snapshot in snapshots {
+            MetaMuseUsageStore.shared.record(accountID: accountID, snapshot: snapshot)
+            Self.fileLog(String(
+                format: "META USAGE: window=%.0f%% weekly=%.0f%%",
+                snapshot.windowUsedPercent, snapshot.weeklyUsedPercent
+            ))
+        }
+        return nextPending
     }
 
     /// Upper bound for buffered Grok rewriting. Beyond this we stop buffering

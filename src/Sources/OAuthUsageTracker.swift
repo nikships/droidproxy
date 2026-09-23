@@ -43,14 +43,15 @@ final class OAuthUsageTracker: ObservableObject {
         refreshTask?.cancel()
     }
 
-    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount], grokAccounts: [AuthAccount] = []) {
+    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount], grokAccounts: [AuthAccount] = [], metaAccounts: [AuthAccount] = []) {
         refreshTask?.cancel()
 
         let enabledCodex = codexAccounts.filter { !$0.isDisabled && !$0.isExpired }
         let enabledClaude = claudeAccounts.filter { !$0.isDisabled && !$0.isExpired }
         let enabledGrok = Self.activeGrokAccounts(grokAccounts)
+        let enabledMeta = metaAccounts.filter { !$0.isDisabled }
 
-        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty || !enabledGrok.isEmpty else {
+        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty || !enabledGrok.isEmpty || !enabledMeta.isEmpty else {
             accounts = []
             isRefreshing = false
             return
@@ -60,8 +61,9 @@ final class OAuthUsageTracker: ObservableObject {
         accounts = enabledCodex.map { Self.loadingPlaceholder(for: $0, provider: .codex) }
             + enabledClaude.map { Self.loadingPlaceholder(for: $0, provider: .claude) }
             + enabledGrok.map { Self.loadingPlaceholder(for: $0, provider: .grok) }
+            + enabledMeta.map { Self.loadingPlaceholder(for: $0, provider: .meta) }
 
-        refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok] in
+        refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok, enabledMeta] in
             let results = await withTaskGroup(of: OAuthAccountUsage.self) { group in
                 for account in enabledCodex {
                     group.addTask { await Self.fetchCodexUsage(for: account) }
@@ -72,22 +74,38 @@ final class OAuthUsageTracker: ObservableObject {
                 for account in enabledGrok {
                     group.addTask { await Self.fetchGrokUsage(for: account) }
                 }
+                for account in enabledMeta {
+                    group.addTask { await Self.fetchMetaUsage(for: account) }
+                }
 
                 var values: [OAuthAccountUsage] = []
                 for await result in group {
                     values.append(result)
                 }
-                return values.sorted {
-                    if $0.provider.rawValue == $1.provider.rawValue {
-                        return $0.email.localizedCaseInsensitiveCompare($1.email) == .orderedAscending
-                    }
-                    return $0.provider.rawValue < $1.provider.rawValue
-                }
+                return Self.sortedAccounts(values)
             }
 
             guard !Task.isCancelled else { return }
             self.accounts = results
             self.isRefreshing = false
+        }
+    }
+
+    /// Replaces only the Meta cards from the local last-observed store. Used
+    /// for live updates when ThinkingProxy sniffs a new snapshot, so a Meta
+    /// response does not refetch Codex/Claude/Grok usage over the network.
+    func updateMetaAccounts(_ metaAccounts: [AuthAccount]) {
+        let fresh = metaAccounts.filter { !$0.isDisabled }.map { Self.metaUsage(for: $0) }
+        guard accounts.contains(where: { $0.provider == .meta }) || !fresh.isEmpty else { return }
+        accounts = Self.sortedAccounts(accounts.filter { $0.provider != .meta } + fresh)
+    }
+
+    nonisolated private static func sortedAccounts(_ values: [OAuthAccountUsage]) -> [OAuthAccountUsage] {
+        values.sorted {
+            if $0.provider.rawValue == $1.provider.rawValue {
+                return $0.email.localizedCaseInsensitiveCompare($1.email) == .orderedAscending
+            }
+            return $0.provider.rawValue < $1.provider.rawValue
         }
     }
 
@@ -298,6 +316,54 @@ final class OAuthUsageTracker: ObservableObject {
         } catch {
             return failedAccount(account, error.localizedDescription)
         }
+    }
+
+    /// Meta has no usage endpoint: the 5-hour window and weekly percents arrive
+    /// as `response.subscription_usage` SSE events that ThinkingProxy sniffs
+    /// into `MetaMuseUsageStore`. This only reads that local last-observed
+    /// store, so unlike the other providers it never touches the network and
+    /// ignores key expiry (a stale card still shows its "as of" time).
+    nonisolated private static func fetchMetaUsage(for account: AuthAccount) async -> OAuthAccountUsage {
+        metaUsage(for: account)
+    }
+
+    nonisolated private static func metaUsage(for account: AuthAccount) -> OAuthAccountUsage {
+        guard let snapshot = MetaMuseUsageStore.shared.snapshot(for: account.id) else {
+            return failedAccount(account, "No usage observed yet — send a Meta request through DroidProxy")
+        }
+        let windows = parseMetaWindows(snapshot)
+        guard !windows.isEmpty else {
+            return failedAccount(account, "Stored Meta usage was incomplete")
+        }
+        var usage = successAccount(account, windows: windows)
+        usage.updatedAt = snapshot.observedAt
+        return usage
+    }
+
+    nonisolated static func parseMetaWindows(_ snapshot: MetaMuseUsageSnapshot) -> [OAuthUsageWindow] {
+        let observed = RelativeDateTimeFormatter().localizedString(for: snapshot.observedAt, relativeTo: Date())
+        return [
+            OAuthUsageWindow(
+                title: metaWindowTitle(minutes: snapshot.windowDurationMins),
+                usedPercent: max(0.0, min(100.0, snapshot.windowUsedPercent)),
+                resetText: "\(resetText(for: snapshot.windowResetsAt)) · as of \(observed)",
+                resetDate: snapshot.windowResetsAt
+            ),
+            OAuthUsageWindow(
+                title: "Weekly",
+                usedPercent: max(0.0, min(100.0, snapshot.weeklyUsedPercent)),
+                resetText: "\(resetText(for: snapshot.weeklyResetsAt)) · as of \(observed)",
+                resetDate: snapshot.weeklyResetsAt
+            )
+        ]
+    }
+
+    nonisolated static func metaWindowTitle(minutes: Double) -> String {
+        guard minutes > 0 else { return "Window" }
+        if minutes.truncatingRemainder(dividingBy: 60) == 0 {
+            return "\(Int(minutes / 60))-hour"
+        }
+        return "\(Int(minutes.rounded()))-min"
     }
 
     /// SuperGrok reports one pooled credit window per billing period.

@@ -170,4 +170,38 @@ final class OAuthUsageTrackerTests: XCTestCase {
     func testParseGrokWindowsHandlesMalformedJSON() {
         XCTAssertTrue(OAuthUsageTracker.parseGrokWindows(Data("{ invalid json".utf8)).isEmpty)
     }
+
+    private func metaSnapshot() -> MetaMuseUsageSnapshot {
+        MetaMuseUsageSnapshot(
+            windowUsedPercent: 7,
+            windowResetsAt: Date(timeIntervalSince1970: 1_790_204_220),
+            windowDurationMins: 300,
+            weeklyUsedPercent: 6,
+            weeklyResetsAt: Date(timeIntervalSince1970: 1_790_553_600),
+            tier: "27681393394859588",
+            observedAt: Date()
+        )
+    }
+
+    func testParseMetaWindowsTitlesFiveHourAndWeekly() throws {
+        let windows = OAuthUsageTracker.parseMetaWindows(metaSnapshot())
+
+        XCTAssertEqual(windows.map(\.title), ["5-hour", "Weekly"])
+        let fiveHour = try XCTUnwrap(windows.first)
+        XCTAssertEqual(fiveHour.usedPercent, 7)
+        XCTAssertEqual(fiveHour.remainingPercent, 93)
+        XCTAssertEqual(fiveHour.resetDate, Date(timeIntervalSince1970: 1_790_204_220))
+        XCTAssertTrue(try XCTUnwrap(fiveHour.resetText).contains("as of"))
+        let weekly = try XCTUnwrap(windows.last)
+        XCTAssertEqual(weekly.usedPercent, 6)
+        XCTAssertEqual(weekly.remainingPercent, 94)
+        XCTAssertEqual(weekly.resetDate, Date(timeIntervalSince1970: 1_790_553_600))
+    }
+
+    func testMetaWindowTitleFallsBackForUnknownDurations() {
+        XCTAssertEqual(OAuthUsageTracker.metaWindowTitle(minutes: 300), "5-hour")
+        XCTAssertEqual(OAuthUsageTracker.metaWindowTitle(minutes: 60), "1-hour")
+        XCTAssertEqual(OAuthUsageTracker.metaWindowTitle(minutes: 90), "90-min")
+        XCTAssertEqual(OAuthUsageTracker.metaWindowTitle(minutes: 0), "Window")
+    }
 }
