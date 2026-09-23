@@ -6,6 +6,17 @@
     <description>Most recent updates to DroidProxy</description>
     <language>en</language>
     <item>
+      <title>Version 1.8.145</title>
+      <sparkle:version>1016</sparkle:version>
+      <sparkle:shortVersionString>1.8.145</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>13.0</sparkle:minimumSystemVersion>
+      <pubDate>Wed, 23 Sep 2026 18:41:19 +0000</pubDate>
+      <enclosure url="https://github.com/anand-92/droidproxy/releases/download/v1.8.145/DroidProxy-arm64.zip"
+                 type="application/octet-stream"
+                 sparkle:edSignature="DfE7FSBEWzhyXkBhlE0td3wvlWXCAuj3hqzOygwIybucnFKMB3tHlobMDSmYE8PhSlGVhy4wRvUhaGvihTxeAA=="
+                 length="24586977"/>
+    </item>
+    <item>
       <title>Version 1.8.144</title>
       <sparkle:version>1012</sparkle:version>
       <sparkle:shortVersionString>1.8.144</sparkle:shortVersionString>
