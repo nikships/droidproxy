@@ -120,7 +120,7 @@ struct OAuthUsageAccountGroup: View {
             if account.isLoading {
                 ProgressView()
                     .scaleEffect(0.5)
-                    .frame(width: UsageRingGauge.diameter, height: UsageRingGauge.diameter + 12)
+                    .frame(width: UsageRingGauge.diameter, height: UsageRingGauge.diameter)
             } else if let error = account.error {
                 Label(error, systemImage: "exclamationmark.triangle.fill")
                     .font(.system(size: 9))
@@ -129,17 +129,13 @@ struct OAuthUsageAccountGroup: View {
                     .help(error)
             } else if account.windows.count > 1 {
                 // One subscription's coupled limits stack half-size into a
-                // single spot, shorter window on top, titles captioned below.
-                // The caption keeps stack groups the same height as titled
-                // singles so bottom-aligned rows line up ring to ring.
+                // single spot, shorter window on top; titles live only in the
+                // hover popover. Rows bottom-align so ring rows line up across
+                // headed and headerless groups.
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(account.windows) { window in
                         UsageRingGauge(window: window, provider: account.provider, compact: true)
                     }
-                    Text(account.windows.map(\.title).joined(separator: " · "))
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
                 }
             } else {
                 HStack(alignment: .top, spacing: 8) {
@@ -166,8 +162,9 @@ private func usageIconName(for provider: ServiceType) -> String? {
 /// The provider logo sits inside the ring, aspect-fit so it never clips or distorts;
 /// the exact percent and reset time appear in an instant hover popover (`.help()`
 /// tooltips inherit the multi-second system delay, which buries the numbers).
-/// Compact rings are exactly half size with no title, for stacking one
-/// subscription's windows into a single spot; the popover still names the window.
+/// Compact rings are exactly half size, for stacking one subscription's
+/// windows into a single spot. No ring shows a title; the popover names the
+/// window, so all text lives on hover.
 struct UsageRingGauge: View {
     static let diameter: CGFloat = 34
     /// Logo box: well inside the ~30.5pt clear inner diameter, with room to spare.
@@ -197,36 +194,28 @@ struct UsageRingGauge: View {
     @State private var isHovering = false
 
     var body: some View {
-        VStack(spacing: 2) {
-            ZStack {
-                Circle()
-                    .stroke(Color.white.opacity(0.10), lineWidth: Self.strokeWidth * scale)
-                Circle()
-                    .trim(from: 0, to: CGFloat((remaining ?? 0) / 100))
-                    .stroke(tint, style: StrokeStyle(lineWidth: Self.strokeWidth * scale, lineCap: .round))
-                    .rotationEffect(.degrees(-90))
-                    .animation(.easeOut(duration: 0.4), value: remaining)
-                if let logo {
-                    Image(nsImage: logo)
-                        .resizable()
-                        .renderingMode(.template)
-                        .aspectRatio(contentMode: .fit)
-                        .frame(width: Self.logoLength * scale, height: Self.logoLength * scale)
-                        .foregroundColor(tint)
-                } else {
-                    Text(remaining.map { "\(Int($0.rounded()))" } ?? "–")
-                        .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
-                        .monospacedDigit()
-                }
-            }
-            .frame(width: Self.diameter * scale, height: Self.diameter * scale)
-            if !compact {
-                Text(window.title)
-                    .font(.system(size: 9))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
+        ZStack {
+            Circle()
+                .stroke(Color.white.opacity(0.10), lineWidth: Self.strokeWidth * scale)
+            Circle()
+                .trim(from: 0, to: CGFloat((remaining ?? 0) / 100))
+                .stroke(tint, style: StrokeStyle(lineWidth: Self.strokeWidth * scale, lineCap: .round))
+                .rotationEffect(.degrees(-90))
+                .animation(.easeOut(duration: 0.4), value: remaining)
+            if let logo {
+                Image(nsImage: logo)
+                    .resizable()
+                    .renderingMode(.template)
+                    .aspectRatio(contentMode: .fit)
+                    .frame(width: Self.logoLength * scale, height: Self.logoLength * scale)
+                    .foregroundColor(tint)
+            } else {
+                Text(remaining.map { "\(Int($0.rounded()))" } ?? "–")
+                    .font(.system(size: 10 * scale, weight: .semibold, design: .rounded))
+                    .monospacedDigit()
             }
         }
+        .frame(width: Self.diameter * scale, height: Self.diameter * scale)
         .onHover { hovering in isHovering = hovering }
         .popover(isPresented: $isHovering, arrowEdge: .bottom) {
             Text(helpText)
