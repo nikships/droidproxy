@@ -1,7 +1,9 @@
 import AppKit
 import SwiftUI
 
-/// Compact grid of per-account quota cards for the "OAuth Quota Usage" settings section.
+/// Ring gauges for the "OAuth Quota Usage" settings section, flowing together
+/// with no per-account boxes; a header only appears above a provider's rings
+/// when it has several accounts to tell apart.
 struct OAuthUsageDashboard: View {
     let accounts: [OAuthAccountUsage]
 
@@ -12,13 +14,9 @@ struct OAuthUsageDashboard: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                LazyVGrid(
-                    columns: [GridItem(.adaptive(minimum: 128), spacing: 6, alignment: .top)],
-                    alignment: .leading,
-                    spacing: 6
-                ) {
+                FlowRowLayout(horizontalSpacing: 12, verticalSpacing: 8) {
                     ForEach(accounts) { account in
-                        OAuthUsageAccountCard(account: account, showHeader: showHeader(for: account.provider))
+                        OAuthUsageAccountGroup(account: account, showHeader: showHeader(for: account.provider))
                     }
                 }
             }
@@ -33,7 +31,49 @@ struct OAuthUsageDashboard: View {
     }
 }
 
-struct OAuthUsageAccountCard: View {
+/// Wrapping left-to-right rows: account groups sit adjacent with no boxes,
+/// spilling onto the next row when the window is too narrow.
+struct FlowRowLayout: Layout {
+    var horizontalSpacing: CGFloat = 8
+    var verticalSpacing: CGFloat = 6
+
+    func sizeThatFits(proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) -> CGSize {
+        let maxWidth = proposal.width ?? .infinity
+        var x: CGFloat = 0
+        var y: CGFloat = 0
+        var rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
+            if x > 0 && x + size.width > maxWidth {
+                x = 0
+                y += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+            x += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+        return CGSize(width: proposal.width ?? x, height: y + rowHeight)
+    }
+
+    func placeSubviews(in bounds: CGRect, proposal: ProposedViewSize, subviews: Subviews, cache: inout ()) {
+        var x = bounds.minX
+        var y = bounds.minY
+        var rowHeight: CGFloat = 0
+        for view in subviews {
+            let size = view.sizeThatFits(ProposedViewSize(width: bounds.width, height: nil))
+            if x > bounds.minX && x + size.width > bounds.maxX {
+                x = bounds.minX
+                y += rowHeight + verticalSpacing
+                rowHeight = 0
+            }
+            view.place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
+            x += size.width + horizontalSpacing
+            rowHeight = max(rowHeight, size.height)
+        }
+    }
+}
+
+struct OAuthUsageAccountGroup: View {
     let account: OAuthAccountUsage
     let showHeader: Bool
 
@@ -80,9 +120,6 @@ struct OAuthUsageAccountCard: View {
                 }
             }
         }
-        .padding(6)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(RoundedRectangle(cornerRadius: 8).fill(Color.white.opacity(0.05)))
     }
 }
 
