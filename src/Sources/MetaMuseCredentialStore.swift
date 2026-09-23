@@ -98,11 +98,15 @@ final class MetaMuseCredentialStore {
 
     @discardableResult
     func remove(id: String) -> Bool {
-        mutate { accounts in
+        let removed = mutate { accounts in
             guard accounts.contains(where: { $0.id == id }) else { return false }
             accounts.removeAll { $0.id == id }
             return true
         }
+        if removed {
+            MetaMuseUsageStore.shared.remove(accountID: id)
+        }
+        return removed
     }
 
     @discardableResult

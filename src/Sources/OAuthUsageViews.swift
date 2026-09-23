@@ -8,7 +8,7 @@ struct OAuthUsageDashboard: View {
     var body: some View {
         Group {
             if accounts.isEmpty {
-                Text("Connect Codex, Claude, or Grok OAuth accounts to show quota windows.")
+                Text("Connect Codex, Claude, Grok, or Meta Muse OAuth accounts to show quota windows.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
@@ -81,6 +81,7 @@ struct OAuthUsageAccountCard: View {
         case .claude: return "icon-claude.png"
         case .codex: return "icon-codex.png"
         case .grok: return "icon-grok.svg"
+        case .meta: return "icon-meta.svg"
         default: return nil
         }
     }

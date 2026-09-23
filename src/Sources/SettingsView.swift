@@ -762,6 +762,9 @@ struct SettingsView: View {
             authManager.checkAuthStatus()
             factoryModelsInstalled = checkFactoryModelsInstalled()
         }
+        .onReceive(NotificationCenter.default.publisher(for: .metaUsageChanged)) { _ in
+            updateMetaUsage()
+        }
         .onDisappear {
             stopMonitoringAuthDirectory()
         }
@@ -1516,7 +1519,14 @@ struct SettingsView: View {
         oauthUsageTracker.refresh(
             codexAccounts: authManager.accounts(for: .codex),
             claudeAccounts: authManager.accounts(for: .claude),
-            grokAccounts: serverManager.isProviderEnabled(.grok) ? authManager.accounts(for: .grok) : []
+            grokAccounts: serverManager.isProviderEnabled(.grok) ? authManager.accounts(for: .grok) : [],
+            metaAccounts: serverManager.isProviderEnabled(.meta) ? authManager.accounts(for: .meta) : []
+        )
+    }
+
+    private func updateMetaUsage() {
+        oauthUsageTracker.updateMetaAccounts(
+            serverManager.isProviderEnabled(.meta) ? authManager.accounts(for: .meta) : []
         )
     }
 
@@ -1538,7 +1548,14 @@ struct SettingsView: View {
                 .sorted()
                 .joined(separator: "|")
             : ""
-        return "\(codexSig)||\(claudeSig)||\(grokSig)"
+        let metaSig = serverManager.isProviderEnabled(.meta)
+            ? authManager.accounts(for: .meta)
+                .filter { !$0.isDisabled }
+                .map(\.id)
+                .sorted()
+                .joined(separator: "|")
+            : ""
+        return "\(codexSig)||\(claudeSig)||\(grokSig)||\(metaSig)"
     }
     
     private func openAuthFolder() {
