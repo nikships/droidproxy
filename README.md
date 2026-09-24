@@ -8,8 +8,9 @@ A native macOS menu bar app that proxies Claude Code, Codex, Gemini, Kimi, GitHu
 
 
 
-https://github.com/user-attachments/assets/8bc180a3-0baf-473d-87c9-6aaacce302f2
-
+<p align="center">
+  <img width="592" height="1119" alt="image" src="https://github.com/user-attachments/assets/2f7e1db6-9167-4d4b-a0a1-cb2e34311623" />
+</p>
 
 
 ## Download
@@ -29,10 +30,6 @@ Each release also ships a `DroidProxy-arm64.zip.sha256` checksum. Unzip and drag
 - **Usage tracking** -- Claude (5-hour + weekly), Codex (whichever of 5-hour, weekly, or monthly the plan has), and SuperGrok (weekly) quota windows rendered as compact ring-gauge cards in the **OAuth Quota Usage** section of the Settings window. Fetched directly from each provider's OAuth API (no `codex` CLI dependency) and refreshed on demand via the inline refresh button.
 - **Grok Imagine (image gen)** -- With Grok OAuth connected, DroidProxy also forwards OpenAI-compatible image requests (`POST /v1/images/generations` for `grok-imagine-*` models) to `api.x.ai` — no `XAI_API_KEY`. Factory/Droid does not call that endpoint on its own; use the bundled skill below.
 - **GPT Image (Codex OAuth)** -- With Codex connected, `POST /v1/images/generations` for `gpt-image-2.5-flare` or `gpt-image-2.5-sunburst` is forwarded to CLIProxyAPI, which uses your ChatGPT Plus/Pro OAuth session — no `OPENAI_API_KEY`. Same rule as Grok: Droid will not call that endpoint unless you install the bundled skill.
-
-<p align="center">
-  <img src="settings-screenshot.png" alt="DroidProxy Settings" width="420">
-</p>
 
 ## Setup
 
