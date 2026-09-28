@@ -65,10 +65,14 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         }
     }
 
-    func testSonnet5UsesNativeModelIDAndExposesFullLevels() throws {
-        let sonnet = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:sonnet-5"))
+    func testSonnet55UsesNativeModelIDAndExposesFullLevels() throws {
+        let sonnet = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:sonnet-5-5"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:sonnet-5"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:junie-claude-sonnet-5"))
+        XCTAssertNotNil(settingsEntry(id: "custom:droidproxy:junie-claude-sonnet-5-5"))
 
-        XCTAssertEqual(sonnet["model"] as? String, "claude-sonnet-5")
+        XCTAssertEqual(sonnet["model"] as? String, "claude-sonnet-5-5")
+        XCTAssertEqual(sonnet["displayName"] as? String, "DroidProxy: Sonnet 5.5")
         XCTAssertEqual(sonnet["enableThinking"] as? Bool, true)
         XCTAssertEqual(sonnet["reasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(sonnet["defaultReasoningEffort"] as? String, "xhigh")
