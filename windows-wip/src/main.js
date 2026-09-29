@@ -16,7 +16,7 @@ const DEFAULT_SETTINGS = {
   requestTimeout: "10m",
   requestRetry: 3,
   debug: false,
-  model: "gpt-6-sol",
+  model: "gpt-6.1-sol",
   maxOutputTokens: 128000,
   enableThinking: true,
   reasoningEffort: "medium"
@@ -24,8 +24,8 @@ const DEFAULT_SETTINGS = {
 
 const FACTORY_MODELS = [
   {
-    model: "gpt-6-sol",
-    displayName: "DroidProxy: GPT 6 Sol",
+    model: "gpt-6.1-sol",
+    displayName: "DroidProxy: GPT 6.1 Sol",
     supportedReasoningEfforts: ["low", "medium", "high", "xhigh", "max"],
     defaultReasoningEffort: "medium"
   },

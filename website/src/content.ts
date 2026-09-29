@@ -92,8 +92,8 @@ export const models: ModelRow[] = [
   },
   {
     icon: '/assets/icon-codex.png',
-    name: 'GPT 6 Sol',
-    id: 'gpt-6-sol',
+    name: 'GPT 6.1 Sol',
+    id: 'gpt-6.1-sol',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
     max: '128,000',
     context: '272k',

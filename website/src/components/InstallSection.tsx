@@ -30,7 +30,7 @@ const codePlain = `// What Apply writes.
     "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
     "defaultReasoningEffort": "xhigh"
   }
-  // + Opus 5.5, Sonnet 5.5, GPT 6 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …
+  // + Opus 5.5, Sonnet 5.5, GPT 6.1 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …
 ]`
 
 const codeHtml = `<span class="c">// What Apply writes.</span>
@@ -60,7 +60,7 @@ const codeHtml = `<span class="c">// What Apply writes.</span>
     <span class="k">"supportedReasoningEfforts"</span>: [<span class="s">"low"</span>, <span class="s">"medium"</span>, <span class="s">"high"</span>, <span class="s">"xhigh"</span>, <span class="s">"max"</span>],
     <span class="k">"defaultReasoningEffort"</span>: <span class="s">"xhigh"</span>
   }
-  <span class="c">// + Opus 5.5, Sonnet 5.5, GPT 6 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …</span>
+  <span class="c">// + Opus 5.5, Sonnet 5.5, GPT 6.1 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …</span>
 ]`
 
 export default function InstallSection() {

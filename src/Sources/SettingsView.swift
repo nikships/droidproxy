@@ -588,9 +588,9 @@ struct SettingsView: View {
                                     helpText: "Injects service_tier=priority for GPT 6 Astra Responses API requests (Codex fast mode)"
                                 )
                                 codexFastModeToggleRow(
-                                    "GPT 6 Sol",
+                                    "GPT 6.1 Sol",
                                     isOn: $gpt6SolFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 6 Sol Responses API requests (Codex fast mode)"
+                                    helpText: "Injects service_tier=priority for GPT 6.1 Sol Responses API requests (Codex fast mode)"
                                 )
                                 codexFastModeToggleRow(
                                     "GPT 6 Luna",
