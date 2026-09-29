@@ -990,7 +990,7 @@ class ThinkingProxy {
     // Junie models are Anthropic models served by the JetBrains Grazie backend. The
     // bundled CLIProxyAPI has no JetBrains support, so we forward these
     // directly over TLS using the permanent API key stored in junie.json. The DroidProxy
-    // model IDs carry a `junie-` prefix (e.g. `junie-claude-sonnet-5`) so they stay
+    // model IDs carry a `junie-` prefix (e.g. `junie-claude-sonnet-5-5`) so they stay
     // distinct from the OAuth Claude entries; we strip that prefix before forwarding.
 
     private static let junieHost = "ingrazzio-cloud-prod.labs.jb.gg"
@@ -1011,7 +1011,7 @@ class ThinkingProxy {
     }
 
     /// Strips the `junie-` prefix from the request body's `model` field so the
-    /// JetBrains backend receives the real Anthropic model ID (e.g. `claude-sonnet-5`).
+    /// JetBrains backend receives the real Anthropic model ID (e.g. `claude-sonnet-5-5`).
     private func rewriteJunieModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
         guard let model = fields?.model,
               let modelLocation = fields?.modelLocation,

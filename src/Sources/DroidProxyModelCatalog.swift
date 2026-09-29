@@ -215,9 +215,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "claude-sonnet-5",
-                idSlug: "sonnet-5",
-                displayName: "Sonnet 5",
+                baseModel: "claude-sonnet-5-5",
+                idSlug: "sonnet-5-5",
+                displayName: "Sonnet 5.5",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "claude",
@@ -340,9 +340,9 @@ enum DroidProxyModelCatalog {
             // to the JetBrains Grazie backend over TLS using the key in junie.json. The
             // `junie-` prefix keeps these distinct from the OAuth Claude entries above.
             DroidProxyModelDefinition(
-                baseModel: "junie-claude-sonnet-5",
-                idSlug: "junie-claude-sonnet-5",
-                displayName: "Junie Sonnet 5",
+                baseModel: "junie-claude-sonnet-5-5",
+                idSlug: "junie-claude-sonnet-5-5",
+                displayName: "Junie Sonnet 5.5",
                 maxOutputTokens: 128000,
                 provider: "anthropic",
                 providerKey: "junie",

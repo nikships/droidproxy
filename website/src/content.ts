@@ -71,8 +71,8 @@ export const models: ModelRow[] = [
   },
   {
     icon: '/assets/icon-claude.png',
-    name: 'Claude Sonnet 5',
-    id: 'sonnet-5',
+    name: 'Claude Sonnet 5.5',
+    id: 'sonnet-5-5',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
     max: '128,000',
     provider: 'Anthropic',
@@ -236,8 +236,8 @@ export const models: ModelRow[] = [
   },
   {
     icon: '/assets/icon-junie.svg',
-    name: 'Junie Sonnet 5',
-    id: 'junie-claude-sonnet-5',
+    name: 'Junie Sonnet 5.5',
+    id: 'junie-claude-sonnet-5-5',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
     max: '128,000',
     provider: 'JetBrains',
