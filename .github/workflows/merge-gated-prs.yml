@@ -1,0 +1,61 @@
+name: Merge gated PRs with CLIProxyAPI bump
+
+# When the auto-generated CLIProxyAPI bump PR opens, fold in any open PR labeled
+# `awaiting-cliproxyapi` whose required models (`Requires-CLIProxyAPI-Model: <id>` in
+# the PR body) are listed by the bumped binary, wait for the Swift build, and
+# squash-merge the combined PR. One merge means one release.
+
+on:
+  pull_request:
+    types: [opened, reopened]
+    branches: [main]
+  workflow_dispatch:
+    inputs:
+      bump_pr:
+        description: 'Number of the open bump-cliproxyapi-* PR to process'
+        required: true
+        type: string
+      dry_run:
+        description: 'Report what would be merged without pushing or merging'
+        required: false
+        default: false
+        type: boolean
+
+permissions:
+  contents: write
+  pull-requests: write
+
+concurrency:
+  group: merge-gated-prs
+  cancel-in-progress: false
+
+jobs:
+  merge:
+    name: Combine and merge
+    runs-on: ubuntu-latest
+    timeout-minutes: 60
+    if: >-
+      github.event_name == 'workflow_dispatch' ||
+      (startsWith(github.head_ref, 'bump-cliproxyapi-') &&
+       github.event.pull_request.head.repo.full_name == github.repository)
+    env:
+      GH_TOKEN: ${{ secrets.AUTO_UPDATE_TOKEN }}
+
+    steps:
+      - name: Checkout main
+        uses: actions/checkout@v4
+        with:
+          ref: main
+          fetch-depth: 0
+          token: ${{ secrets.AUTO_UPDATE_TOKEN }}
+
+      - name: Configure git identity
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+
+      - name: Combine gated PRs and merge
+        env:
+          BUMP_PR: ${{ github.event.pull_request.number || inputs.bump_pr }}
+          DRY_RUN: ${{ inputs.dry_run || 'false' }}
+        run: bash .github/scripts/merge-gated-prs.sh

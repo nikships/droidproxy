@@ -170,3 +170,12 @@ Behavior to know:
 Release automation lives in `.github/workflows/release.yml` (no `Makefile` or `scripts/create-release.sh` in this repo). The app ships as a single arm64 build; there is no x86_64 appcast or Intel release path.
 
 If a task touches release tooling, audit the current workflow and `create-app-bundle.sh`.
+
+### Models that wait on a CLIProxyAPI release
+
+CLIProxyAPI resolves providers from its model registry only, so a catalog PR for a model the bundled binary does not list yet fails with `unknown provider for model <id>`. To ship such a PR together with the bump that fixes it:
+
+1. Add the `awaiting-cliproxyapi` label to the PR.
+2. Put one `Requires-CLIProxyAPI-Model: <model-id>` line per model in the PR body.
+
+When `update-cliproxyapi.yml` opens the next `bump-cliproxyapi-*` PR, `.github/workflows/merge-gated-prs.yml` checks whether the bumped binary's embedded registry lists every declared id. If so it merges the gated branch into the bump branch, waits for the `Swift Build` check, squash-merges the combined PR (one release), and closes the gated PR. PRs whose models are still missing are left alone. Re-run it manually with the workflow's `workflow_dispatch` (`bump_pr`, optional `dry_run`).
