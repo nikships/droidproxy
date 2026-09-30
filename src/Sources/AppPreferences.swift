@@ -2,7 +2,7 @@ import Foundation
 
 enum AppPreferences {
     static let gpt6AstraFastModeKey = "gpt6AstraFastMode"
-    static let gpt6SolFastModeKey = "gpt6SolFastMode"
+    static let gpt61SolFastModeKey = "gpt61SolFastMode"
     static let gpt6LunaFastModeKey = "gpt6LunaFastMode"
     /// Meta Muse Contributor Mode: apply `muse-spark-1.3-contributor` instead of
     /// `muse-spark-1.3` when Factory custom models are applied. Exactly one of
@@ -18,7 +18,7 @@ enum AppPreferences {
     static let sequentialAccountFailoverKey = "sequentialAccountFailover"
 
     static let defaultGpt6AstraFastMode = false
-    static let defaultGpt6SolFastMode = false
+    static let defaultGpt61SolFastMode = false
     static let defaultGpt6LunaFastMode = false
     static let defaultMetaContributorMode = false
     static let defaultAllowRemote = false
@@ -36,8 +36,8 @@ enum AppPreferences {
         UserDefaults.standard.bool(forKey: gpt6AstraFastModeKey)
     }
 
-    static var gpt6SolFastMode: Bool {
-        UserDefaults.standard.bool(forKey: gpt6SolFastModeKey)
+    static var gpt61SolFastMode: Bool {
+        UserDefaults.standard.bool(forKey: gpt61SolFastModeKey)
     }
 
     static var gpt6LunaFastMode: Bool {

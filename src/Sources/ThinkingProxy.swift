@@ -815,7 +815,7 @@ class ThinkingProxy {
         case "gpt-6-astra":
             guard AppPreferences.gpt6AstraFastMode else { return nil }
         case "gpt-6.1-sol":
-            guard AppPreferences.gpt6SolFastMode else { return nil }
+            guard AppPreferences.gpt61SolFastMode else { return nil }
         case "gpt-6-luna":
             guard AppPreferences.gpt6LunaFastMode else { return nil }
         default:

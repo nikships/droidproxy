@@ -334,7 +334,7 @@ struct SettingsView: View {
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
     @AppStorage(AppPreferences.gpt6AstraFastModeKey) private var gpt6AstraFastMode = AppPreferences.defaultGpt6AstraFastMode
-    @AppStorage(AppPreferences.gpt6SolFastModeKey) private var gpt6SolFastMode = AppPreferences.defaultGpt6SolFastMode
+    @AppStorage(AppPreferences.gpt61SolFastModeKey) private var gpt61SolFastMode = AppPreferences.defaultGpt61SolFastMode
     @AppStorage(AppPreferences.gpt6LunaFastModeKey) private var gpt6LunaFastMode = AppPreferences.defaultGpt6LunaFastMode
     @AppStorage(AppPreferences.metaContributorModeKey) private var metaContributorMode = AppPreferences.defaultMetaContributorMode
     @AppStorage(AppPreferences.allowRemoteKey) private var allowRemote = AppPreferences.defaultAllowRemote
@@ -589,7 +589,7 @@ struct SettingsView: View {
                                 )
                                 codexFastModeToggleRow(
                                     "GPT 6.1 Sol",
-                                    isOn: $gpt6SolFastMode,
+                                    isOn: $gpt61SolFastMode,
                                     helpText: "Injects service_tier=priority for GPT 6.1 Sol Responses API requests (Codex fast mode)"
                                 )
                                 codexFastModeToggleRow(
