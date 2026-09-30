@@ -90,12 +90,12 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "anthropic"
     },
     {
-      "model": "gpt-6-sol",
-      "id": "custom:droidproxy:gpt-6-sol",
+      "model": "gpt-6.1-sol",
+      "id": "custom:droidproxy:gpt-6.1-sol",
       "index": 3,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
-      "displayName": "DroidProxy: GPT 6 Sol",
+      "displayName": "DroidProxy: GPT 6.1 Sol",
       "maxOutputTokens": 128000,
       "noImageSupport": false,
       "provider": "openai"
@@ -160,7 +160,7 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 - Fable 5.1: `low`, `medium`, `high`, `xhigh`, or `max`
 - Opus 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Sonnet 4.6: `low`, `medium`, `high`, or `max`
-- GPT 6 Astra, GPT 6 Sol, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
+- GPT 6 Astra, GPT 6.1 Sol, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
 - Gemini 3.1 Pro: `low`, `medium`, or `high`
 - Gemini 3 Flash: `minimal`, `low`, `medium`, or `high`
 - Kimi K3: `max` (the only currently supported effort)

@@ -242,9 +242,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "gpt-6-sol",
-                idSlug: "gpt-6-sol",
-                displayName: "GPT 6 Sol",
+                baseModel: "gpt-6.1-sol",
+                idSlug: "gpt-6.1-sol",
+                displayName: "GPT 6.1 Sol",
                 maxOutputTokens: 128000,
                 maxContextLimit: 272_000,
                 provider: "openai",

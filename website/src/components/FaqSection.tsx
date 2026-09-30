@@ -16,7 +16,7 @@ const faqs = [
   },
   {
     q: 'What happened to older model names?',
-    a: 'The catalog ships current flagships: Fable 5.1, Opus 5.5, Sonnet 5.5, GPT 6 Astra, Sol, and Luna, Antigravity Gemini 3.1 Pro and 3.8 Flash, Grok 4.7, Kimi K3 and K2.6, and Muse Spark 1.3. Re-applying Factory models prunes sunset ids from ~/.factory/settings.json.',
+    a: 'The catalog ships current flagships: Fable 5.1, Opus 5.5, Sonnet 5.5, GPT 6 Astra, 6.1 Sol, and 6 Luna, Antigravity Gemini 3.1 Pro and 3.8 Flash, Grok 4.7, Kimi K3 and K2.6, and Muse Spark 1.3. Re-applying Factory models prunes sunset ids from ~/.factory/settings.json.',
   },
   {
     q: 'Is traffic leaving my machine encrypted?',

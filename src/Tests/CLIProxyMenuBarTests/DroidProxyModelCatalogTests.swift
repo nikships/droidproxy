@@ -79,8 +79,10 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(sonnet["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
     }
 
-    func testGpt6SolAndLunaUseNativeModelMetadata() throws {
-        for (slug, name) in [("gpt-6-sol", "GPT 6 Sol"), ("gpt-6-luna", "GPT 6 Luna")] {
+    func testGpt61SolAndLunaUseNativeModelMetadata() throws {
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:gpt-6-sol"))
+
+        for (slug, name) in [("gpt-6.1-sol", "GPT 6.1 Sol"), ("gpt-6-luna", "GPT 6 Luna")] {
             let entry = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:\(slug)"))
 
             XCTAssertEqual(entry["model"] as? String, slug)
@@ -101,7 +103,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
             .compactMap { $0["id"] as? String })
         XCTAssertEqual(ids, [
             "custom:droidproxy:gpt-6-astra",
-            "custom:droidproxy:gpt-6-sol",
+            "custom:droidproxy:gpt-6.1-sol",
             "custom:droidproxy:gpt-6-luna"
         ])
     }
