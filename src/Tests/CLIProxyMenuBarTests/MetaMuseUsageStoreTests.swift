@@ -7,6 +7,14 @@ final class MetaMuseUsageStoreTests: XCTestCase {
 
     private let observedAt = Date(timeIntervalSince1970: 1_790_189_303)
 
+    func testProbeTreatsRecentSnapshotsAsFreshAndOldOnesAsStale() throws {
+        let snapshot = try XCTUnwrap(MetaMuseUsageEvent.parse(dataLine: usageDataLine, observedAt: observedAt))
+
+        XCTAssertFalse(MetaMuseUsageProbe.isFresh(nil, now: observedAt))
+        XCTAssertTrue(MetaMuseUsageProbe.isFresh(snapshot, now: observedAt.addingTimeInterval(59)))
+        XCTAssertFalse(MetaMuseUsageProbe.isFresh(snapshot, now: observedAt.addingTimeInterval(60)))
+    }
+
     func testParseRealSubscriptionUsageEvent() throws {
         let snapshot = try XCTUnwrap(MetaMuseUsageEvent.parse(dataLine: usageDataLine, observedAt: observedAt))
 

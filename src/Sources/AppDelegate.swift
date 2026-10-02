@@ -17,6 +17,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     private var authDirectoryMonitor: AuthDirectoryMonitor?
     private var themeObserver: NSObjectProtocol?
     private var metaKeyRefreshTimer: Timer?
+    private var windowPrimer: WindowPrimer?
     /// Re-mint well inside the ~24h Model API key lifetime
     /// (`MetaMuseAuthManager`'s own margin re-mints starting 6h before expiry).
     private static let metaKeyRefreshInterval: TimeInterval = 60 * 60
@@ -61,6 +62,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             copilotGateway.start()
         }
         startMetaKeyRefresh()
+        windowPrimer = WindowPrimer()
+        windowPrimer?.start()
 
         // Register for notifications
         NotificationCenter.default.addObserver(
@@ -415,6 +418,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         authDirectoryMonitor = nil
         metaKeyRefreshTimer?.invalidate()
         metaKeyRefreshTimer = nil
+        windowPrimer?.stop()
         stopServersIfRunning()
         copilotGateway.stop()
     }

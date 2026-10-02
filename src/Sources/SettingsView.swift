@@ -558,6 +558,10 @@ struct SettingsView: View {
                         toggleTint: claudeEffortSelectionColor
                     )
 
+                    if serverManager.isProviderEnabled(.claude) {
+                        WindowPrimerRow(provider: .claude)
+                    }
+
                     providerServiceRow(
                         .codex,
                         iconName: "icon-codex.png",
@@ -565,6 +569,8 @@ struct SettingsView: View {
                     )
 
                     if serverManager.isProviderEnabled(.codex) {
+                        WindowPrimerRow(provider: .codex)
+
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
                                 Text("Fast Mode")
@@ -609,6 +615,8 @@ struct SettingsView: View {
                     if serverManager.isProviderEnabled(.meta) {
                         metaContributorModeRow()
                             .padding(.leading, 28)
+
+                        WindowPrimerRow(provider: .meta)
                     }
 
                     providerServiceRow(

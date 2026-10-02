@@ -336,12 +336,13 @@ final class OAuthUsageTracker: ObservableObject {
     }
 
     /// Meta has no usage endpoint: the 5-hour window and weekly percents arrive
-    /// as `response.subscription_usage` SSE events that ThinkingProxy sniffs
-    /// into `MetaMuseUsageStore`. This only reads that local last-observed
-    /// store, so unlike the other providers it never touches the network and
-    /// ignores key expiry (a stale card still shows its "as of" time).
+    /// as `response.subscription_usage` SSE events, which ThinkingProxy sniffs
+    /// into `MetaMuseUsageStore` and `MetaMuseUsageProbe` requests when the
+    /// stored snapshot is stale. A failed probe or expired key falls back to the
+    /// stored snapshot, so a stale card still shows its "as of" time.
     nonisolated private static func fetchMetaUsage(for account: AuthAccount) async -> OAuthAccountUsage {
-        metaUsage(for: account)
+        await MetaMuseUsageProbe.refresh(accountID: account.id)
+        return metaUsage(for: account)
     }
 
     nonisolated private static func metaUsage(for account: AuthAccount) -> OAuthAccountUsage {

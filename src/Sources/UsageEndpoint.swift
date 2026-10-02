@@ -36,9 +36,13 @@ enum UsageEndpoint {
 
     /// The command the Settings gauges copy. Uses the configured bind address
     /// when one is set, since `localhost` would not reach a specific interface.
-    static func curlCommand(provider: ServiceType, accountID: String, proxyPort: UInt16 = 8317) -> String {
+    static var proxyHost: String {
         let bind = AppPreferences.bindAddress
-        let host = (bind == "0.0.0.0" || bind.isEmpty) ? "127.0.0.1" : bind
+        return (bind == "0.0.0.0" || bind.isEmpty) ? "127.0.0.1" : bind
+    }
+
+    static func curlCommand(provider: ServiceType, accountID: String, proxyPort: UInt16 = 8317) -> String {
+        let host = proxyHost
         var allowed = CharacterSet.urlQueryAllowed
         allowed.remove(charactersIn: "&+=#")
         let encodedAccount = accountID.addingPercentEncoding(withAllowedCharacters: allowed) ?? accountID
