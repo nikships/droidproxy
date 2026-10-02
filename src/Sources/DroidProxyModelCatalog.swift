@@ -335,22 +335,11 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "high"
             ),
 
-            // Junie (JetBrains AI) subscription models. Routed through the antigravity-style
-            // Junie executor in ThinkingProxy, which strips the `junie-` prefix and forwards
+            // Junie (JetBrains AI) subscription models. Routed through the Junie
+            // executor in ThinkingProxy, which strips the `junie-` prefix and forwards
             // to the JetBrains Grazie backend over TLS using the key in junie.json. The
-            // `junie-` prefix keeps these distinct from the OAuth Claude entries above.
-            DroidProxyModelDefinition(
-                baseModel: "junie-claude-sonnet-5-5",
-                idSlug: "junie-claude-sonnet-5-5",
-                displayName: "Junie Sonnet 5.5",
-                maxOutputTokens: 128000,
-                provider: "anthropic",
-                providerKey: "junie",
-                baseURL: "http://localhost:8317",
-                kind: .junie,
-                levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
-            ),
+            // `junie-` prefix keeps these distinct from the OAuth Claude/Codex entries.
+            // Opus goes out as Anthropic Messages; Sol as OpenAI Responses.
             DroidProxyModelDefinition(
                 baseModel: "junie-claude-opus-5-5",
                 idSlug: "junie-claude-opus-5-5",
@@ -364,15 +353,16 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "junie-claude-fable-5-1",
-                idSlug: "junie-claude-fable-5-1",
-                displayName: "Junie Fable 5.1",
+                baseModel: "junie-gpt-6.1-sol",
+                idSlug: "junie-gpt-6.1-sol",
+                displayName: "Junie Sol 6.1",
                 maxOutputTokens: 128000,
-                provider: "anthropic",
+                maxContextLimit: 272_000,
+                provider: "openai",
                 providerKey: "junie",
-                baseURL: "http://localhost:8317",
+                baseURL: "http://localhost:8317/v1",
                 kind: .junie,
-                levels: claudeAdvancedLevels,
+                levels: gpt6Levels,
                 defaultLevelValue: "xhigh"
             ),
 

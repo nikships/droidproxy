@@ -55,21 +55,35 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(opus55["model"] as? String, "claude-opus-5-5")
         XCTAssertEqual(opus55["displayName"] as? String, "DroidProxy: Opus 5.5")
 
-        // Junie likewise exposes only Opus 5.5 and Fable 5.1.
+    }
+
+    func testJunieExposesOnlyOpus55AndSol61() throws {
         let junieIds = Set(DroidProxyModelCatalog.settingsModels { $0 == "junie" }
             .compactMap { $0["id"] as? String })
-        XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-opus-5-5"))
-        XCTAssertTrue(junieIds.contains("custom:droidproxy:junie-claude-fable-5-1"))
-        for retired in ["junie-claude-opus-5", "junie-claude-fable-5"] {
-            XCTAssertFalse(junieIds.contains("custom:droidproxy:\(retired)"))
-        }
+        XCTAssertEqual(junieIds, [
+            "custom:droidproxy:junie-claude-opus-5-5",
+            "custom:droidproxy:junie-gpt-6.1-sol"
+        ])
+
+        let sol = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:junie-gpt-6.1-sol"))
+        XCTAssertEqual(sol["model"] as? String, "junie-gpt-6.1-sol")
+        XCTAssertEqual(sol["displayName"] as? String, "DroidProxy: Junie Sol 6.1")
+        XCTAssertEqual(sol["provider"] as? String, "openai")
+        XCTAssertEqual(sol["baseUrl"] as? String, "http://localhost:8317/v1")
+        XCTAssertEqual(sol["defaultReasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(sol["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+    }
+
+    func testJunieVendorHeaderFollowsBackendModel() {
+        XCTAssertEqual(ThinkingProxy.junieLLMVendor(forModel: "gpt-6.1-sol"), "openai")
+        XCTAssertEqual(ThinkingProxy.junieLLMVendor(forModel: "claude-opus-5-5"), "anthropic")
+        XCTAssertEqual(ThinkingProxy.junieLLMVendor(forModel: nil), "anthropic")
     }
 
     func testSonnet55UsesNativeModelIDAndExposesFullLevels() throws {
         let sonnet = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:sonnet-5-5"))
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:sonnet-5"))
-        XCTAssertNil(settingsEntry(id: "custom:droidproxy:junie-claude-sonnet-5"))
-        XCTAssertNotNil(settingsEntry(id: "custom:droidproxy:junie-claude-sonnet-5-5"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:junie-claude-sonnet-5-5"))
 
         XCTAssertEqual(sonnet["model"] as? String, "claude-sonnet-5-5")
         XCTAssertEqual(sonnet["displayName"] as? String, "DroidProxy: Sonnet 5.5")

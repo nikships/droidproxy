@@ -328,7 +328,7 @@ class ThinkingProxy {
                     modifiedBody = result
                     requestFields = inspectRequestJSONFields(in: modifiedBody)
                 }
-                forwardToJunie(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, originalConnection: connection)
+                forwardToJunie(method: method, path: rewrittenPath, version: httpVersion, headers: headers, body: modifiedBody, model: requestFields?.model, originalConnection: connection)
                 return
             }
             if isGrokModel(requestFields) {
@@ -1010,11 +1010,13 @@ class ThinkingProxy {
 
     // MARK: - Junie (JetBrains AI) API Proxying
     //
-    // Junie models are Anthropic models served by the JetBrains Grazie backend. The
+    // Junie models (Claude and GPT) are served by the JetBrains Grazie backend. The
     // bundled CLIProxyAPI has no JetBrains support, so we forward these
     // directly over TLS using the permanent API key stored in junie.json. The DroidProxy
-    // model IDs carry a `junie-` prefix (e.g. `junie-claude-sonnet-5-5`) so they stay
-    // distinct from the OAuth Claude entries; we strip that prefix before forwarding.
+    // model IDs carry a `junie-` prefix (e.g. `junie-claude-opus-5-5`, `junie-gpt-6.1-sol`)
+    // so they stay distinct from the OAuth entries; we strip that prefix before forwarding.
+    // Grazie picks the vendor adapter from `X-LLM-Model` (`anthropic` for Claude,
+    // `openai` for GPT); a missing header is a 400.
 
     private static let junieHost = "ingrazzio-cloud-prod.labs.jb.gg"
     private static let junieAgentHeader = "{\"name\":\"junie:cli\",\"version\":\"2144.7\"}"
@@ -1034,7 +1036,7 @@ class ThinkingProxy {
     }
 
     /// Strips the `junie-` prefix from the request body's `model` field so the
-    /// JetBrains backend receives the real Anthropic model ID (e.g. `claude-sonnet-5-5`).
+    /// JetBrains backend receives the real model ID (e.g. `claude-opus-5-5`, `gpt-6.1-sol`).
     private func rewriteJunieModelAlias(jsonString: String, fields: RequestJSONFields?) -> String? {
         guard let model = fields?.model,
               let modelLocation = fields?.modelLocation,
@@ -1047,6 +1049,11 @@ class ThinkingProxy {
         result.replaceSubrange(modelLocation.valueRange, with: "\"\(backendModel)\"")
         ThinkingProxy.fileLog("REWRITE MODEL: \(model) -> \(backendModel) (Junie alias)")
         return result
+    }
+
+    /// Vendor adapter Grazie must use for a (prefix-stripped) Junie model ID.
+    static func junieLLMVendor(forModel model: String?) -> String {
+        (model ?? "").hasPrefix("gpt-") ? "openai" : "anthropic"
     }
 
     private func loadJunieApiKey() -> String? {
@@ -1068,7 +1075,7 @@ class ThinkingProxy {
         return nil
     }
 
-    private func forwardToJunie(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
+    private func forwardToJunie(method: String, path: String, version: String, headers: [(String, String)], body: String, model: String?, originalConnection: NWConnection) {
         guard let apiKey = loadJunieApiKey() else {
             NSLog("[ThinkingProxy] Error: No active Junie API key found")
             sendError(to: originalConnection, statusCode: 401, message: "No active Junie API key found. Please add a Junie key in DroidProxy settings.")
@@ -1088,8 +1095,10 @@ class ThinkingProxy {
                 var forwardedRequest = "\(method) \(path) \(version)\r\n"
                 // Strip client auth / hop-by-hop headers and anything provider-specific
                 // (anthropic-beta / anthropic-version) that the Grazie backend rejects.
+                // content-type is re-added below; OpenAI rejects a duplicated value
+                // ("application/json, application/json") that Anthropic tolerates.
                 let excludedHeaders: Set<String> = [
-                    "host", "content-length", "connection", "transfer-encoding",
+                    "host", "content-length", "content-type", "connection", "transfer-encoding",
                     "authorization", "anthropic-beta", "anthropic-version",
                     "accept-encoding", "x-api-key"
                 ]
@@ -1104,7 +1113,7 @@ class ThinkingProxy {
                 forwardedRequest += "Content-Type: application/json\r\n"
                 forwardedRequest += "Accept-Encoding: identity\r\n"
                 forwardedRequest += "Grazie-Agent: \(Self.junieAgentHeader)\r\n"
-                forwardedRequest += "X-LLM-Model: anthropic\r\n"
+                forwardedRequest += "X-LLM-Model: \(Self.junieLLMVendor(forModel: model))\r\n"
                 forwardedRequest += "X-Keep-Path: true\r\n"
                 forwardedRequest += "X-Accept-EAP-License: true\r\n"
                 forwardedRequest += "Connection: close\r\n"
