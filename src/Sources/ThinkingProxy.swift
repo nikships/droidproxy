@@ -278,6 +278,14 @@ class ThinkingProxy {
         let httpVersion = parts[2]
         NSLog("[ThinkingProxy] Incoming request: \(method) \(path)")
 
+        if method == "GET", let usageFilter = UsageEndpoint.filter(forRequestPath: path) {
+            Task {
+                let response = await UsageEndpoint.respond(to: usageFilter)
+                self.sendJSON(to: connection, statusCode: response.statusCode, body: response.body)
+            }
+            return
+        }
+
         // Collect headers while preserving original casing
         var headers: [(String, String)] = []
         for line in lines.dropFirst() {
@@ -981,6 +989,21 @@ class ThinkingProxy {
         responseData.append(bodyData)
         
         connection.send(content: responseData, completion: .contentProcessed({ _ in
+            connection.cancel()
+        }))
+    }
+
+    private func sendJSON(to connection: NWConnection, statusCode: Int, body: Data) {
+        let reason = statusCode == 200 ? "OK" : "Not Found"
+        let head = "HTTP/1.1 \(statusCode) \(reason)\r\n" +
+                   "Content-Type: application/json\r\n" +
+                   "Cache-Control: no-store\r\n" +
+                   "Content-Length: \(body.count)\r\n" +
+                   "Connection: close\r\n" +
+                   "\r\n"
+        var response = Data(head.utf8)
+        response.append(body)
+        connection.send(content: response, completion: .contentProcessed({ _ in
             connection.cancel()
         }))
     }

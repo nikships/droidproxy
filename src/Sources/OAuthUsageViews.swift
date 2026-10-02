@@ -92,6 +92,22 @@ struct OAuthUsageAccountGroup: View {
     let account: OAuthAccountUsage
     let showHeader: Bool
 
+    @State private var copied = false
+
+    /// Shown under the hover text; clicking any gauge copies a `curl` that
+    /// returns this account's live usage from ThinkingProxy.
+    private var copyFootnote: String {
+        copied ? "✓ curl copied" : "Click to copy a curl for this usage"
+    }
+
+    private func copyUsageCurl() {
+        let command = UsageEndpoint.curlCommand(provider: account.provider, accountID: account.id)
+        NSPasteboard.general.clearContents()
+        NSPasteboard.general.setString(command, forType: .string)
+        copied = true
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+    }
+
     var body: some View {
         VStack(alignment: .leading, spacing: 5) {
             if showHeader {
@@ -132,15 +148,20 @@ struct OAuthUsageAccountGroup: View {
                 // fall back to a compact stack so no limit is dropped.
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(account.windows) { window in
-                        UsageRingGauge(window: window, provider: account.provider, compact: true)
+                        UsageRingGauge(window: window, provider: account.provider, compact: true, footnote: copyFootnote)
                     }
                 }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: copyUsageCurl)
             } else if let first = account.windows.first {
                 DualUsageRingGauge(
                     inner: first,
                     outer: account.windows.count > 1 ? account.windows[1] : nil,
-                    provider: account.provider
+                    provider: account.provider,
+                    footnote: copyFootnote
                 )
+                .contentShape(Circle())
+                .onTapGesture(perform: copyUsageCurl)
             } else {
                 EmptyView()
             }
@@ -175,6 +196,7 @@ struct UsageRingGauge: View {
     var compact: Bool = false
     /// False when embedded in a dual gauge, which owns the combined popover.
     var showsPopover: Bool = true
+    var footnote: String?
 
     private var remaining: Double? { window.remainingPercent }
     private var scale: CGFloat { compact ? 0.5 : 1 }
@@ -227,7 +249,12 @@ struct UsageRingGauge: View {
     }
 
     private var helpText: String {
-        usageHelpText(title: window.title, remaining: remaining, resetText: window.resetText)
+        usageHelpText(
+            title: window.title,
+            remaining: remaining,
+            resetText: window.resetText,
+            footnote: footnote
+        )
     }
 }
 
@@ -244,6 +271,7 @@ struct DualUsageRingGauge: View {
     let inner: OAuthUsageWindow
     let outer: OAuthUsageWindow?
     let provider: ServiceType
+    var footnote: String?
 
     private var tint: Color {
         ProviderUsageColors.color(for: provider)
@@ -280,12 +308,15 @@ struct DualUsageRingGauge: View {
         if let outer {
             parts.append(usageHelpText(title: outer.title, remaining: outer.remainingPercent, resetText: outer.resetText))
         }
+        if let footnote { parts.append(footnote) }
         return parts.joined(separator: "\n")
     }
 }
 
-private func usageHelpText(title: String, remaining: Double?, resetText: String?) -> String {
+private func usageHelpText(title: String, remaining: Double?, resetText: String?, footnote: String? = nil) -> String {
     let usage = remaining.map { "\(Int($0.rounded()))% left" } ?? "Usage unavailable"
-    guard let reset = resetText else { return "\(title): \(usage)" }
-    return "\(title): \(usage)\nResets \(reset)"
+    var text = "\(title): \(usage)"
+    if let reset = resetText { text += "\nResets \(reset)" }
+    if let footnote { text += "\n\(footnote)" }
+    return text
 }

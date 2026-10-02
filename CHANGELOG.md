@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added
+- **Copyable usage `curl`** -- Click any quota ring in **OAuth Quota Usage** to copy a `curl` for that account's live usage. It hits the new `GET /droidproxy/usage` endpoint on the proxy port (`?provider=` and `?account=` filter), which returns each window's `remaining_percent` and `resets_in_seconds` as JSON. Paste it to an agent so it can stop near 0% and wait for the reset instead of failing requests (Droid stops retrying after about 30 seconds). Successful results are cached for 15 seconds to protect the upstream usage APIs.
+
 ### Fixed
 - **Claude Code version gate** -- Anthropic rejects OAuth requests from Claude Code builds older than 2.1.280 (`Claude Code 2.1.258 does not support this model`). CLIProxyAPI 7.3.15 identifies as `claude-cli/2.1.280 (external, cli)` on its own and assembles the 2.1.280 feature-gated betas, so the `claude-header-defaults` pin in `config.yaml` is gone. Later backend bumps keep the identity current.
 

@@ -114,8 +114,26 @@ class AuthManager: ObservableObject {
     }
 
     func checkAuthStatus() {
+        ClaudeAuthSeatFiles.migrateCanonicalFiles(in: AuthPaths.authDirectory)
+        let scannedAccounts = scanAccounts()
+        DispatchQueue.main.async {
+            var accounts = scannedAccounts
+            accounts[.meta]?.accounts = MetaMuseCredentialStore.shared.authAccounts
+            self.serviceAccounts = accounts
+        }
+    }
+
+    /// Synchronously reads every account (including Meta) from disk without
+    /// touching published state, for callers that have no view model, such as
+    /// ThinkingProxy's usage endpoint.
+    func loadAccountsSnapshot() -> [ServiceType: [AuthAccount]] {
+        var accounts = scanAccounts().mapValues(\.accounts)
+        accounts[.meta] = MetaMuseCredentialStore.shared.authAccounts
+        return accounts
+    }
+
+    private func scanAccounts() -> [ServiceType: ServiceAccounts] {
         let authDir = AuthPaths.authDirectory
-        ClaudeAuthSeatFiles.migrateCanonicalFiles(in: authDir)
         let files: [URL]
         do {
             files = try FileManager.default.contentsOfDirectory(at: authDir, includingPropertiesForKeys: nil)
@@ -134,12 +152,7 @@ class AuthManager: ObservableObject {
             NSLog("[AuthStatus] Found %@ auth: %@", account.type.displayName, account.displayName)
         }
 
-        let scannedAccounts = newAccounts
-        DispatchQueue.main.async {
-            var accounts = scannedAccounts
-            accounts[.meta]?.accounts = MetaMuseCredentialStore.shared.authAccounts
-            self.serviceAccounts = accounts
-        }
+        return newAccounts
     }
 
     /// Toggle the disabled state of a specific account's auth file

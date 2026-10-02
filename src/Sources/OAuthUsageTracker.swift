@@ -64,32 +64,49 @@ final class OAuthUsageTracker: ObservableObject {
             + enabledMeta.map { Self.loadingPlaceholder(for: $0, provider: .meta) }
 
         refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok, enabledMeta] in
-            let results = await withTaskGroup(of: OAuthAccountUsage.self) { group in
-                for account in enabledCodex {
-                    group.addTask { await Self.fetchCodexUsage(for: account) }
-                }
-                for account in enabledClaude {
-                    group.addTask { await Self.fetchClaudeUsage(for: account) }
-                }
-                for account in enabledGrok {
-                    group.addTask { await Self.fetchGrokUsage(for: account) }
-                }
-                for account in enabledMeta {
-                    group.addTask { await Self.fetchMetaUsage(for: account) }
-                }
-
-                var values: [OAuthAccountUsage] = []
-                for await result in group {
-                    values.append(result)
-                }
-                return Self.sortedAccounts(values)
-            }
+            let results = await Self.fetchUsage(
+                codex: enabledCodex,
+                claude: enabledClaude,
+                grok: enabledGrok,
+                meta: enabledMeta
+            )
 
             guard !Task.isCancelled else { return }
             self.accounts = results
             self.isRefreshing = false
         }
     }
+
+    /// Fetches usage for already-filtered accounts concurrently. Shared by the
+    /// Settings dashboard and ThinkingProxy's `/droidproxy/usage` endpoint.
+    nonisolated static func fetchUsage(
+        codex: [AuthAccount],
+        claude: [AuthAccount],
+        grok: [AuthAccount],
+        meta: [AuthAccount]
+    ) async -> [OAuthAccountUsage] {
+        await withTaskGroup(of: OAuthAccountUsage.self) { group in
+            for account in codex {
+                group.addTask { await fetchCodexUsage(for: account) }
+            }
+            for account in claude {
+                group.addTask { await fetchClaudeUsage(for: account) }
+            }
+            for account in grok {
+                group.addTask { await fetchGrokUsage(for: account) }
+            }
+            for account in meta {
+                group.addTask { await fetchMetaUsage(for: account) }
+            }
+
+            var values: [OAuthAccountUsage] = []
+            for await result in group {
+                values.append(result)
+            }
+            return sortedAccounts(values)
+        }
+    }
+
 
     /// Replaces only the Meta cards from the local last-observed store. Used
     /// for live updates when ThinkingProxy sniffs a new snapshot, so a Meta
@@ -262,7 +279,7 @@ final class OAuthUsageTracker: ObservableObject {
 
     /// `GrokAuth.ensureValidAccessToken` only serves the newest enabled Grok credential file,
     /// so other Grok auth files have no token source here and are not used for requests either.
-    nonisolated private static func activeGrokAccounts(_ accounts: [AuthAccount]) -> [AuthAccount] {
+    nonisolated static func activeGrokAccounts(_ accounts: [AuthAccount]) -> [AuthAccount] {
         guard let activeFile = GrokAuth.loadActiveCredentials()?.url.lastPathComponent else {
             return []
         }
