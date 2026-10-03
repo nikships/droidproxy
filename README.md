@@ -6,7 +6,7 @@
 
 A native macOS menu bar app that proxies Claude Code, Codex, Gemini, Kimi, GitHub Copilot, Junie, and Grok authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
 
-
+https://github.com/user-attachments/assets/d57592a2-3d3e-4ad3-b81a-91da63bb579c
 
 <p align="center">
   <img width="592" height="1119" alt="image" src="https://github.com/user-attachments/assets/2f7e1db6-9167-4d4b-a0a1-cb2e34311623" />
