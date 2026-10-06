@@ -141,6 +141,7 @@ enum DroidProxyModelCatalog {
         idSlug: String,
         displayName: String,
         maxOutputTokens: Int = 65536,
+        maxContextLimit: Int? = nil,
         levels: [DroidProxyThinkingLevel] = [high],
         defaultLevelValue: String = "high"
     ) -> DroidProxyModelDefinition {
@@ -149,6 +150,7 @@ enum DroidProxyModelCatalog {
             idSlug: idSlug,
             displayName: displayName,
             maxOutputTokens: maxOutputTokens,
+            maxContextLimit: maxContextLimit,
             provider: "openai",
             providerKey: "antigravity",
             baseURL: "http://localhost:8317/v1",
@@ -289,16 +291,18 @@ enum DroidProxyModelCatalog {
                 displayName: "Gemini 3.8 Flash (High)"
             ),
             antigravityModel(
-                baseModel: "ag-c46s-thinking",
-                idSlug: "ag-c46s-thinking",
-                displayName: "Claude Sonnet 4.6 (Thinking)",
-                maxOutputTokens: 64000
+                baseModel: "ag-c55s-high",
+                idSlug: "ag-c55s-high",
+                displayName: "Claude Sonnet 5.5 (High)",
+                maxOutputTokens: 128000,
+                maxContextLimit: 1_000_000
             ),
             antigravityModel(
-                baseModel: "ag-c46o-thinking",
-                idSlug: "ag-c46o-thinking",
-                displayName: "Claude Opus 4.6 (Thinking)",
-                maxOutputTokens: 64000
+                baseModel: "ag-c55o-high",
+                idSlug: "ag-c55o-high",
+                displayName: "Claude Opus 5.5 (High)",
+                maxOutputTokens: 128000,
+                maxContextLimit: 1_000_000
             ),
             antigravityModel(
                 baseModel: "gpt-oss-120b-medium",

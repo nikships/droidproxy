@@ -10,6 +10,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Copyable usage `curl`** -- Click any quota ring in **OAuth Quota Usage** to copy a `curl` for that account's live usage. It hits the new `GET /droidproxy/usage` endpoint on the proxy port (`?provider=` and `?account=` filter), which returns each window's `remaining_percent` and `resets_in_seconds` as JSON. Paste it to an agent so it can stop near 0% and wait for the reset instead of failing requests (Droid stops retrying after about 30 seconds). Successful results are cached for 15 seconds to protect the upstream usage APIs.
 - **Auto-start 5-hour window** -- Each of Claude, Codex, and Meta Muse has an opt-in daily toggle with a time picker (default 7:00). While DroidProxy is running, it sends one tiny request per account at that time (about 25 tokens) so the 5-hour window is already underway when you start work and resets sooner during your day. Weekly limits are unchanged, and a missed time is caught up within 2 hours.
 
+### Changed (Antigravity)
+- **Antigravity Claude is Opus 5.5 and Sonnet 5.5** -- The Antigravity Claude entries now register `ag-c55o-high` (Claude Opus 5.5 (High)) and `ag-c55s-high` (Claude Sonnet 5.5 (High)), with 128k max output and a 1M context window. The proxy maps them to CLIProxyAPI's Antigravity IDs `claude-opus-5-5-high` and `claude-sonnet-5-5-high`. The Opus 4.6 and Sonnet 4.6 (Thinking) entries are pruned on the next Apply/Re-apply; their aliases still route so old Factory settings keep working until then.
+
 ### Changed (Junie)
 - **Junie is Opus 5.5 and Sol 6.1 only** -- Junie now registers `junie-claude-opus-5-5` and the new `junie-gpt-6.1-sol` (Junie Sol 6.1, `low` through `max` effort, default `xhigh`, 272k context). Junie Sonnet 5.5 and Fable 5.1 are dropped and pruned on the next Apply/Re-apply. Sol goes to Grazie's `/v1/responses` with `X-LLM-Model: openai`; Claude keeps `X-LLM-Model: anthropic`.
 

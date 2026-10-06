@@ -168,6 +168,28 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(gemini["supportedReasoningEfforts"] as? [String], ["high"])
     }
 
+    func testAntigravityClaude55ModelsUseAliasesThatMapToRegistryIDs() throws {
+        let expected: [(slug: String, displayName: String, backend: String)] = [
+            ("ag-c55s-high", "Claude Sonnet 5.5 (High)", "claude-sonnet-5-5-high"),
+            ("ag-c55o-high", "Claude Opus 5.5 (High)", "claude-opus-5-5-high")
+        ]
+
+        for model in expected {
+            let entry = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:\(model.slug)"))
+            XCTAssertEqual(entry["model"] as? String, model.slug)
+            XCTAssertEqual(entry["provider"] as? String, "openai")
+            XCTAssertEqual(entry["baseUrl"] as? String, "http://localhost:8317/v1")
+            XCTAssertEqual(entry["displayName"] as? String, "DroidProxy: Antigravity: \(model.displayName)")
+            XCTAssertEqual(entry["maxOutputTokens"] as? Int, 128000)
+            XCTAssertEqual(entry["maxContextLimit"] as? Int, 1_000_000)
+            XCTAssertEqual(entry["supportedReasoningEfforts"] as? [String], ["high"])
+            XCTAssertEqual(ThinkingProxy.antigravityModelAliases[model.slug], model.backend)
+        }
+
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:ag-c46s-thinking"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:ag-c46o-thinking"))
+    }
+
     func testGrok47UsesOpenAIProviderAndApiXAIProxy() throws {
         let grok = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:grok-4.7"))
 
