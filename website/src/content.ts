@@ -80,6 +80,17 @@ export const models: ModelRow[] = [
     color: brandColor.claude,
   },
   {
+    icon: '/assets/icon-claude.png',
+    name: 'Claude Haiku 5.5',
+    id: 'haiku-5-5',
+    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    max: '128,000',
+    context: '1M',
+    provider: 'Anthropic',
+    group: 'Claude',
+    color: brandColor.claude,
+  },
+  {
     icon: '/assets/icon-codex.png',
     name: 'GPT 6 Astra',
     id: 'gpt-6-astra',
