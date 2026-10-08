@@ -228,6 +228,19 @@ enum DroidProxyModelCatalog {
                 levels: claudeAdvancedLevels,
                 defaultLevelValue: "xhigh"
             ),
+            DroidProxyModelDefinition(
+                baseModel: "claude-haiku-5-5",
+                idSlug: "haiku-5-5",
+                displayName: "Haiku 5.5",
+                maxOutputTokens: 128000,
+                maxContextLimit: 1_000_000,
+                provider: "anthropic",
+                providerKey: "claude",
+                baseURL: "http://localhost:8317",
+                kind: .claudeAdaptive,
+                levels: claudeAdvancedLevels,
+                defaultLevelValue: "xhigh"
+            ),
 
             // Context windows match CLIProxyAPI's Codex model registry.
             DroidProxyModelDefinition(

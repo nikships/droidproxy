@@ -93,6 +93,26 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(sonnet["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
     }
 
+    func testHaiku55IsClaudeSubscriptionOnlyAndExposesFullLevels() throws {
+        let haiku = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:haiku-5-5"))
+
+        XCTAssertEqual(haiku["model"] as? String, "claude-haiku-5-5")
+        XCTAssertEqual(haiku["displayName"] as? String, "DroidProxy: Haiku 5.5")
+        XCTAssertEqual(haiku["provider"] as? String, "anthropic")
+        XCTAssertEqual(haiku["baseUrl"] as? String, "http://localhost:8317")
+        XCTAssertEqual(haiku["maxOutputTokens"] as? Int, 128000)
+        XCTAssertEqual(haiku["maxContextLimit"] as? Int, 1_000_000)
+        XCTAssertEqual(haiku["enableThinking"] as? Bool, true)
+        XCTAssertEqual(haiku["reasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(haiku["defaultReasoningEffort"] as? String, "xhigh")
+        XCTAssertEqual(haiku["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+
+        let haikuDefinitions = DroidProxyModelCatalog.definitions.filter {
+            $0.baseModel.contains("haiku-5-5")
+        }
+        XCTAssertEqual(haikuDefinitions.map(\.providerKey), ["claude"])
+    }
+
     func testGpt61SolAndLunaUseNativeModelMetadata() throws {
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:gpt-6-sol"))
 
