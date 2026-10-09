@@ -447,7 +447,6 @@ class ThinkingProxy {
     static let antigravityModelAliases: [String: String] = [
         "ag-c55s-high": "claude-sonnet-5-5-high",
         "ag-c55o-high": "claude-opus-5-5-high",
-        // Retired catalog entries; kept so Factory settings that were not re-applied still route.
         "ag-c46s-thinking": "claude-sonnet-4-6",
         "ag-c46o-thinking": "claude-opus-4-6-thinking"
     ]
