@@ -236,9 +236,7 @@ h1.title {
   bottom: 8%;
   width: 176px;
   height: auto;
-  background: var(--bg);
-  border-radius: var(--radius);
-  border: 1px solid var(--border);
+  filter: drop-shadow(0 12px 28px rgba(0, 0, 0, 0.45));
   pointer-events: none;
 }
 

@@ -39,7 +39,7 @@ export default function HeroSection() {
           <img
             className="settings-shot"
             src="/assets/settings-screenshot.png"
-            alt="DroidProxy Settings — Claude, ChatGPT, and Gemini connected, Factory custom models applied."
+            alt="DroidProxy Settings — server running, OAuth quota rings for Claude and Codex, Factory custom models applied."
             loading="eager"
           />
         </div>

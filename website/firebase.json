@@ -1,5 +1,6 @@
 {
   "hosting": {
+    "site": "droidproxy",
     "public": "dist",
     "ignore": [
       "firebase.json",
