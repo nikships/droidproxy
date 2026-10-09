@@ -303,19 +303,21 @@ enum DroidProxyModelCatalog {
                 idSlug: "gemini-3.8-flash-high",
                 displayName: "Gemini 3.8 Flash (High)"
             ),
+            // Google's Antigravity upstream only serves Claude 4.6 (fetchAvailableModels returns
+            // claude-sonnet-4-6 and claude-opus-4-6-thinking). CLIProxyAPI's static registry lists
+            // claude-*-5-5-high, but those IDs are never registered for a live account, so requests
+            // fail with `unknown provider for model`.
             antigravityModel(
-                baseModel: "ag-c55s-high",
-                idSlug: "ag-c55s-high",
-                displayName: "Claude Sonnet 5.5 (High)",
-                maxOutputTokens: 128000,
-                maxContextLimit: 1_000_000
+                baseModel: "ag-c46s-thinking",
+                idSlug: "ag-c46s-thinking",
+                displayName: "Claude Sonnet 4.6 (Thinking)",
+                maxOutputTokens: 64000
             ),
             antigravityModel(
-                baseModel: "ag-c55o-high",
-                idSlug: "ag-c55o-high",
-                displayName: "Claude Opus 5.5 (High)",
-                maxOutputTokens: 128000,
-                maxContextLimit: 1_000_000
+                baseModel: "ag-c46o-thinking",
+                idSlug: "ag-c46o-thinking",
+                displayName: "Claude Opus 4.6 (Thinking)",
+                maxOutputTokens: 64000
             ),
             antigravityModel(
                 baseModel: "gpt-oss-120b-medium",

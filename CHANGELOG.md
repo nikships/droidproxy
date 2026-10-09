@@ -13,13 +13,11 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 ### Added (Claude)
 - **Claude Haiku 5.5** -- Claude OAuth subscriptions now register `claude-haiku-5-5` as `DroidProxy: Haiku 5.5` (`low` through `max` effort, default `xhigh`, 128k max output, 1M context). It is Claude-subscription only; Antigravity, Junie, and Copilot do not get a Haiku 5.5 entry. Requests fail with `unknown provider for model claude-haiku-5-5` until the bundled CLIProxyAPI (or its remote model catalog) lists the model.
 
-### Changed (Antigravity)
-- **Antigravity Claude is Opus 5.5 and Sonnet 5.5** -- The Antigravity Claude entries now register `ag-c55o-high` (Claude Opus 5.5 (High)) and `ag-c55s-high` (Claude Sonnet 5.5 (High)), with 128k max output and a 1M context window. The proxy maps them to CLIProxyAPI's Antigravity IDs `claude-opus-5-5-high` and `claude-sonnet-5-5-high`. The Opus 4.6 and Sonnet 4.6 (Thinking) entries are pruned on the next Apply/Re-apply; their aliases still route so old Factory settings keep working until then.
-
 ### Changed (Junie)
 - **Junie is Opus 5.5 and Sol 6.1 only** -- Junie now registers `junie-claude-opus-5-5` and the new `junie-gpt-6.1-sol` (Junie Sol 6.1, `low` through `max` effort, default `xhigh`, 272k context). Junie Sonnet 5.5 and Fable 5.1 are dropped and pruned on the next Apply/Re-apply. Sol goes to Grazie's `/v1/responses` with `X-LLM-Model: openai`; Claude keeps `X-LLM-Model: anthropic`.
 
 ### Fixed
+- **Antigravity Claude 5.5 failed with `unknown provider for model claude-sonnet-5-5-high`** -- Google's Antigravity upstream only serves Claude Sonnet 4.6 and Opus 4.6 (Thinking) (`fetchAvailableModels` never returns the 5.5 IDs), so CLIProxyAPI never registers `claude-sonnet-5-5-high` / `claude-opus-5-5-high` for a live account even though they sit in its static catalog. The Antigravity Claude entries are back to `ag-c46s-thinking` and `ag-c46o-thinking` (64k max output). Factory settings that still hold `ag-c55s-high` / `ag-c55o-high` now route to the 4.6 models instead of erroring, and the 5.5 entries are pruned on the next Apply/Re-apply.
 - **Stale Meta Muse quota** -- Meta has no usage endpoint, so the rings only updated while streamed Meta traffic flowed through the proxy and could be hours out of date. Refreshing quota (Settings or `/droidproxy/usage`) now probes each Meta account with a 16-token streamed request when its stored snapshot is over 60 seconds old, then records the same `response.subscription_usage` data. A failed probe falls back to the stored "as of" value.
 - **Claude Code version gate** -- Anthropic rejects OAuth requests from Claude Code builds older than 2.1.280 (`Claude Code 2.1.258 does not support this model`). CLIProxyAPI 7.3.15 identifies as `claude-cli/2.1.280 (external, cli)` on its own and assembles the 2.1.280 feature-gated betas, so the `claude-header-defaults` pin in `config.yaml` is gone. Later backend bumps keep the identity current.
 
