@@ -31,7 +31,7 @@ def check(strategy, failure_status):
             seen.append(account)
             failed = account == seen[0]
             payload = {"error": {"message": "mock failure", "type": "upstream_error"}} if failed else {
-                "id": "test", "object": "chat.completion", "model": "muse-spark-1.3",
+                "id": "test", "object": "chat.completion", "model": "muse-wonder-1.0",
                 "choices": [{"index": 0, "message": {"role": "assistant", "content": "ok"},
                              "finish_reason": "stop"}],
             }
@@ -67,8 +67,8 @@ openai-compatibility:
       - api-key: "fake-account-one"
       - api-key: "fake-account-two"
     models:
-      - name: "muse-spark-1.3"
-      - name: "muse-spark-1.3-contributor"
+      - name: "muse-wonder-1.0"
+      - name: "muse-wonder-1.0-contributor"
 """)
             with (pathlib.Path(tmp) / "backend.log").open("w") as log:
                 process = subprocess.Popen(
@@ -86,7 +86,7 @@ openai-compatibility:
                             time.sleep(0.1)
                     request = urllib.request.Request(
                         f"http://127.0.0.1:{port}/v1/chat/completions",
-                        data=json.dumps({"model": "muse-spark-1.3", "stream": False,
+                        data=json.dumps({"model": "muse-wonder-1.0", "stream": False,
                                          "messages": [{"role": "user", "content": "test"}]}).encode(),
                         headers={"Content-Type": "application/json"},
                     )

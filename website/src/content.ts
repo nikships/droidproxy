@@ -32,7 +32,7 @@ export const providers: Provider[] = [
   { icon: '/assets/icon-copilot.png', name: 'Copilot', lab: 'GitHub', note: '3 models', color: brandColor.copilot },
   { icon: '/assets/icon-grok.svg', name: 'Grok', lab: 'xAI', note: 'SuperGrok', color: brandColor.grok },
   { icon: '/assets/icon-kimi.svg', name: 'Kimi', lab: 'Moonshot', note: 'Kimi Code', color: brandColor.kimi },
-  { icon: '/assets/icon-meta.svg', name: 'Muse', lab: 'Meta', note: 'Muse Spark', color: brandColor.muse },
+  { icon: '/assets/icon-meta.svg', name: 'Muse', lab: 'Meta', note: 'Muse Wonder', color: brandColor.muse },
   { icon: '/assets/icon-junie.svg', name: 'Junie', lab: 'JetBrains', note: 'API key', color: brandColor.junie },
 ]
 
@@ -270,9 +270,9 @@ export const models: ModelRow[] = [
   },
   {
     icon: '/assets/icon-meta.svg',
-    name: 'Muse Spark 1.3',
-    id: 'muse-spark-1.3',
-    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    name: 'Muse Wonder 1.0',
+    id: 'muse-wonder-1.0',
+    levels: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
     max: '256,000',
     context: '1M',
     provider: 'Meta',

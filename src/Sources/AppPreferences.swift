@@ -4,8 +4,8 @@ enum AppPreferences {
     static let gpt6AstraFastModeKey = "gpt6AstraFastMode"
     static let gpt61SolFastModeKey = "gpt61SolFastMode"
     static let gpt6LunaFastModeKey = "gpt6LunaFastMode"
-    /// Meta Muse Contributor Mode: apply `muse-spark-1.3-contributor` instead of
-    /// `muse-spark-1.3` when Factory custom models are applied. Exactly one of
+    /// Meta Muse Contributor Mode: apply `muse-wonder-1.0-contributor` instead of
+    /// `muse-wonder-1.0` when Factory custom models are applied. Exactly one of
     /// the two variants is ever active - never both.
     static let metaContributorModeKey = "metaContributorMode"
     static let allowRemoteKey = "allowRemote"

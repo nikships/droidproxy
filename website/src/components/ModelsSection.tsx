@@ -91,7 +91,7 @@ export default function ModelsSection() {
         </div>
 
         <p className="table-note">
-          Copilot is account-specific — pick up to three models from your GitHub plan in Settings. Muse Spark 1.3 Contributor replaces Muse Spark 1.3 when Contributor Mode is on. Image models (Grok Imagine Image 2.0, GPT Image 2.5 Flare and Sunburst) are separate skills, not chat entries.
+          Copilot is account-specific — pick up to three models from your GitHub plan in Settings. Muse Wonder 1.0 Contributor replaces Muse Wonder 1.0 when Contributor Mode is on. Image models (Grok Imagine Image 2.0, GPT Image 2.5 Flare and Sunburst) are separate skills, not chat entries.
         </p>
       </div>
     </section>

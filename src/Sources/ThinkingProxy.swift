@@ -17,7 +17,7 @@ import Network
    support Gemini via the Responses API endpoint.
  - Rewrites Grok native `<|tool_calls_begin|>` markup leaked into chat-completion
    content into OpenAI `tool_calls` so Factory's generic OpenAI adapter executes them.
- - TLS-forwards Muse Spark `/v1/responses` (and `/responses/compact`) to
+ - TLS-forwards Muse Wonder `/v1/responses` (and `/responses/compact`) to
    `api.meta.ai` so CLIProxyAPI cannot translate Responses into Chat Completions.
 
  JSON edits and hot-path inspections are surgical (no full JSON re-serialization) so
@@ -1292,7 +1292,7 @@ class ThinkingProxy {
 
     // MARK: - Meta Muse (minted key → api.meta.ai Responses)
 
-    // Muse Spark is Responses-native. CLIProxyAPI `openai-compatibility` always
+    // Muse Wonder is Responses-native. CLIProxyAPI `openai-compatibility` always
     // POSTs `/chat/completions` for `/v1/responses`, which returns `chatcmpl-*`
     // ids and drops `reasoning.encrypted_content`. Completions still go through
     // CLIProxyAPI so multi-account failover keeps working.

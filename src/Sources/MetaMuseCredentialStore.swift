@@ -184,8 +184,8 @@ final class MetaMuseCredentialStore {
             api-key-entries:
         \(entries)
             models:
-              - name: "muse-spark-1.3"
-              - name: "muse-spark-1.3-contributor"
+              - name: "muse-wonder-1.0"
+              - name: "muse-wonder-1.0-contributor"
 
         """
     }

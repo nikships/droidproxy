@@ -102,6 +102,7 @@ struct DroidProxyModelDefinition: Equatable {
 }
 
 enum DroidProxyModelCatalog {
+    private static let minimal = DroidProxyThinkingLevel(value: "minimal", displayName: "Minimal")
     private static let low = DroidProxyThinkingLevel(value: "low", displayName: "Low")
     private static let medium = DroidProxyThinkingLevel(value: "medium", displayName: "Medium")
     private static let high = DroidProxyThinkingLevel(value: "high", displayName: "High")
@@ -111,12 +112,12 @@ enum DroidProxyModelCatalog {
     private static let claudeAdvancedLevels = [low, medium, high, xhigh, max]
     private static let codexLevels = [low, medium, high, xhigh]
     private static let gpt6Levels = [low, medium, high, xhigh, max]
-    // Full reasoning-effort range the `muse` CLI itself exposes for Muse Spark
-    // (`--reasoning-effort none|minimal|low|medium|high|xhigh|max|ultra`), minus
-    // `none`/`minimal`/`ultra` which aren't meaningful defaults for a coding model.
-    private static let museLevels = [low, medium, high, xhigh, max]
+    // Every reasoning-effort level `api.meta.ai` accepts for Muse Wonder
+    // (verified live for both variants: `minimal` through `max` return 200;
+    // `none` and `ultra` return 400, so they are not advertised).
+    private static let museLevels = [minimal, low, medium, high, xhigh, max]
 
-    /// Muse Spark 1.3 and its cheaper/faster "contributor" companion. Completions
+    /// Muse Wonder 1.0 and its cheaper/faster "contributor" companion. Completions
     /// go through CLIProxyAPI's `openai-compatibility` passthrough; Responses are
     /// TLS-forwarded by ThinkingProxy to `https://api.meta.ai/v1` so encrypted
     /// reasoning can persist across turns.
@@ -437,18 +438,18 @@ enum DroidProxyModelCatalog {
         // written into Factory's customModels configuration.
         list.append(contentsOf: CopilotModelPreferences.selectedModels.map(copilotModel))
 
-        // Only expose Muse Spark with an enabled, usable key, matching backend
+        // Only expose Muse Wonder with an enabled, usable key, matching backend
         // configuration eligibility. Contributor Mode picks exactly one of the two variants;
         // they are never both applied at once.
         if MetaMuseCredentialStore.shared.hasUsableAPIKey {
             if AppPreferences.metaContributorMode {
                 list.append(museModel(
-                    baseModel: "muse-spark-1.3-contributor",
-                    idSlug: "muse-spark-1.3-contributor",
-                    displayName: "Muse Spark 1.3 Contributor"
+                    baseModel: "muse-wonder-1.0-contributor",
+                    idSlug: "muse-wonder-1.0-contributor",
+                    displayName: "Muse Wonder 1.0 Contributor"
                 ))
             } else {
-                list.append(museModel(baseModel: "muse-spark-1.3", idSlug: "muse-spark-1.3", displayName: "Muse Spark 1.3"))
+                list.append(museModel(baseModel: "muse-wonder-1.0", idSlug: "muse-wonder-1.0", displayName: "Muse Wonder 1.0"))
             }
         }
 

@@ -1423,7 +1423,7 @@ struct SettingsView: View {
                 self.metaVerificationURL = nil
                 switch result {
                 case .success:
-                    self.authResultMessage = "Meta Muse connected.\n\nMuse Spark 1.3 and Muse Spark 1.3 Contributor are now available. Re-apply Factory custom models to pick them up."
+                    self.authResultMessage = "Meta Muse connected.\n\nMuse Wonder 1.0 and Muse Wonder 1.0 Contributor are now available. Re-apply Factory custom models to pick them up."
                 case .failure(let error):
                     self.authResultMessage = "Meta Muse authentication failed: \(error.localizedDescription)"
                 }
@@ -1440,21 +1440,21 @@ struct SettingsView: View {
     }
 
     /// Same visual language as `codexFastModeToggleRow`, but a single toggle:
-    /// Contributor Mode picks `muse-spark-1.3-contributor` instead of
-    /// `muse-spark-1.3` when Factory custom models are applied. The two
+    /// Contributor Mode picks `muse-wonder-1.0-contributor` instead of
+    /// `muse-wonder-1.0` when Factory custom models are applied. The two
     /// variants are mutually exclusive - `DroidProxyModelCatalog` only ever
     /// emits one of them.
     @ViewBuilder
     private func metaContributorModeRow() -> some View {
         HStack {
-            Text("Muse Spark")
+            Text("Muse Wonder")
                 .font(.caption)
                 .foregroundColor(.secondary)
             Spacer()
             Toggle("Contributor mode", isOn: $metaContributorMode)
                 .toggleStyle(.checkbox)
                 .font(.caption)
-                .help("Applies Muse Spark 1.3 Contributor instead of Muse Spark 1.3 when Factory custom models are applied. Only one is ever active.")
+                .help("Applies Muse Wonder 1.0 Contributor instead of Muse Wonder 1.0 when Factory custom models are applied. Only one is ever active.")
         }
         .padding(.vertical, 2)
         .onChange(of: metaContributorMode) { _ in

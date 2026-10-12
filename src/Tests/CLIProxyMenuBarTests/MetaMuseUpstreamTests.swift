@@ -28,10 +28,10 @@ final class MetaMuseUpstreamTests: XCTestCase {
         XCTAssertEqual(headers.map(\.1), [nativeUserAgent])
     }
 
-    func testRecognizesMuseSparkModels() {
-        XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-spark-1.3"))
-        XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-spark-1.3-contributor"))
-        XCTAssertFalse(MetaMuseUpstream.isMetaModel("muse-spark-1.2"))
+    func testRecognizesMuseWonderModels() {
+        XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-wonder-1.0"))
+        XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-wonder-1.0-contributor"))
+        XCTAssertFalse(MetaMuseUpstream.isMetaModel("muse-spark-1.3"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel("gpt-6-sol"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel("grok-4.6"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel(nil))
@@ -49,13 +49,13 @@ final class MetaMuseUpstreamTests: XCTestCase {
 
     func testTLSForwardsOnlyMuseResponses() {
         XCTAssertTrue(MetaMuseUpstream.shouldTLSForward(
-            model: "muse-spark-1.3-contributor", path: "/v1/responses"
+            model: "muse-wonder-1.0-contributor", path: "/v1/responses"
         ))
         XCTAssertTrue(MetaMuseUpstream.shouldTLSForward(
-            model: "muse-spark-1.3", path: "/api/v1/responses"
+            model: "muse-wonder-1.0", path: "/api/v1/responses"
         ))
         XCTAssertFalse(MetaMuseUpstream.shouldTLSForward(
-            model: "muse-spark-1.3-contributor", path: "/v1/chat/completions"
+            model: "muse-wonder-1.0-contributor", path: "/v1/chat/completions"
         ))
         XCTAssertFalse(MetaMuseUpstream.shouldTLSForward(
             model: "gpt-5.4", path: "/v1/responses"

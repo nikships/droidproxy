@@ -36,7 +36,7 @@ enum MetaMuseUsageProbe {
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("text/event-stream", forHTTPHeaderField: "Accept")
         request.setValue("muse-build/1.3.0", forHTTPHeaderField: "User-Agent")
-        request.httpBody = Data(#"{"model":"muse-spark-1.3","input":"hi","max_output_tokens":16,"stream":true}"#.utf8)
+        request.httpBody = Data(#"{"model":"muse-wonder-1.0","input":"hi","max_output_tokens":16,"stream":true}"#.utf8)
 
         do {
             let (bytes, response) = try await URLSession.shared.bytes(for: request)

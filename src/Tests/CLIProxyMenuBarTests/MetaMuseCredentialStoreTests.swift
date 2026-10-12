@@ -97,7 +97,9 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
         let config = MetaMuseCredentialStore.compatibilityConfig(accounts: [alice, bob], enabled: true)
         XCTAssertEqual(config.components(separatedBy: "- api-key:").count - 1, 2)
         XCTAssertTrue(config.contains("quote\\\"\\\\\\nkey"))
-        XCTAssertTrue(config.contains("muse-spark-1.3-contributor"))
+        XCTAssertTrue(config.contains("muse-wonder-1.0-contributor"))
+        XCTAssertTrue(config.contains("muse-wonder-1.0"))
+        XCTAssertFalse(config.contains("muse-spark"))
         alice.disabled = true
         bob.credentials.apiKeyExpiresAt = .distantPast
         XCTAssertEqual(MetaMuseCredentialStore.compatibilityConfig(accounts: [alice, bob], enabled: true), "")

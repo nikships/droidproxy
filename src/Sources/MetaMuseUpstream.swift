@@ -1,6 +1,6 @@
 import Foundation
 
-/// Muse Spark is Responses-native. The Muse Code CLI posts `/v1/responses` with
+/// Muse Wonder is Responses-native. The Muse Code CLI posts `/v1/responses` with
 /// `reasoning.effort` and `include: ["reasoning.encrypted_content"]` so later
 /// turns can resume thinking. CLIProxyAPI's generic `openai-compatibility`
 /// executor translates `/v1/responses` into `/chat/completions` (`chatcmpl-*`
@@ -27,7 +27,7 @@ enum MetaMuseUpstream {
 
     static func isMetaModel(_ model: String?) -> Bool {
         guard let model, !model.isEmpty else { return false }
-        return model == "muse-spark-1.3" || model.hasPrefix("muse-spark-1.3-")
+        return model == "muse-wonder-1.0" || model.hasPrefix("muse-wonder-1.0-")
     }
 
     static func isResponsesPath(_ path: String) -> Bool {

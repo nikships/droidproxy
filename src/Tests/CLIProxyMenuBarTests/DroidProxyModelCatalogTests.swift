@@ -4,7 +4,7 @@ import XCTest
 
 final class DroidProxyModelCatalogTests: XCTestCase {
     func testBothMuseVariantsApplyMaxReasoning() {
-        for model in ["muse-spark-1.3", "muse-spark-1.3-contributor"] {
+        for model in ["muse-wonder-1.0", "muse-wonder-1.0-contributor"] {
             let entry = DroidProxyModelCatalog.museModel(
                 baseModel: model, idSlug: model, displayName: model
             ).settingsEntry
@@ -12,7 +12,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
             XCTAssertEqual(entry["defaultReasoningEffort"] as? String, "max")
             XCTAssertEqual(entry["reasoningEffort"] as? String, "max")
             XCTAssertEqual(entry["supportedReasoningEfforts"] as? [String],
-                           ["low", "medium", "high", "xhigh", "max"])
+                           ["minimal", "low", "medium", "high", "xhigh", "max"])
         }
     }
     func testFable51ExposesFullEffortLevels() throws {
