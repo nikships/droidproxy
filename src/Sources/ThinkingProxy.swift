@@ -1151,11 +1151,12 @@ class ThinkingProxy {
         relayUpstreamResponse(from: targetConnection, originalConnection: originalConnection, label: "Junie")
     }
 
-    // MARK: - Grok (OAuth → api.x.ai)
+    // MARK: - Grok (OAuth → cli-chat-proxy.grok.com)
     //
     // Credentials live in ~/.cli-proxy-api/grok-cli.json (type: grok-cli).
-    // Attach the OAuth bearer and forward to api.x.ai — same TLS pattern as
-    // Junie, with path normalization and a single Content-Type.
+    // Attach the OAuth bearer and forward to the Grok Build proxy (api.x.ai for
+    // Grok Imagine only) — same TLS pattern as Junie, with path normalization
+    // and a single Content-Type.
 
     private func isGrokModel(_ requestFields: RequestJSONFields?) -> Bool {
         guard let model = requestFields?.model else {

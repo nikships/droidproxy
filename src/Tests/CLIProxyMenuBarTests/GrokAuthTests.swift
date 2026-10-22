@@ -234,11 +234,27 @@ final class GrokAuthTests: XCTestCase {
         XCTAssertEqual(GrokAuth.apiHost, "api.x.ai")
     }
 
-    func testFastModelRoutesToBuildProxy() {
-        XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-4.7"), "api.x.ai")
-        XCTAssertEqual(GrokAuth.upstreamHost(forModel: nil), "api.x.ai")
+    func testChatModelsRouteToBuildProxy() {
+        XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-4.7"), "cli-chat-proxy.grok.com")
+        XCTAssertEqual(GrokAuth.upstreamHost(forModel: nil), "cli-chat-proxy.grok.com")
         XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-4.7-build-fast"), "cli-chat-proxy.grok.com")
-        XCTAssertTrue(GrokAuth.upstreamAuthHeaders(forModel: "grok-4.7").isEmpty)
+        XCTAssertEqual(
+            GrokAuth.upstreamAuthHeaders(forModel: "grok-4.7").map(\.1),
+            ["xai-grok-cli", "grok-4.7", "1.0.40", "grok-shell"]
+        )
+        XCTAssertEqual(
+            GrokAuth.upstreamAuthHeaders(forModel: nil).map(\.0),
+            ["X-XAI-Token-Auth", "x-grok-client-version", "x-grok-client-identifier"]
+        )
+    }
+
+    func testImagineModelsStayOnPublicAPI() {
+        XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-imagine-image-2.0"), "api.x.ai")
+        XCTAssertTrue(GrokAuth.upstreamAuthHeaders(forModel: "grok-imagine-image-2.0").isEmpty)
+    }
+
+    func testFastModelRoutesToBuildProxy() {
+        XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-4.7-build-fast"), "cli-chat-proxy.grok.com")
         XCTAssertEqual(
             GrokAuth.upstreamAuthHeaders(forModel: "grok-4.7-build-fast").map(\.0),
             ["X-XAI-Token-Auth", "x-grok-model-override", "x-grok-client-version", "x-grok-client-identifier"]

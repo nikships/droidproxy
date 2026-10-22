@@ -20,11 +20,12 @@ enum GrokAuth {
     static let tokenURL = URL(string: "https://auth.x.ai/oauth2/token")!
     static let deviceGrantType = "urn:ietf:params:oauth:grant-type:device_code"
 
-    /// Public xAI API host. Serves `grok-4.7`.
+    /// Public xAI API host. Bills as X API usage, so only Grok Imagine uses it.
     static let apiHost = "api.x.ai"
 
-    /// Grok Build chat proxy. Serves `grok-4.7-build-fast`, which the public API does not.
-    /// Routing uses `x-grok-model-override`; the JSON `model` field is the same id.
+    /// Grok Build chat proxy. Serves `grok-4.7` and `grok-4.7-build-fast` and bills
+    /// them as Grok Build usage. Routing uses `x-grok-model-override`; the JSON
+    /// `model` field is the same id.
     static let buildProxyHost = "cli-chat-proxy.grok.com"
     static let fastModelID = "grok-4.7-build-fast"
     /// Build proxy rejects requests that omit this (`version (none) is outdated`).
@@ -203,21 +204,28 @@ enum GrokAuth {
         }
     }
 
-    /// `grok-4.7` stays on `api.x.ai`. The fast variant is a separate model id
-    /// on the Grok Build proxy, using the same SuperGrok OAuth bearer.
-    static func upstreamHost(forModel model: String?) -> String {
-        model == fastModelID ? buildProxyHost : apiHost
+    /// Image models are the only thing still sent to the public API. Everything
+    /// else must go through the Grok Build proxy: `api.x.ai` bills the same OAuth
+    /// bearer as X API usage, while the Build proxy bills it as Grok Build.
+    static func usesBuildProxy(forModel model: String?) -> Bool {
+        guard let model else { return true }
+        return !model.hasPrefix("grok-imagine")
     }
 
-    /// Headers the Build proxy requires to route the fast model. Empty for `api.x.ai`.
+    static func upstreamHost(forModel model: String?) -> String {
+        usesBuildProxy(forModel: model) ? buildProxyHost : apiHost
+    }
+
+    /// Headers the Build proxy requires. Empty for `api.x.ai`.
     static func upstreamAuthHeaders(forModel model: String?) -> [(String, String)] {
-        guard model == fastModelID else { return [] }
-        return [
-            ("X-XAI-Token-Auth", "xai-grok-cli"),
-            ("x-grok-model-override", fastModelID),
-            ("x-grok-client-version", buildProxyClientVersion),
-            ("x-grok-client-identifier", "grok-shell")
-        ]
+        guard usesBuildProxy(forModel: model) else { return [] }
+        var headers: [(String, String)] = [("X-XAI-Token-Auth", "xai-grok-cli")]
+        if let model {
+            headers.append(("x-grok-model-override", model))
+        }
+        headers.append(("x-grok-client-version", buildProxyClientVersion))
+        headers.append(("x-grok-client-identifier", "grok-shell"))
+        return headers
     }
 
     /// Normalize a client path to `/v1/...` for api.x.ai.

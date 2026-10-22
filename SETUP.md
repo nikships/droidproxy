@@ -22,7 +22,7 @@ For **Grok 4.7** and **Grok 4.7 Fast** (SuperGrok / X Premium+ OAuth):
 2. Click **Apply** / **Re-apply** under Factory models (registers `custom:droidproxy:grok-4.7` and `custom:droidproxy:grok-4.7-build-fast`)
 3. In Droid, `/model` → **DroidProxy: Grok 4.7** or **DroidProxy: Grok 4.7 Fast**
 
-Grok 4.7 is forwarded to `api.x.ai`. Grok 4.7 Fast (`grok-4.7-build-fast`) is the same model on faster infrastructure and is forwarded to `cli-chat-proxy.grok.com` with `x-grok-model-override`. The public xAI API does not serve that id.
+Grok 4.7 and Grok 4.7 Fast (`grok-4.7-build-fast`, the same model on faster infrastructure) are both forwarded to `cli-chat-proxy.grok.com` with `x-grok-model-override`, so usage counts as Grok Build rather than X API. The public xAI API does not serve the fast id.
 
 Apply also removes retired ids, including the old Cursor models (`cursor-composer-2.5`, `cursor-grok-4.6`, `cursor-grok-4.5`, `cursor-small`, `cursor-grok-4.6-fast`) and `grok-4.5` / `grok-4.6`, from `~/.factory/settings.json`.
 

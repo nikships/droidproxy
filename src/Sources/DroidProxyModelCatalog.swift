@@ -402,8 +402,8 @@ enum DroidProxyModelCatalog {
 
             // Grok OAuth (SuperGrok / X Premium+) .
             // provider="openai" + /v1 → Responses API; ThinkingProxy attaches the bearer.
-            // grok-4.7 goes to api.x.ai. grok-4.7-build-fast is the same model on
-            // faster infrastructure (2x price) and is served only by cli-chat-proxy.
+            // Both go to cli-chat-proxy (Grok Build billing); api.x.ai would bill as X API.
+            // grok-4.7-build-fast is the same model on faster infrastructure (2x price).
             // Context window from docs.x.ai: grok-4.7=500k.
             DroidProxyModelDefinition(
                 baseModel: "grok-4.7",
