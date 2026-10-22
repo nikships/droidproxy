@@ -248,6 +248,12 @@ final class GrokAuthTests: XCTestCase {
         )
     }
 
+    func testModelOverrideOmittedWhenModelContainsLineBreaks() {
+        let headers = GrokAuth.upstreamAuthHeaders(forModel: "grok-4.7\r\nX-Injected: 1")
+        XCTAssertFalse(headers.contains { $0.0 == "x-grok-model-override" })
+        XCTAssertFalse(headers.contains { $0.0.contains("Injected") || $0.1.contains("Injected") })
+    }
+
     func testImagineModelsStayOnPublicAPI() {
         XCTAssertEqual(GrokAuth.upstreamHost(forModel: "grok-imagine-image-2.0"), "api.x.ai")
         XCTAssertTrue(GrokAuth.upstreamAuthHeaders(forModel: "grok-imagine-image-2.0").isEmpty)

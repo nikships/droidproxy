@@ -220,7 +220,9 @@ enum GrokAuth {
     static func upstreamAuthHeaders(forModel model: String?) -> [(String, String)] {
         guard usesBuildProxy(forModel: model) else { return [] }
         var headers: [(String, String)] = [("X-XAI-Token-Auth", "xai-grok-cli")]
-        if let model {
+        // The model id comes from the client's JSON body and is written into a raw HTTP
+        // header line, so a CR/LF in it would inject headers.
+        if let model, !model.unicodeScalars.contains(where: { $0 == "\r" || $0 == "\n" }) {
             headers.append(("x-grok-model-override", model))
         }
         headers.append(("x-grok-client-version", buildProxyClientVersion))
