@@ -330,7 +330,8 @@ struct SettingsView: View {
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var copilotGateway: CopilotGatewayManager
     @ObservedObject var metaMuseAuth: MetaMuseAuthManager
-    @StateObject private var authManager = AuthManager()
+    @ObservedObject var providers: ProviderController
+    @ObservedObject private var authManager: AuthManager
     @StateObject private var oauthUsageTracker = OAuthUsageTracker()
     @State private var launchAtLogin = false
     @AppStorage(AppPreferences.gpt6AstraFastModeKey) private var gpt6AstraFastMode = AppPreferences.defaultGpt6AstraFastMode
@@ -345,20 +346,12 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.betaFlagKey) private var betaFlag = AppPreferences.defaultBetaFlag
     @AppStorage(AppPreferences.verboseLoggingKey) private var verboseLogging = AppPreferences.defaultVerboseLogging
     @AppStorage(AppPreferences.sequentialAccountFailoverKey) private var sequentialAccountFailover = AppPreferences.defaultSequentialAccountFailover
-    @State private var authenticatingService: ServiceType? = nil
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
     @State private var showingJunieApiKeyAlert = false
     @State private var junieApiKey = ""
-    @State private var grokLoginSession: GrokAuth.LoginSession?
-    @State private var grokUserCode: String?
-    @State private var copilotDeviceCode: String?
-    @State private var copilotVerificationURL: URL?
-    @State private var metaDeviceCode: String?
-    @State private var metaVerificationURL: URL?
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
-    @State private var factoryModelsInstalled = false
     @State private var remoteManagementExpanded = false
     @State private var advancedExpanded = false
     @State private var factoryCTAPulse = false
@@ -377,14 +370,12 @@ struct SettingsView: View {
     private let metaSelectionColor = Color(red: 0x08/255, green: 0x66/255, blue: 0xFF/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
-    init(
-        serverManager: ServerManager,
-        copilotGateway: CopilotGatewayManager,
-        metaMuseAuth: MetaMuseAuthManager
-    ) {
-        self.serverManager = serverManager
-        self.copilotGateway = copilotGateway
-        self.metaMuseAuth = metaMuseAuth
+    init(providers: ProviderController) {
+        self.serverManager = providers.serverManager
+        self.copilotGateway = providers.copilotGateway
+        self.metaMuseAuth = providers.metaMuseAuth
+        self.providers = providers
+        self.authManager = providers.authManager
         let selected = CopilotModelPreferences.selectedModelIDs
         _copilotModelSlots = State(
             initialValue: selected + Array(
@@ -430,8 +421,32 @@ struct SettingsView: View {
     }
     
     private enum Timing {
-        static let serverRestartDelay: TimeInterval = 0.3
         static let refreshDebounce: TimeInterval = 0.5
+    }
+
+    private var factoryModelsInstalled: Bool {
+        providers.factoryStatus.isApplied
+    }
+
+    private var copilotDeviceCode: String? {
+        providers.connects[.copilot]?.userCode
+    }
+
+    private var copilotVerificationURL: URL? {
+        providers.connects[.copilot]?.verificationURI.flatMap(URL.init(string:))
+    }
+
+    private var metaDeviceCode: String? {
+        providers.connects[.meta]?.userCode
+    }
+
+    private var metaVerificationURL: URL? {
+        providers.connects[.meta]?.verificationURI.flatMap(URL.init(string:))
+    }
+
+    private func showAuthResult(_ message: String) {
+        authResultMessage = message
+        showingAuthResult = true
     }
 
     private var appVersion: String {
@@ -757,18 +772,18 @@ struct SettingsView: View {
             authManager.checkAuthStatus()
             checkLaunchAtLogin()
             startMonitoringAuthDirectory()
-            factoryModelsInstalled = checkFactoryModelsInstalled()
+            providers.refreshFactoryStatus()
             refreshOAuthUsage()
         }
         .onChange(of: betaFlag) { _ in
-            factoryModelsInstalled = checkFactoryModelsInstalled()
+            providers.refreshFactoryStatus()
         }
         .onChange(of: codexUsageAccountSignature) { _ in
             refreshOAuthUsage()
         }
         .onReceive(NotificationCenter.default.publisher(for: .metaAccountsChanged)) { _ in
             authManager.checkAuthStatus()
-            factoryModelsInstalled = checkFactoryModelsInstalled()
+            providers.refreshFactoryStatus()
         }
         .onReceive(NotificationCenter.default.publisher(for: .metaUsageChanged)) { _ in
             updateMetaUsage()
@@ -784,7 +799,9 @@ struct SettingsView: View {
         .alert("Add Junie API Key", isPresented: $showingJunieApiKeyAlert) {
             SecureField("Enter Junie Key", text: $junieApiKey)
             Button("Save") {
-                saveJunieApiKey(junieApiKey)
+                if let message = providers.saveJunieAPIKey(junieApiKey) {
+                    showAuthResult(message)
+                }
             }
             Button("Cancel", role: .cancel) { }
         } message: {
@@ -1266,36 +1283,17 @@ struct SettingsView: View {
             repeating: "",
             count: max(0, CopilotModelPreferences.maximumSelectedModels - selected.count)
         )
-        factoryModelsInstalled = checkFactoryModelsInstalled()
+        providers.refreshFactoryStatus()
     }
 
     private func startCopilotAuthentication() {
-        copilotDeviceCode = nil
-        copilotVerificationURL = nil
-        copilotGateway.startAuthentication(
-            onDeviceCode: { code, verificationURL in
-                self.copilotDeviceCode = code
-                self.copilotVerificationURL = verificationURL
-            },
-            completion: { result in
-                self.copilotDeviceCode = nil
-                self.copilotVerificationURL = nil
-                switch result {
-                case .success:
-                    self.copilotGateway.start()
-                    self.authResultMessage = "GitHub Copilot connected.\n\nThe local gateway is starting. Select Refresh Models, choose up to three models, then Re-apply Factory custom models."
-                case .failure(let error):
-                    self.authResultMessage = "GitHub Copilot authentication failed: \(error.localizedDescription)"
-                }
-                self.showingAuthResult = true
-            }
-        )
+        providers.connect(.copilot, replacing: true) { message in
+            self.showAuthResult(message)
+        }
     }
 
     private func cancelCopilotAuthentication() {
-        copilotGateway.cancelAuthentication()
-        copilotDeviceCode = nil
-        copilotVerificationURL = nil
+        providers.cancelConnect(.copilot)
     }
 
     private func refreshCopilotModels() {
@@ -1309,7 +1307,7 @@ struct SettingsView: View {
                     repeating: "",
                     count: max(0, CopilotModelPreferences.maximumSelectedModels - retained.count)
                 )
-                self.factoryModelsInstalled = self.checkFactoryModelsInstalled()
+                self.providers.refreshFactoryStatus()
                 self.authResultMessage = "Loaded \(models.count) models available to this GitHub Copilot account. Choose up to three, then Re-apply Factory custom models."
             case .failure(let error):
                 self.authResultMessage = "Could not refresh GitHub Copilot models: \(error.localizedDescription)"
@@ -1319,12 +1317,8 @@ struct SettingsView: View {
     }
 
     private func disconnectCopilot() {
-        if copilotGateway.disconnect() {
+        if providers.disconnectCopilot() {
             copilotModelSlots = Array(repeating: "", count: CopilotModelPreferences.maximumSelectedModels)
-            CopilotModelPreferences.saveSelectedModelIDs([])
-            copilotDeviceCode = nil
-            copilotVerificationURL = nil
-            factoryModelsInstalled = checkFactoryModelsInstalled()
             authResultMessage = "GitHub Copilot disconnected. Re-apply Factory custom models to remove its selected models."
         } else {
             authResultMessage = "Could not disconnect GitHub Copilot. Please try again."
@@ -1333,15 +1327,7 @@ struct SettingsView: View {
     }
 
     private func setCopilotEnabled(_ enabled: Bool) {
-        serverManager.setProviderEnabled(.copilot, enabled: enabled)
-        if enabled, copilotGateway.hasCredentials {
-            copilotGateway.start()
-        } else if !enabled {
-            copilotGateway.stop()
-            copilotDeviceCode = nil
-            copilotVerificationURL = nil
-        }
-        factoryModelsInstalled = checkFactoryModelsInstalled()
+        providers.setProviderEnabled(.copilot, enabled: enabled)
     }
 
     // MARK: - Meta Muse
@@ -1351,12 +1337,7 @@ struct SettingsView: View {
         VStack(alignment: .leading, spacing: 6) {
             providerServiceRow(
                 .meta, iconName: "icon-meta.svg", toggleTint: metaSelectionColor,
-                helpText: "Add Meta Muse accounts for automatic account failover.",
-                onToggleEnabled: { enabled in
-                    if !enabled { cancelMetaAuthentication() }
-                    else { metaMuseAuth.refreshAPIKeyIfNeeded() }
-                    factoryModelsInstalled = checkFactoryModelsInstalled()
-                }
+                helpText: "Add Meta Muse accounts for automatic account failover."
             )
             if serverManager.isProviderEnabled(.meta) {
                 if metaMuseAuth.state == .authenticating {
@@ -1411,32 +1392,13 @@ struct SettingsView: View {
     }
 
     private func startMetaAuthentication() {
-        metaDeviceCode = nil
-        metaVerificationURL = nil
-        metaMuseAuth.startAuthentication(
-            onDeviceCode: { code, verificationURL in
-                self.metaDeviceCode = code
-                self.metaVerificationURL = verificationURL
-            },
-            completion: { result in
-                self.metaDeviceCode = nil
-                self.metaVerificationURL = nil
-                switch result {
-                case .success:
-                    self.authResultMessage = "Meta Muse connected.\n\nMuse Wonder 1.0 and Muse Wonder 1.0 Contributor are now available. Re-apply Factory custom models to pick them up."
-                case .failure(let error):
-                    self.authResultMessage = "Meta Muse authentication failed: \(error.localizedDescription)"
-                }
-                self.factoryModelsInstalled = self.checkFactoryModelsInstalled()
-                self.showingAuthResult = true
-            }
-        )
+        providers.connect(.meta, replacing: true) { message in
+            self.showAuthResult(message)
+        }
     }
 
     private func cancelMetaAuthentication() {
-        metaMuseAuth.cancelAuthentication()
-        metaDeviceCode = nil
-        metaVerificationURL = nil
+        providers.cancelConnect(.meta)
     }
 
     /// Same visual language as `codexFastModeToggleRow`, but a single toggle:
@@ -1458,7 +1420,7 @@ struct SettingsView: View {
         }
         .padding(.vertical, 2)
         .onChange(of: metaContributorMode) { _ in
-            factoryModelsInstalled = checkFactoryModelsInstalled()
+            providers.refreshFactoryStatus()
         }
     }
 
@@ -1477,7 +1439,7 @@ struct SettingsView: View {
             serviceType: serviceType,
             iconName: iconName,
             accounts: authManager.accounts(for: serviceType),
-            isAuthenticating: serviceType == .meta ? metaMuseAuth.state == .authenticating : authenticatingService == serviceType,
+            isAuthenticating: providers.isAuthenticating(serviceType),
             helpText: helpText,
             isEnabled: serverManager.isProviderEnabled(serviceType),
             customTitle: nil,
@@ -1485,7 +1447,7 @@ struct SettingsView: View {
             onDisconnect: { account in disconnectAccount(account) },
             onToggleDisabled: { account in toggleAccountDisabled(account) },
             onToggleEnabled: { enabled in
-                serverManager.setProviderEnabled(serviceType, enabled: enabled)
+                providers.setProviderEnabled(serviceType, enabled: enabled)
                 onToggleEnabled?(enabled)
             },
             toggleTint: toggleTint,
@@ -1603,309 +1565,31 @@ struct SettingsView: View {
             showingJunieApiKeyAlert = true
             return
         }
-
-        if serviceType == .grok {
-            startGrokOAuthLogin()
-            return
-        }
-
-        if serviceType == .copilot {
-            startCopilotAuthentication()
-            return
-        }
-
-        if serviceType == .meta {
-            startMetaAuthentication()
-            return
-        }
-
-        authenticatingService = serviceType
-        NSLog("[SettingsView] Starting %@ authentication", serviceType.displayName)
-        
-        let command: AuthCommand
-        switch serviceType {
-        case .claude: command = .claudeLogin
-        case .codex: command = .codexLogin
-        case .antigravity: command = .antigravityLogin
-        case .kimi: command = .kimiLogin
-        case .junie: return // handled by the early-return above; defensive
-        case .grok: return // handled by the early-return above; defensive
-        case .copilot: return // handled by the early-return above; defensive
-        case .meta: return // handled by the early-return above; defensive
-        }
-        
-        serverManager.runAuthCommand(command) { success, output in
-            NSLog("[SettingsView] Auth completed - success: %d, output: %@", success, output)
-            DispatchQueue.main.async {
-                self.authenticatingService = nil
-                if success {
-                    self.authResultMessage = self.successMessage(for: serviceType)
-                } else {
-                    let details = output.isEmpty ? "No output from authentication process" : output
-                    self.authResultMessage = "Authentication failed. Please check if the browser opened and try again.\n\nDetails: \(details)"
-                }
-                self.showingAuthResult = true
-            }
-        }
-    }
-    
-    private func successMessage(for serviceType: ServiceType) -> String {
-        switch serviceType {
-        case .claude:
-            return "🌐 Browser opened for Claude Code authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
-        case .codex:
-            return "🌐 Browser opened for Codex authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
-        case .antigravity:
-            return "🌐 Browser opened for Antigravity authentication.\n\nYou must have Google Antigravity installed before adding an Antigravity account.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials.\n\nIf having issues, run in terminal:\n/Applications/DroidProxy.app/Contents/Resources/cli-proxy-api --config ~/.cli-proxy-api/merged-config.yaml -antigravity-login"
-        case .kimi:
-            return "🌐 Browser opened for Kimi authentication.\n\nPlease complete the login in your browser.\n\nThe app will automatically detect your credentials."
-        case .junie:
-            return "✓ Successfully saved Junie API Key."
-        case .grok:
-            return "🌐 Browser opened for Grok (xAI) authentication.\n\nApprove access for SuperGrok / X Premium+, then DroidProxy will save credentials automatically."
-        case .copilot:
-            return "🌐 GitHub Copilot sign-in started."
-        case .meta:
-            return "🌐 Meta Muse sign-in started."
-        }
-    }
-
-    private func startGrokOAuthLogin() {
-        grokLoginSession?.cancel()
-        // Drop the old reference immediately so a stale `.cancelled` completion
-        // cannot identity-match and clobber the replacement session.
-        grokLoginSession = nil
-        authenticatingService = .grok
-        grokUserCode = nil
-        NSLog("[SettingsView] Starting Grok xAI OAuth device login")
-
-        // Holder so closures can identity-check after `startDeviceLogin` returns
-        // (Swift forbids capturing the binding before it is declared).
-        final class SessionRef {
-            var value: GrokAuth.LoginSession?
-        }
-        let sessionRef = SessionRef()
-
-        let session = GrokAuth.startDeviceLogin(
-            onPrompt: { auth in
-                DispatchQueue.main.async {
-                    guard self.grokLoginSession === sessionRef.value else { return }
-                    self.grokUserCode = auth.userCode
-                    self.authResultMessage = "🌐 Browser opened for Grok login.\n\nIf prompted, enter code: \(auth.userCode)\n\nWaiting for approval…"
-                    self.showingAuthResult = true
-                }
-            },
-            completion: { result in
-                DispatchQueue.main.async {
-                    // Ignore stale completions from a cancelled/replaced session.
-                    guard self.grokLoginSession === sessionRef.value else { return }
-                    switch result {
-                    case .success(let creds):
-                        self.authenticatingService = nil
-                        self.grokLoginSession = nil
-                        self.authManager.checkAuthStatus()
-                        let who = creds.email ?? "grok-user"
-                        self.authResultMessage = "✓ Grok OAuth connected as \(who).\n\nSelect DroidProxy: Grok 4.7 or DroidProxy: Grok 4.7 Fast in Droid with `/model`."
-                        self.showingAuthResult = true
-                    case .failure(.cancelled):
-                        // Replaced session already cleared `grokLoginSession` above.
-                        break
-                    case .failure(.reauthRequired):
-                        self.authenticatingService = nil
-                        self.grokLoginSession = nil
-                        self.authResultMessage = "Grok session expired. Reconnect Grok in Settings."
-                        self.showingAuthResult = true
-                    case .failure(let error):
-                        self.authenticatingService = nil
-                        self.grokLoginSession = nil
-                        self.authResultMessage = "Grok login failed: \(error.localizedDescription)"
-                        self.showingAuthResult = true
-                    }
-                }
-            }
-        )
-        sessionRef.value = session
-        grokLoginSession = session
-    }
-
-    private func saveJunieApiKey(_ apiKey: String) {
-        guard !apiKey.isEmpty else { return }
-
-        let fileURL = AuthPaths.authDirectory.appendingPathComponent("junie.json")
-        let json: [String: Any] = [
-            "type": "junie",
-            "email": "junie-user",
-            "apiKey": apiKey,
-            "disabled": false
-        ]
-
-        do {
-            try FileManager.default.createDirectory(at: AuthPaths.authDirectory, withIntermediateDirectories: true)
-            let data = try JSONSerialization.data(withJSONObject: json, options: [.prettyPrinted])
-            try data.write(to: fileURL)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
-            NSLog("[SettingsView] Saved Junie API Key with secure permissions to \(fileURL.path)")
-
-            authManager.checkAuthStatus()
-
-            self.authResultMessage = "✓ Successfully added Junie API Key."
-            self.showingAuthResult = true
-        } catch {
-            NSLog("[SettingsView] Failed to save Junie API Key: \(error.localizedDescription)")
-            self.authResultMessage = "Failed to save Junie API Key: \(error.localizedDescription)"
-            self.showingAuthResult = true
+        providers.connect(serviceType, replacing: true) { message in
+            self.showAuthResult(message)
         }
     }
 
     private func disconnectAccount(_ account: AuthAccount) {
-        if account.type == .meta {
-            let removed = authManager.deleteAccount(account)
-            authResultMessage = removed ? "Removed \(account.displayName) from Meta Muse" : "Failed to remove account"
-            factoryModelsInstalled = checkFactoryModelsInstalled()
-            showingAuthResult = true
-            return
-        }
-        let wasRunning = serverManager.isRunning
-
-        // Stop server, delete file, restart
-        let cleanup = {
-            if self.authManager.deleteAccount(account) {
-                self.authResultMessage = "✓ Removed \(account.displayName) from \(account.type.displayName)"
+        providers.removeAccount(account) { removed in
+            if account.type == .meta {
+                self.showAuthResult(removed ? "Removed \(account.displayName) from Meta Muse" : "Failed to remove account")
             } else {
-                self.authResultMessage = "Failed to remove account"
+                self.showAuthResult(removed ? "✓ Removed \(account.displayName) from \(account.type.displayName)" : "Failed to remove account")
             }
-            self.showingAuthResult = true
-            
-            if wasRunning {
-                DispatchQueue.main.asyncAfter(deadline: .now() + Timing.serverRestartDelay) {
-                    self.serverManager.start { _ in }
-                }
-            }
-        }
-        
-        if wasRunning {
-            serverManager.stop { cleanup() }
-        } else {
-            cleanup()
         }
     }
-    
+
     // MARK: - Factory Custom Models
 
-    /// Ids retired by prior releases. Removed from `customModels` during Apply/Re-apply
-    /// so users don't end up with stale entries next to the current ones.
-    private static let legacyDroidProxyModelIds: Set<String> = [
-        "custom:droidproxy:grok-4.5",
-        "custom:droidproxy:grok-4.6",
-        "custom:droidproxy:cursor-composer-2.5",
-        "custom:droidproxy:cursor-grok-4.5",
-        "custom:droidproxy:cursor-grok-4.5-fast",
-        "custom:droidproxy:cursor-grok-4.6",
-        "custom:droidproxy:cursor-grok-4.6-fast",
-        "custom:droidproxy:cursor-small"
-    ]
-
-    private func factorySettingsURL() -> URL {
-        FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".factory")
-            .appendingPathComponent("settings.json")
-    }
-
-    private func checkFactoryModelsInstalled() -> Bool {
-        let url = factorySettingsURL()
-        guard let data = try? Data(contentsOf: url),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let models = json["customModels"] as? [[String: Any]] else {
-            return false
-        }
-        let enabledModels = enabledFactorySettingsModels()
-        let expectedIds = Set(enabledModels.compactMap { $0["id"] as? String })
-        let allSettingsIDs = DroidProxyModelCatalog.allSettingsIDs
-        let installedDroidProxyIds = Set(models.compactMap { $0["id"] as? String }.filter { id in
-            allSettingsIDs.contains(id)
-                || Self.legacyDroidProxyModelIds.contains(id)
-                || id.hasPrefix("custom:droidproxy:")
-                || id.hasPrefix("custom:CC:")
-        })
-        return !expectedIds.isEmpty && installedDroidProxyIds == expectedIds
-    }
-
     private func applyFactoryCustomModels() {
-        let url = factorySettingsURL()
-        let factoryDir = url.deletingLastPathComponent()
-
-        try? FileManager.default.createDirectory(at: factoryDir, withIntermediateDirectories: true)
-
-        var settings: [String: Any] = [:]
-        if let data = try? Data(contentsOf: url),
-           let existing = try? JSONSerialization.jsonObject(with: data) as? [String: Any] {
-            settings = existing
-        }
-
-        var models = (settings["customModels"] as? [[String: Any]]) ?? []
-        let allSettingsIDs = DroidProxyModelCatalog.allSettingsIDs
-
-        models.removeAll { item in
-            guard let id = item["id"] as? String else { return false }
-            return allSettingsIDs.contains(id)
-                || Self.legacyDroidProxyModelIds.contains(id)
-                || id.hasPrefix("custom:droidproxy:")
-                || id.hasPrefix("custom:CC:")
-        }
-
-        let enabledModels = enabledFactorySettingsModels()
-        let startIndex = models.count
-        for (offset, var model) in enabledModels.enumerated() {
-            model["index"] = startIndex + offset
-            models.append(model)
-        }
-
-        settings["customModels"] = models
-
-        do {
-            backupFactorySettingsIfPresent(url)
-
-            var data = try JSONSerialization.data(withJSONObject: settings, options: [.prettyPrinted, .sortedKeys])
-            if var jsonString = String(data: data, encoding: .utf8) {
-                jsonString = jsonString.replacingOccurrences(of: "\\/", with: "/")
-                data = jsonString.data(using: .utf8) ?? data
-            }
-            try data.write(to: url, options: .atomic)
-            factoryModelsInstalled = true
+        switch providers.applyFactoryModels() {
+        case .success:
             authResultMessage = "DroidProxy models merged into Factory settings.\n\nYour other custom models were kept. Only previous DroidProxy entries were replaced. A timestamped backup was saved next to settings.json.\n\nIn Droid CLI use /model and search for “DroidProxy:”. Restart Factory or open a new session if the picker looks stale. Reasoning effort is controlled from Droid per session when the model exposes multiple levels."
-            showingAuthResult = true
-            NSLog("[SettingsView] Factory custom models applied to %@", url.path)
-        } catch {
+        case .failure(let error):
             authResultMessage = "Failed to update Factory settings: \(error.localizedDescription)"
-            showingAuthResult = true
-            NSLog("[SettingsView] Failed to apply Factory custom models: %@", error.localizedDescription)
         }
-    }
-
-    private func backupFactorySettingsIfPresent(_ url: URL) {
-        guard FileManager.default.fileExists(atPath: url.path) else { return }
-
-        let formatter = DateFormatter()
-        formatter.dateFormat = "yyyyMMdd-HHmmss"
-        formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = TimeZone.current
-
-        let backupURL = url.deletingLastPathComponent()
-            .appendingPathComponent("settings.json.droidproxy-\(formatter.string(from: Date())).bak")
-
-        do {
-            try FileManager.default.copyItem(at: url, to: backupURL)
-            NSLog("[SettingsView] Backed up Factory settings to %@", backupURL.path)
-        } catch {
-            NSLog("[SettingsView] Failed to back up Factory settings before applying custom models: %@", error.localizedDescription)
-        }
-    }
-
-    private func enabledFactorySettingsModels() -> [[String: Any]] {
-        DroidProxyModelCatalog.settingsModels { providerKey in
-            guard let serviceType = ServiceType(authFileType: providerKey) else { return true }
-            return serverManager.isProviderEnabled(serviceType)
-        }
+        showingAuthResult = true
     }
 
     // MARK: - File Monitoring

@@ -92,7 +92,7 @@ enum UsageEndpoint {
     private static let cacheLock = NSLock()
     private static var cache: [Filter: (storedAt: Date, usages: [OAuthAccountUsage])] = [:]
 
-    private static func cachedUsages(for filter: Filter, now: Date) -> [OAuthAccountUsage]? {
+    static func cachedUsages(for filter: Filter, now: Date) -> [OAuthAccountUsage]? {
         cacheLock.lock()
         defer { cacheLock.unlock() }
         guard let entry = cache[filter], now.timeIntervalSince(entry.storedAt) < cacheTTL else { return nil }

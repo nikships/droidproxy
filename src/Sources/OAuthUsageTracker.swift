@@ -112,7 +112,7 @@ final class OAuthUsageTracker: ObservableObject {
     /// for live updates when ThinkingProxy sniffs a new snapshot, so a Meta
     /// response does not refetch Codex/Claude/Grok usage over the network.
     func updateMetaAccounts(_ metaAccounts: [AuthAccount]) {
-        let fresh = metaAccounts.filter { !$0.isDisabled }.map { Self.metaUsage(for: $0) }
+        let fresh = metaAccounts.filter { !$0.isDisabled }.map { Self.storedMetaUsage(for: $0) }
         guard accounts.contains(where: { $0.provider == .meta }) || !fresh.isEmpty else { return }
         accounts = Self.sortedAccounts(accounts.filter { $0.provider != .meta } + fresh)
     }
@@ -342,10 +342,11 @@ final class OAuthUsageTracker: ObservableObject {
     /// stored snapshot, so a stale card still shows its "as of" time.
     nonisolated private static func fetchMetaUsage(for account: AuthAccount) async -> OAuthAccountUsage {
         await MetaMuseUsageProbe.refresh(accountID: account.id)
-        return metaUsage(for: account)
+        return storedMetaUsage(for: account)
     }
 
-    nonisolated private static func metaUsage(for account: AuthAccount) -> OAuthAccountUsage {
+    /// The account's last observed Meta usage, without probing for a fresh one.
+    nonisolated static func storedMetaUsage(for account: AuthAccount) -> OAuthAccountUsage {
         guard let snapshot = MetaMuseUsageStore.shared.snapshot(for: account.id) else {
             return failedAccount(account, "No usage observed yet — send a Meta request through DroidProxy")
         }
