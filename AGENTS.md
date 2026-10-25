@@ -109,7 +109,7 @@ Version 1 of the API Droid Office uses to drive DroidProxy (its contract is `doc
 | `GET /status` | Version, backend, providers (switch, accounts, a sign-in in flight or its error), Droid's models | `{ api, version, backend: { running }, providers: [{ key, name, enabled, connect, accounts: [{ id, label, expired, disabled }], connecting }], factory: { installed, available, stale } }` |
 | `POST /connect` `{ provider }` | Starts the provider's sign-in, as Add Account does | 202 `{ connecting: { started_at, user_code, verification_uri, error } }`; 409 while one runs; 400 for Junie (`connect: "app"`) |
 | `POST /connect/cancel` `{ provider }` | Stops it | 200 `{}` |
-| `POST /accounts/remove` `{ provider, account }` | Forgets an account (by id or email; Copilot's is `github_token`) | 200 status; 404 for an unknown account |
+| `POST /accounts/remove` `{ provider, account }` | Forgets an account (by id or email; Copilot's is `github_token`) | 200 status; 404 for an unknown account; 409 when an email names several (a Claude email can hold a seat in several organizations) |
 | `POST /providers` `{ provider, enabled }` | The provider switch (hot reload) | 200 status |
 | `POST /factory-models` `{}` | Apply Factory Models, backup and all | 200 `{ installed, backup }` |
 | `GET /models` | Whether each catalogue model can run now | `{ generated_at, models: [{ id, name, provider, availability }] }` |

@@ -98,16 +98,25 @@ extension ProviderController: ControlBackend {
             }
             return disconnectCopilot() ? nil : .error(500, "Couldn't remove the GitHub Copilot sign-in.")
         }
-        let needle = wanted.lowercased()
-        guard let account = controlAccounts(provider).first(where: {
-            $0.id == wanted || $0.email?.lowercased() == needle
-        }) else {
+        let matches = Self.controlAccounts(named: wanted, in: controlAccounts(provider))
+        guard let account = matches.first else {
             return .error(404, "\(provider.controlName) has no account \"\(wanted)\".")
+        }
+        guard matches.count == 1 else {
+            return .error(409, "\(provider.controlName) has several accounts for \"\(wanted)\". Name one by its id.")
         }
         let removed = await withCheckedContinuation { continuation in
             removeAccount(account) { continuation.resume(returning: $0) }
         }
         return removed ? nil : .error(500, "Couldn't remove \(account.displayName).")
+    }
+
+    /// The accounts `wanted` names: the one with that id, else every one with that email. A Claude
+    /// email can hold a seat in several organizations, so an email alone may name more than one.
+    nonisolated static func controlAccounts(named wanted: String, in accounts: [AuthAccount]) -> [AuthAccount] {
+        if let byID = accounts.first(where: { $0.id == wanted }) { return [byID] }
+        let needle = wanted.lowercased()
+        return accounts.filter { $0.email?.lowercased() == needle }
     }
 
     func controlSetProviderEnabled(_ provider: ServiceType, enabled: Bool) {
