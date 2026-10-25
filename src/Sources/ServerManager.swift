@@ -296,11 +296,20 @@ class ServerManager: ObservableObject {
         }
     }
     
-    func runAuthCommand(_ command: AuthCommand, completion: @escaping (Bool, String) -> Void) {
+    /// Starts a browser login. `completion` reports whether the browser step
+    /// started (about a second in); `onExit` gets the exit status once the
+    /// login process ends, which is when the sign-in really finished or failed.
+    /// Returns the process so a caller can cancel it.
+    @discardableResult
+    func runAuthCommand(
+        _ command: AuthCommand,
+        onExit: ((Int32) -> Void)? = nil,
+        completion: @escaping (Bool, String) -> Void
+    ) -> Process? {
         guard let bundledPath = bundledBinaryPath(),
               let resourcePath = Bundle.main.resourcePath else {
             completion(false, "cli-proxy-api binary not found in app bundle")
-            return
+            return nil
         }
 
         // Auth flow uses the bundled (unmerged) config; user-specific overrides
@@ -340,6 +349,7 @@ class ServerManager: ObservableObject {
             // up the freshly written credential file.
             authProcess.terminationHandler = { process in
                 NSLog("[Auth] Process terminated with exit code: %d", process.terminationStatus)
+                onExit?(process.terminationStatus)
                 guard process.terminationStatus == 0 else { return }
                 DispatchQueue.main.asyncAfter(deadline: .now() + 0.5) {
                     DispatchQueue.global(qos: .userInitiated).async {
@@ -382,9 +392,11 @@ class ServerManager: ObservableObject {
                     completion(false, message)
                 }
             }
+            return authProcess
         } catch {
             NSLog("[Auth] Failed to start: %@", error.localizedDescription)
             completion(false, "Failed to start auth process: \(error.localizedDescription)")
+            return nil
         }
     }
 

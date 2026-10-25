@@ -29,6 +29,8 @@ class ThinkingProxy {
     private let targetPort: UInt16 = 8318
     private let targetHost = "127.0.0.1"
     private(set) var isRunning = false
+    /// Serves `/droidproxy/control/`; nil until the app has written this launch's token.
+    var control: ControlEndpoint?
     private let stateQueue = DispatchQueue(label: "io.automaze.droidproxy.thinking-proxy-state")
 
     /// File-based debug logger (writes to /tmp/droidproxy-debug.log)
@@ -224,9 +226,14 @@ class ThinkingProxy {
             // stream is still open, keep reading. Otherwise (full body, missing
             // header, or truncated stream) hand off to processRequest.
             let bodyReceived = newAccumulatedData.count - headerEndRange.upperBound
-            if !isComplete,
-               let contentLength = self.parseContentLength(in: newAccumulatedData[..<headerEndRange.upperBound]),
-               bodyReceived < contentLength {
+            let contentLength = self.parseContentLength(in: newAccumulatedData[..<headerEndRange.upperBound])
+            // A control request over its body limit is refused from its headers, without reading the body.
+            if let contentLength, contentLength > ControlAPI.maxBodyBytes,
+               ControlAPI.looksLikeControlRequest(newAccumulatedData) {
+                self.processRequest(data: newAccumulatedData, connection: connection)
+                return
+            }
+            if !isComplete, let contentLength, bodyReceived < contentLength {
                 self.receiveNextChunk(from: connection, accumulatedData: newAccumulatedData)
                 return
             }
@@ -254,6 +261,11 @@ class ThinkingProxy {
      Processes the HTTP request, modifies it if needed, and forwards to CLIProxyAPI
      */
     private func processRequest(data: Data, connection: NWConnection) {
+        if ControlAPI.looksLikeControlRequest(data) {
+            handleControlRequest(data: data, connection: connection)
+            return
+        }
+
         guard let requestString = String(data: data, encoding: .utf8) else {
             sendError(to: connection, statusCode: 400, message: "Invalid request")
             return
@@ -995,8 +1007,42 @@ class ThinkingProxy {
         }))
     }
 
+    private func handleControlRequest(data: Data, connection: NWConnection) {
+        guard let request = ControlAPI.parseRequest(data) else {
+            sendJSON(to: connection, statusCode: 400, body: ControlAPI.Response.error(400, "Invalid request").body)
+            return
+        }
+        NSLog("[ThinkingProxy] Control request: %@ %@", request.method, request.path)
+        guard let control else {
+            sendJSON(to: connection, statusCode: 503, body: ControlAPI.Response.error(503, "DroidProxy's control API isn't ready yet.").body)
+            return
+        }
+        let peer = connection.endpoint
+        Task {
+            let response = await control.handle(request, peer: peer)
+            self.sendJSON(to: connection, statusCode: response.status, body: response.body)
+        }
+    }
+
+    static func reasonPhrase(for statusCode: Int) -> String {
+        switch statusCode {
+        case 200: return "OK"
+        case 202: return "Accepted"
+        case 400: return "Bad Request"
+        case 401: return "Unauthorized"
+        case 403: return "Forbidden"
+        case 404: return "Not Found"
+        case 405: return "Method Not Allowed"
+        case 409: return "Conflict"
+        case 413: return "Payload Too Large"
+        case 415: return "Unsupported Media Type"
+        case 503: return "Service Unavailable"
+        default: return statusCode >= 500 ? "Internal Server Error" : "Error"
+        }
+    }
+
     private func sendJSON(to connection: NWConnection, statusCode: Int, body: Data) {
-        let reason = statusCode == 200 ? "OK" : "Not Found"
+        let reason = Self.reasonPhrase(for: statusCode)
         let head = "HTTP/1.1 \(statusCode) \(reason)\r\n" +
                    "Content-Type: application/json\r\n" +
                    "Cache-Control: no-store\r\n" +

@@ -113,13 +113,20 @@ class AuthManager: ObservableObject {
         serviceAccounts[type]?.hasAccounts ?? false
     }
 
+    /// Rescans the auth files. On the main thread the published accounts change
+    /// before this returns, so a control API answer built right after a remove
+    /// no longer lists the removed account.
     func checkAuthStatus() {
         ClaudeAuthSeatFiles.migrateCanonicalFiles(in: AuthPaths.authDirectory)
-        let scannedAccounts = scanAccounts()
-        DispatchQueue.main.async {
-            var accounts = scannedAccounts
+        var accounts = scanAccounts()
+        let publish = {
             accounts[.meta]?.accounts = MetaMuseCredentialStore.shared.authAccounts
             self.serviceAccounts = accounts
+        }
+        if Thread.isMainThread {
+            publish()
+        } else {
+            DispatchQueue.main.async(execute: publish)
         }
     }
 

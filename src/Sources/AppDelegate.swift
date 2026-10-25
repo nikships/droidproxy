@@ -12,8 +12,11 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     var thinkingProxy: ThinkingProxy!
     var copilotGateway: CopilotGatewayManager!
     var metaMuseAuth: MetaMuseAuthManager!
+    var providerController: ProviderController!
     private let notificationCenter = UNUserNotificationCenter.current()
     private let updaterController: SPUStandardUpdaterController
+    private var updaterStarted: Bool
+    private var notificationsConfigured = false
     private var authDirectoryMonitor: AuthDirectoryMonitor?
     private var themeObserver: NSObjectProtocol?
     private var metaKeyRefreshTimer: Timer?
@@ -32,7 +35,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
     }
     
     override init() {
-        self.updaterController = SPUStandardUpdaterController(startingUpdater: true, updaterDelegate: nil, userDriverDelegate: nil)
+        let startUpdater = !LaunchContext.isDroidOffice
+        self.updaterController = SPUStandardUpdaterController(startingUpdater: startUpdater, updaterDelegate: nil, userDriverDelegate: nil)
+        self.updaterStarted = startUpdater
         super.init()
     }
 
@@ -50,11 +55,20 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         thinkingProxy = ThinkingProxy()
         copilotGateway = CopilotGatewayManager()
         metaMuseAuth = MetaMuseAuthManager()
+        providerController = ProviderController(
+            serverManager: serverManager,
+            copilotGateway: copilotGateway,
+            metaMuseAuth: metaMuseAuth
+        )
+        providerController.openSettingsWindow = { [weak self] in self?.openSettings() }
+        startControlAPI()
 
         // Warm commonly used icons to avoid first-use disk hits
         preloadIcons()
-        
-        configureNotifications()
+
+        if !LaunchContext.isDroidOffice {
+            configureNotifications()
+        }
 
         // Start server automatically
         startServer()
@@ -100,7 +114,26 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         }
     }
     
+    /// Writes this launch's token to `~/.droidproxy/control.json` and hands it
+    /// to ThinkingProxy. Without a token the control API answers 503.
+    private func startControlAPI() {
+        guard let token = ControlDiscovery.makeToken() else {
+            NSLog("[ControlAPI] No random bytes for a control token; the control API is off")
+            return
+        }
+        let version = Bundle.main.infoDictionary?["CFBundleShortVersionString"] as? String ?? "0"
+        do {
+            let url = try ControlDiscovery.write(port: thinkingProxy.proxyPort, token: token, version: version)
+            thinkingProxy.control = ControlEndpoint(token: token, port: thinkingProxy.proxyPort, backend: providerController)
+            NSLog("[ControlAPI] Wrote %@", url.path)
+        } catch {
+            NSLog("[ControlAPI] Could not write the discovery file: %@", error.localizedDescription)
+        }
+    }
+
     private func configureNotifications() {
+        guard !notificationsConfigured else { return }
+        notificationsConfigured = true
         notificationCenter.delegate = self
         notificationCenter.requestAuthorization(options: [.alert, .sound]) { granted, error in
             if let error = error {
@@ -169,8 +202,8 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
 
         menu.addItem(NSMenuItem.separator())
 
-        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates...", action: #selector(SPUStandardUpdaterController.checkForUpdates(_:)), keyEquivalent: "u")
-        checkForUpdatesItem.target = updaterController
+        let checkForUpdatesItem = NSMenuItem(title: "Check for Updates...", action: #selector(checkForUpdates(_:)), keyEquivalent: "u")
+        checkForUpdatesItem.target = self
         menu.addItem(checkForUpdatesItem)
 
         menu.addItem(NSMenuItem.separator())
@@ -199,7 +232,23 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         NSLog("[MenuBar] Failed to load %@ icon; using fallback", stateLabel)
     }
 
+    /// A launch by Droid Office defers Sparkle and the notification prompt
+    /// until the owner comes to DroidProxy itself.
+    private func startDeferredUI() {
+        if !updaterStarted {
+            updaterStarted = true
+            updaterController.startUpdater()
+        }
+        configureNotifications()
+    }
+
+    @objc func checkForUpdates(_ sender: Any?) {
+        startDeferredUI()
+        updaterController.checkForUpdates(sender)
+    }
+
     @objc func openSettings() {
+        startDeferredUI()
         if settingsWindow == nil {
             createSettingsWindow()
         }
@@ -240,11 +289,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
             self?.applyTheme(to: win)
         }
 
-        let contentView = SettingsView(
-            serverManager: serverManager,
-            copilotGateway: copilotGateway,
-            metaMuseAuth: metaMuseAuth
-        )
+        let contentView = SettingsView(providers: providerController)
         window.contentView = NSHostingView(rootView: contentView)
 
         settingsWindow = window
@@ -286,7 +331,9 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
                     if success {
                         self?.updateMenuBarStatus()
                         // User always connects to 8317 (thinking proxy)
-                        self?.showNotification(title: "Server Started", body: "DroidProxy is now running")
+                        if !LaunchContext.isDroidOffice {
+                            self?.showNotification(title: "Server Started", body: "DroidProxy is now running")
+                        }
                     } else {
                         // Backend failed - stop the proxy to keep state consistent
                         self?.thinkingProxy.stop()
@@ -421,6 +468,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         windowPrimer?.stop()
         stopServersIfRunning()
         copilotGateway.stop()
+        ControlDiscovery.remove()
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
