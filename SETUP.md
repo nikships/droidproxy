@@ -97,8 +97,13 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 6.1 Sol",
       "maxOutputTokens": 128000,
+      "maxContextLimit": 272000,
       "noImageSupport": false,
-      "provider": "openai"
+      "provider": "openai",
+      "enableThinking": true,
+      "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultReasoningEffort": "xhigh",
+      "reasoningEffort": "xhigh"
     },
     {
       "model": "gpt-6.1-terra",
@@ -124,8 +129,13 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 6 Luna",
       "maxOutputTokens": 128000,
+      "maxContextLimit": 272000,
       "noImageSupport": false,
-      "provider": "openai"
+      "provider": "openai",
+      "enableThinking": true,
+      "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultReasoningEffort": "xhigh",
+      "reasoningEffort": "xhigh"
     },
     {
       "model": "gemini-3.1-pro-preview",
