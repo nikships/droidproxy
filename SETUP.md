@@ -108,8 +108,13 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 6.1 Terra",
       "maxOutputTokens": 128000,
+      "maxContextLimit": 272000,
       "noImageSupport": false,
-      "provider": "openai"
+      "provider": "openai",
+      "enableThinking": true,
+      "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultReasoningEffort": "xhigh",
+      "reasoningEffort": "xhigh"
     },
     {
       "model": "gpt-6-luna",
