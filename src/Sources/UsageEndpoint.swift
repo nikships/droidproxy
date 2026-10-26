@@ -75,35 +75,8 @@ enum UsageEndpoint {
             ]))
         }
 
-        let usages: [OAuthAccountUsage]
-        if let cached = cachedUsages(for: filter, now: now) {
-            usages = cached
-        } else {
-            usages = await OAuthUsageTracker.fetchUsage(codex: codex, claude: claude, grok: grok, meta: meta)
-            storeUsages(usages, for: filter, now: now)
-        }
+        let usages = await OAuthUsageTracker.fetchUsage(codex: codex, claude: claude, grok: grok, meta: meta)
         return Response(statusCode: 200, body: json(for: usages, now: now))
-    }
-
-    /// Agents may poll in a loop, and the upstream usage APIs (Anthropic's in
-    /// particular) rate-limit hard, so successful results are reused briefly.
-    /// Reset countdowns are recomputed per response from the cached dates.
-    private static let cacheTTL: TimeInterval = 15
-    private static let cacheLock = NSLock()
-    private static var cache: [Filter: (storedAt: Date, usages: [OAuthAccountUsage])] = [:]
-
-    static func cachedUsages(for filter: Filter, now: Date) -> [OAuthAccountUsage]? {
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        guard let entry = cache[filter], now.timeIntervalSince(entry.storedAt) < cacheTTL else { return nil }
-        return entry.usages
-    }
-
-    private static func storeUsages(_ usages: [OAuthAccountUsage], for filter: Filter, now: Date) {
-        guard usages.allSatisfy({ $0.error == nil }) else { return }
-        cacheLock.lock()
-        defer { cacheLock.unlock() }
-        cache[filter] = (now, usages)
     }
 
     static func json(for usages: [OAuthAccountUsage], now: Date) -> Data {

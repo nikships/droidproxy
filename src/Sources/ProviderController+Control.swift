@@ -1,15 +1,8 @@
 import Foundation
 
-/// The usage `GET /droidproxy/control/models` judges by: the same 15-second
-/// cache `/droidproxy/usage` keeps when it is fresh, else one fetch of the
-/// same accounts, kept for 15 seconds even when an account failed, so the
-/// office's polling never hammers the upstream usage APIs. Meta is read from
-/// its stored snapshot without a probe, because a probe spends quota.
+/// /models and /usage share the tracker's per-account cache and in-flight tasks.
+/// Meta is read without a probe, because a probe spends quota.
 enum ControlUsage {
-    private static let ttl: TimeInterval = 15
-    private static let lock = NSLock()
-    private static var cache: (storedAt: Date, usages: [OAuthAccountUsage])?
-
     static func usages(
         codex: [AuthAccount],
         claude: [AuthAccount],
@@ -17,29 +10,9 @@ enum ControlUsage {
         meta: [AuthAccount],
         now: Date
     ) async -> [OAuthAccountUsage] {
-        if let shared = UsageEndpoint.cachedUsages(for: UsageEndpoint.Filter(), now: now) {
-            return shared
-        }
-        if let own = cached(now: now) {
-            return own
-        }
         var usages = await OAuthUsageTracker.fetchUsage(codex: codex, claude: claude, grok: grok, meta: [])
         usages += meta.map(OAuthUsageTracker.storedMetaUsage(for:))
-        store(usages, now: now)
         return usages
-    }
-
-    private static func cached(now: Date) -> [OAuthAccountUsage]? {
-        lock.lock()
-        defer { lock.unlock() }
-        guard let cache, now.timeIntervalSince(cache.storedAt) < ttl else { return nil }
-        return cache.usages
-    }
-
-    private static func store(_ usages: [OAuthAccountUsage], now: Date) {
-        lock.lock()
-        defer { lock.unlock() }
-        cache = (now, usages)
     }
 }
 

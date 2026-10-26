@@ -1,6 +1,6 @@
 import Foundation
 
-enum ServiceType: String, CaseIterable {
+enum ServiceType: String, CaseIterable, Codable {
     case claude
     case codex
     case antigravity

@@ -1,12 +1,16 @@
 import Combine
 import Foundation
 
-struct OAuthUsageWindow: Identifiable, Equatable {
+struct OAuthUsageWindow: Identifiable, Equatable, Codable {
     let id = UUID()
     let title: String
     let usedPercent: Double?
     let resetText: String?
     let resetDate: Date?
+
+    private enum CodingKeys: String, CodingKey {
+        case title, usedPercent, resetText, resetDate
+    }
 
     var remainingPercent: Double? {
         guard let usedPercent else { return nil }
@@ -14,7 +18,7 @@ struct OAuthUsageWindow: Identifiable, Equatable {
     }
 }
 
-struct OAuthAccountUsage: Identifiable, Equatable {
+struct OAuthAccountUsage: Identifiable, Equatable, Codable {
     let id: String
     let provider: ServiceType
     let email: String
@@ -22,6 +26,8 @@ struct OAuthAccountUsage: Identifiable, Equatable {
     var windows: [OAuthUsageWindow] = []
     var error: String?
     var updatedAt: Date?
+    var rateLimited = false
+    var retryAfter: Date?
 }
 
 private enum OAuthUsageParsing {
@@ -87,13 +93,19 @@ final class OAuthUsageTracker: ObservableObject {
     ) async -> [OAuthAccountUsage] {
         await withTaskGroup(of: OAuthAccountUsage.self) { group in
             for account in codex {
-                group.addTask { await fetchCodexUsage(for: account) }
+                group.addTask {
+                    await OAuthUsageCache.shared.usage(for: account) { await fetchCodexUsage(for: account) }
+                }
             }
             for account in claude {
-                group.addTask { await fetchClaudeUsage(for: account) }
+                group.addTask {
+                    await OAuthUsageCache.shared.usage(for: account) { await fetchClaudeUsage(for: account) }
+                }
             }
             for account in grok {
-                group.addTask { await fetchGrokUsage(for: account) }
+                group.addTask {
+                    await OAuthUsageCache.shared.usage(for: account) { await fetchGrokUsage(for: account) }
+                }
             }
             for account in meta {
                 group.addTask { await fetchMetaUsage(for: account) }
@@ -235,7 +247,7 @@ final class OAuthUsageTracker: ObservableObject {
             }
 
             guard (200..<300).contains(http.statusCode) else {
-                return failedAccount(account, "Claude usage API returned \(http.statusCode)")
+                return failedAccount(account, "Claude usage API returned \(http.statusCode)", response: http)
             }
 
             let windows = parseClaudeWindows(data)
@@ -260,7 +272,7 @@ final class OAuthUsageTracker: ObservableObject {
                 return failedAccount(account, "No HTTP response on retry")
             }
             guard http.statusCode == 200 else {
-                return failedAccount(account, "Claude usage returned \(http.statusCode) after refresh retry")
+                return failedAccount(account, "Claude usage returned \(http.statusCode) after refresh retry", response: http)
             }
             return successAccount(account, windows: parseClaudeWindows(data))
         } catch {
@@ -494,13 +506,15 @@ final class OAuthUsageTracker: ObservableObject {
         }
     }
 
-    nonisolated private static func failedAccount(_ account: AuthAccount, _ message: String) -> OAuthAccountUsage {
+    nonisolated private static func failedAccount(_ account: AuthAccount, _ message: String, response: HTTPURLResponse? = nil) -> OAuthAccountUsage {
         OAuthAccountUsage(
             id: account.id,
             provider: account.type,
             email: account.displayName,
             error: message,
-            updatedAt: Date()
+            updatedAt: Date(),
+            rateLimited: response?.statusCode == 429,
+            retryAfter: OAuthUsageCache.retryDate(response?.value(forHTTPHeaderField: "Retry-After"), now: Date())
         )
     }
 
