@@ -113,10 +113,10 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(haikuDefinitions.map(\.providerKey), ["claude"])
     }
 
-    func testGpt61SolAndLunaUseNativeModelMetadata() throws {
+    func testGpt61SolTerraAndLunaUseNativeModelMetadata() throws {
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:gpt-6-sol"))
 
-        for (slug, name) in [("gpt-6.1-sol", "GPT 6.1 Sol"), ("gpt-6-luna", "GPT 6 Luna")] {
+        for (slug, name) in [("gpt-6.1-sol", "GPT 6.1 Sol"), ("gpt-6.1-terra", "GPT 6.1 Terra"), ("gpt-6-luna", "GPT 6 Luna")] {
             let entry = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:\(slug)"))
 
             XCTAssertEqual(entry["model"] as? String, slug)
@@ -138,6 +138,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(ids, [
             "custom:droidproxy:gpt-6-astra",
             "custom:droidproxy:gpt-6.1-sol",
+            "custom:droidproxy:gpt-6.1-terra",
             "custom:droidproxy:gpt-6-luna"
         ])
     }

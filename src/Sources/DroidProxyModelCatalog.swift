@@ -271,6 +271,19 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
+                baseModel: "gpt-6.1-terra",
+                idSlug: "gpt-6.1-terra",
+                displayName: "GPT 6.1 Terra",
+                maxOutputTokens: 128000,
+                maxContextLimit: 272_000,
+                provider: "openai",
+                providerKey: "codex",
+                baseURL: "http://localhost:8317/v1",
+                kind: .codex,
+                levels: gpt6Levels,
+                defaultLevelValue: "xhigh"
+            ),
+            DroidProxyModelDefinition(
                 baseModel: "gpt-6-luna",
                 idSlug: "gpt-6-luna",
                 displayName: "GPT 6 Luna",

@@ -3,6 +3,7 @@ import Foundation
 enum AppPreferences {
     static let gpt6AstraFastModeKey = "gpt6AstraFastMode"
     static let gpt61SolFastModeKey = "gpt61SolFastMode"
+    static let gpt61TerraFastModeKey = "gpt61TerraFastMode"
     static let gpt6LunaFastModeKey = "gpt6LunaFastMode"
     /// Meta Muse Contributor Mode: apply `muse-wonder-1.0-contributor` instead of
     /// `muse-wonder-1.0` when Factory custom models are applied. Exactly one of
@@ -19,6 +20,7 @@ enum AppPreferences {
 
     static let defaultGpt6AstraFastMode = false
     static let defaultGpt61SolFastMode = false
+    static let defaultGpt61TerraFastMode = false
     static let defaultGpt6LunaFastMode = false
     static let defaultMetaContributorMode = false
     static let defaultAllowRemote = false
@@ -38,6 +40,10 @@ enum AppPreferences {
 
     static var gpt61SolFastMode: Bool {
         UserDefaults.standard.bool(forKey: gpt61SolFastModeKey)
+    }
+
+    static var gpt61TerraFastMode: Bool {
+        UserDefaults.standard.bool(forKey: gpt61TerraFastModeKey)
     }
 
     static var gpt6LunaFastMode: Bool {
