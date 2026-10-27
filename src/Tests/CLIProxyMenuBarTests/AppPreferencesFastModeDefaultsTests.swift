@@ -7,6 +7,7 @@ final class AppPreferencesFastModeDefaultsTests: XCTestCase {
     func testAllFastModeDefaultsAreOff() {
         XCTAssertFalse(AppPreferences.defaultGpt6AstraFastMode)
         XCTAssertFalse(AppPreferences.defaultGpt61SolFastMode)
+        XCTAssertFalse(AppPreferences.defaultGpt61TerraFastMode)
         XCTAssertFalse(AppPreferences.defaultGpt6LunaFastMode)
     }
 
@@ -15,6 +16,7 @@ final class AppPreferencesFastModeDefaultsTests: XCTestCase {
         let keys = [
             AppPreferences.gpt6AstraFastModeKey,
             AppPreferences.gpt61SolFastModeKey,
+            AppPreferences.gpt61TerraFastModeKey,
             AppPreferences.gpt6LunaFastModeKey
         ]
         for key in keys {
@@ -22,6 +24,7 @@ final class AppPreferencesFastModeDefaultsTests: XCTestCase {
         }
         XCTAssertFalse(AppPreferences.gpt6AstraFastMode)
         XCTAssertFalse(AppPreferences.gpt61SolFastMode)
+        XCTAssertFalse(AppPreferences.gpt61TerraFastMode)
         XCTAssertFalse(AppPreferences.gpt6LunaFastMode)
     }
 }

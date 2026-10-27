@@ -114,6 +114,17 @@ export const models: ModelRow[] = [
   },
   {
     icon: '/assets/icon-codex.png',
+    name: 'GPT 6.1 Terra',
+    id: 'gpt-6.1-terra',
+    levels: ['low', 'medium', 'high', 'xhigh', 'max'],
+    max: '128,000',
+    context: '272k',
+    provider: 'OpenAI',
+    group: 'ChatGPT',
+    color: brandColor.chatgpt,
+  },
+  {
+    icon: '/assets/icon-codex.png',
     name: 'GPT 6 Luna',
     id: 'gpt-6-luna',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],

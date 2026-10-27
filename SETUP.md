@@ -97,24 +97,50 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 6.1 Sol",
       "maxOutputTokens": 128000,
+      "maxContextLimit": 272000,
       "noImageSupport": false,
-      "provider": "openai"
+      "provider": "openai",
+      "enableThinking": true,
+      "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultReasoningEffort": "xhigh",
+      "reasoningEffort": "xhigh"
+    },
+    {
+      "model": "gpt-6.1-terra",
+      "id": "custom:droidproxy:gpt-6.1-terra",
+      "index": 4,
+      "baseUrl": "http://localhost:8317/v1",
+      "apiKey": "dummy-not-used",
+      "displayName": "DroidProxy: GPT 6.1 Terra",
+      "maxOutputTokens": 128000,
+      "maxContextLimit": 272000,
+      "noImageSupport": false,
+      "provider": "openai",
+      "enableThinking": true,
+      "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultReasoningEffort": "xhigh",
+      "reasoningEffort": "xhigh"
     },
     {
       "model": "gpt-6-luna",
       "id": "custom:droidproxy:gpt-6-luna",
-      "index": 4,
+      "index": 5,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: GPT 6 Luna",
       "maxOutputTokens": 128000,
+      "maxContextLimit": 272000,
       "noImageSupport": false,
-      "provider": "openai"
+      "provider": "openai",
+      "enableThinking": true,
+      "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
+      "defaultReasoningEffort": "xhigh",
+      "reasoningEffort": "xhigh"
     },
     {
       "model": "gemini-3.1-pro-preview",
       "id": "custom:droidproxy:gemini-3.1-pro",
-      "index": 5,
+      "index": 6,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3.1 Pro",
@@ -125,7 +151,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "gemini-3-flash-preview",
       "id": "custom:droidproxy:gemini-3-flash",
-      "index": 6,
+      "index": 7,
       "baseUrl": "http://localhost:8317",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Gemini 3 Flash",
@@ -136,7 +162,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
     {
       "model": "kimi-k3",
       "id": "custom:droidproxy:kimi-k3",
-      "index": 7,
+      "index": 8,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Kimi K3",
@@ -161,7 +187,7 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 - Opus 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Haiku 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Sonnet 4.6: `low`, `medium`, `high`, or `max`
-- GPT 6 Astra, GPT 6.1 Sol, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
+- GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
 - Gemini 3.1 Pro: `low`, `medium`, or `high`
 - Gemini 3 Flash: `minimal`, `low`, `medium`, or `high`
 - Kimi K3: `max` (the only currently supported effort)
