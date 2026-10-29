@@ -5,9 +5,9 @@ enum AppPreferences {
     static let gpt61SolFastModeKey = "gpt61SolFastMode"
     static let gpt61TerraFastModeKey = "gpt61TerraFastMode"
     static let gpt6LunaFastModeKey = "gpt6LunaFastMode"
-    /// Meta Muse Contributor Mode: apply `muse-wonder-1.0-contributor` instead of
-    /// `muse-wonder-1.0` when Factory custom models are applied. Exactly one of
-    /// the two variants is ever active - never both.
+    /// Applies the contributor variant of each Muse Wonder model instead of the base
+    /// model. Factory custom models include exactly one variant per Wonder model,
+    /// never both.
     static let metaContributorModeKey = "metaContributorMode"
     static let allowRemoteKey = "allowRemote"
     static let secretKeyKey = "secretKey"

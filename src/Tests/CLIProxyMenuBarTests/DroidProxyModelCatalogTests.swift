@@ -15,6 +15,18 @@ final class DroidProxyModelCatalogTests: XCTestCase {
                            ["minimal", "low", "medium", "high", "xhigh", "max"])
         }
     }
+    func testMuseWonderFullVariantsApplyMaxReasoning() {
+        for model in ["muse-wonder-full-1.0", "muse-wonder-full-1.0-contributor"] {
+            let entry = DroidProxyModelCatalog.museModel(
+                baseModel: model, idSlug: model, displayName: model
+            ).settingsEntry
+            XCTAssertEqual(entry["model"] as? String, model)
+            XCTAssertEqual(entry["defaultReasoningEffort"] as? String, "max")
+            XCTAssertEqual(entry["reasoningEffort"] as? String, "max")
+            XCTAssertEqual(entry["supportedReasoningEfforts"] as? [String],
+                           ["minimal", "low", "medium", "high", "xhigh", "max"])
+        }
+    }
     func testFable51ExposesFullEffortLevels() throws {
         let fable = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:fable-5-1"))
 

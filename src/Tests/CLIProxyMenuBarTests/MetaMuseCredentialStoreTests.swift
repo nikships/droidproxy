@@ -99,6 +99,8 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
         XCTAssertTrue(config.contains("quote\\\"\\\\\\nkey"))
         XCTAssertTrue(config.contains("muse-wonder-1.0-contributor"))
         XCTAssertTrue(config.contains("muse-wonder-1.0"))
+        XCTAssertTrue(config.contains("muse-wonder-full-1.0-contributor"))
+        XCTAssertTrue(config.contains("muse-wonder-full-1.0"))
         XCTAssertFalse(config.contains("muse-spark"))
         alice.disabled = true
         bob.credentials.apiKeyExpiresAt = .distantPast

@@ -1407,11 +1407,10 @@ struct SettingsView: View {
         providers.cancelConnect(.meta)
     }
 
-    /// Same visual language as `codexFastModeToggleRow`, but a single toggle:
-    /// Contributor Mode picks `muse-wonder-1.0-contributor` instead of
-    /// `muse-wonder-1.0` when Factory custom models are applied. The two
-    /// variants are mutually exclusive - `DroidProxyModelCatalog` only ever
-    /// emits one of them.
+    /// Uses the same row layout as `codexFastModeToggleRow` with one toggle across
+    /// all Muse Wonder models. Contributor Mode selects each Wonder model's contributor
+    /// variant instead of its base model. `DroidProxyModelCatalog` emits only one
+    /// variant per model.
     @ViewBuilder
     private func metaContributorModeRow() -> some View {
         HStack {
@@ -1422,7 +1421,7 @@ struct SettingsView: View {
             Toggle("Contributor mode", isOn: $metaContributorMode)
                 .toggleStyle(.checkbox)
                 .font(.caption)
-                .help("Applies Muse Wonder 1.0 Contributor instead of Muse Wonder 1.0 when Factory custom models are applied. Only one is ever active.")
+                .help("Applies the contributor variant of each Muse Wonder model instead of the base model when you apply Factory custom models. Only one variant per model is active at a time.")
         }
         .padding(.vertical, 2)
         .onChange(of: metaContributorMode) { _ in
