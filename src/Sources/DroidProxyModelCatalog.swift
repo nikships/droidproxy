@@ -317,6 +317,14 @@ enum DroidProxyModelCatalog {
                 idSlug: "gemini-3.8-flash-high",
                 displayName: "Gemini 3.8 Flash (High)"
             ),
+            // Only the -high id is in the CLIProxyAPI registry. reasoning_effort still
+            // selects low, medium, or high thinking on it (verified live 2026-10-29).
+            antigravityModel(
+                baseModel: "gemini-4-argon-high",
+                idSlug: "gemini-4-argon-high",
+                displayName: "Gemini 4 Argon",
+                levels: [low, medium, high]
+            ),
             // Claude 5.5 is only served to directly billed (non-trial) Google AI Pro/Ultra accounts.
             // CLIProxyAPI registers an Antigravity model only when the account's
             // fetchAvailableModels returns it, so on other accounts the 5.5 entries fail with
