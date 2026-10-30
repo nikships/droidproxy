@@ -201,6 +201,21 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(gemini["supportedReasoningEfforts"] as? [String], ["high"])
     }
 
+    func testGemini4ArgonUsesAntigravityModelMetadata() throws {
+        let gemini = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:gemini-4-argon-high"))
+
+        XCTAssertEqual(gemini["model"] as? String, "gemini-4-argon-high")
+        XCTAssertEqual(gemini["provider"] as? String, "openai")
+        XCTAssertEqual(gemini["baseUrl"] as? String, "http://localhost:8317/v1")
+        XCTAssertEqual(gemini["displayName"] as? String, "DroidProxy: Antigravity: Gemini 4 Argon")
+        XCTAssertEqual(gemini["maxOutputTokens"] as? Int, 65536)
+        XCTAssertNil(gemini["maxContextLimit"])
+        XCTAssertEqual(gemini["enableThinking"] as? Bool, true)
+        XCTAssertEqual(gemini["reasoningEffort"] as? String, "high")
+        XCTAssertEqual(gemini["defaultReasoningEffort"] as? String, "high")
+        XCTAssertEqual(gemini["supportedReasoningEfforts"] as? [String], ["low", "medium", "high"])
+    }
+
     func testAntigravityClaudeModelsUseAliasesThatMapToRegistryIDs() throws {
         let expected: [(slug: String, displayName: String, backend: String, maxOutput: Int, context: Int?)] = [
             ("ag-c55s-high", "Claude Sonnet 5.5 (High)", "claude-sonnet-5-5-high", 128000, 1_000_000),
