@@ -31,6 +31,8 @@ final class MetaMuseUpstreamTests: XCTestCase {
     func testRecognizesMuseWonderModels() {
         XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-wonder-1.0"))
         XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-wonder-1.0-contributor"))
+        XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-wonder-full-1.0"))
+        XCTAssertTrue(MetaMuseUpstream.isMetaModel("muse-wonder-full-1.0-contributor"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel("muse-spark-1.3"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel("gpt-6-sol"))
         XCTAssertFalse(MetaMuseUpstream.isMetaModel("grok-4.6"))
@@ -53,6 +55,12 @@ final class MetaMuseUpstreamTests: XCTestCase {
         ))
         XCTAssertTrue(MetaMuseUpstream.shouldTLSForward(
             model: "muse-wonder-1.0", path: "/api/v1/responses"
+        ))
+        XCTAssertTrue(MetaMuseUpstream.shouldTLSForward(
+            model: "muse-wonder-full-1.0", path: "/v1/responses"
+        ))
+        XCTAssertFalse(MetaMuseUpstream.shouldTLSForward(
+            model: "muse-wonder-full-1.0-contributor", path: "/v1/chat/completions"
         ))
         XCTAssertFalse(MetaMuseUpstream.shouldTLSForward(
             model: "muse-wonder-1.0-contributor", path: "/v1/chat/completions"

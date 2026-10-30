@@ -451,9 +451,10 @@ enum DroidProxyModelCatalog {
         // written into Factory's customModels configuration.
         list.append(contentsOf: CopilotModelPreferences.selectedModels.map(copilotModel))
 
-        // Only expose Muse Wonder with an enabled, usable key, matching backend
-        // configuration eligibility. Contributor Mode picks exactly one of the two variants;
-        // they are never both applied at once.
+        // Expose Muse Wonder models only with an enabled, usable key so catalog
+        // eligibility matches backend configuration. Contributor Mode selects the
+        // contributor variant for each Wonder model. The catalog never includes both
+        // variants of the same model at once.
         if MetaMuseCredentialStore.shared.hasUsableAPIKey {
             if AppPreferences.metaContributorMode {
                 list.append(museModel(
@@ -461,8 +462,18 @@ enum DroidProxyModelCatalog {
                     idSlug: "muse-wonder-1.0-contributor",
                     displayName: "Muse Wonder 1.0 Contributor"
                 ))
+                list.append(museModel(
+                    baseModel: "muse-wonder-full-1.0-contributor",
+                    idSlug: "muse-wonder-full-1.0-contributor",
+                    displayName: "Muse Wonder Full 1.0 Contributor"
+                ))
             } else {
                 list.append(museModel(baseModel: "muse-wonder-1.0", idSlug: "muse-wonder-1.0", displayName: "Muse Wonder 1.0"))
+                list.append(museModel(
+                    baseModel: "muse-wonder-full-1.0",
+                    idSlug: "muse-wonder-full-1.0",
+                    displayName: "Muse Wonder Full 1.0"
+                ))
             }
         }
 

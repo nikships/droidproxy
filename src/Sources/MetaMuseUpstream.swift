@@ -27,7 +27,10 @@ enum MetaMuseUpstream {
 
     static func isMetaModel(_ model: String?) -> Bool {
         guard let model, !model.isEmpty else { return false }
-        return model == "muse-wonder-1.0" || model.hasPrefix("muse-wonder-1.0-")
+        return model == "muse-wonder-1.0"
+            || model.hasPrefix("muse-wonder-1.0-")
+            || model == "muse-wonder-full-1.0"
+            || model.hasPrefix("muse-wonder-full-1.0-")
     }
 
     static func isResponsesPath(_ path: String) -> Bool {

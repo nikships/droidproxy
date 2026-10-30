@@ -186,6 +186,8 @@ final class MetaMuseCredentialStore {
             models:
               - name: "muse-wonder-1.0"
               - name: "muse-wonder-1.0-contributor"
+              - name: "muse-wonder-full-1.0"
+              - name: "muse-wonder-full-1.0-contributor"
 
         """
     }

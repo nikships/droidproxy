@@ -290,4 +290,15 @@ export const models: ModelRow[] = [
     group: 'Muse',
     color: brandColor.muse,
   },
+  {
+    icon: '/assets/icon-meta.svg',
+    name: 'Muse Wonder Full 1.0',
+    id: 'muse-wonder-full-1.0',
+    levels: ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'],
+    max: '256,000',
+    context: '1M',
+    provider: 'Meta',
+    group: 'Muse',
+    color: brandColor.muse,
+  },
 ]
