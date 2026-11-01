@@ -113,13 +113,18 @@ struct OAuthUsageAccountGroup: View {
 
     private func copyUsageCurl() {
         let command = UsageEndpoint.curlCommand(provider: account.provider, accountID: account.id)
-        UsageCurlCopier.copy(command) {
+        let didCopy = UsageCurlCopier.copy(command) {
             var token = 0
             withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { token = checkmark.show(true) }
             onCopiedCurl()
             DispatchQueue.main.asyncAfter(deadline: .now() + Self.checkmarkDuration) {
                 withAnimation(.easeOut(duration: 0.2)) { checkmark.dismiss(token: token) }
             }
+        }
+        // A failed write has already cleared the pasteboard, so an earlier
+        // click's checkmark would now be wrong.
+        if !didCopy {
+            withAnimation(.easeOut(duration: 0.2)) { checkmark.clear() }
         }
     }
 
@@ -243,6 +248,12 @@ struct TransientConfirmation<Value: Equatable>: Equatable {
     /// Clears the value unless a newer `show` happened after `token` was issued.
     mutating func dismiss(token: Int) {
         guard token == generation else { return }
+        value = nil
+    }
+
+    /// Clears the value now and invalidates every pending dismissal.
+    mutating func clear() {
+        generation += 1
         value = nil
     }
 }

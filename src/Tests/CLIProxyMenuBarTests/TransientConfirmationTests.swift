@@ -23,6 +23,21 @@ final class TransientConfirmationTests: XCTestCase {
         XCTAssertNil(confirmation.value)
     }
 
+    func testClearHidesTheValueAndIgnoresItsPendingDismissal() {
+        var confirmation = TransientConfirmation<Bool>()
+        let stale = confirmation.show(true)
+
+        confirmation.clear()
+        XCTAssertNil(confirmation.value)
+
+        let fresh = confirmation.show(true)
+        confirmation.dismiss(token: stale)
+        XCTAssertEqual(confirmation.value, true)
+
+        confirmation.dismiss(token: fresh)
+        XCTAssertNil(confirmation.value)
+    }
+
     func testRepeatShowOfTheSameValueRestartsTheTimer() {
         var confirmation = TransientConfirmation<Bool>()
         let first = confirmation.show(true)
