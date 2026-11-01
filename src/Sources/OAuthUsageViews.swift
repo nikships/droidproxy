@@ -101,10 +101,9 @@ struct OAuthUsageAccountGroup: View {
 
     static let checkmarkDuration: TimeInterval = 1
 
-    @State private var copied = false
-    /// Bumped per click so a quick second click restarts the checkmark timer
-    /// instead of being cut short by the first click's reset.
-    @State private var copyGeneration = 0
+    @State private var checkmark = TransientConfirmation<Bool>()
+
+    private var copied: Bool { checkmark.value != nil }
 
     /// Shown under the hover text; clicking any gauge copies a `curl` that
     /// returns this account's live usage from ThinkingProxy.
@@ -115,14 +114,15 @@ struct OAuthUsageAccountGroup: View {
     private func copyUsageCurl() {
         let command = UsageEndpoint.curlCommand(provider: account.provider, accountID: account.id)
         NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(command, forType: .string)
-        copyGeneration += 1
-        let generation = copyGeneration
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { copied = true }
+        guard NSPasteboard.general.setString(command, forType: .string) else {
+            NSLog("Usage curl copy failed: pasteboard rejected the write")
+            return
+        }
+        var token = 0
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { token = checkmark.show(true) }
         onCopiedCurl()
         DispatchQueue.main.asyncAfter(deadline: .now() + Self.checkmarkDuration) {
-            guard generation == copyGeneration else { return }
-            withAnimation(.easeOut(duration: 0.2)) { copied = false }
+            withAnimation(.easeOut(duration: 0.2)) { checkmark.dismiss(token: token) }
         }
     }
 
@@ -200,6 +200,27 @@ private func usageIconName(for provider: ServiceType) -> String? {
     case .grok: return "icon-grok.svg"
     case .meta: return "icon-meta.svg"
     default: return nil
+    }
+}
+
+/// A briefly shown value whose delayed dismissal only applies to the latest
+/// `show`, so a repeat click restarts the timer instead of being cut short by
+/// an earlier click's dismissal.
+struct TransientConfirmation<Value: Equatable>: Equatable {
+    private(set) var value: Value?
+    private var generation = 0
+
+    /// Shows `value` and returns the token its dismissal must pass back.
+    mutating func show(_ value: Value) -> Int {
+        generation += 1
+        self.value = value
+        return generation
+    }
+
+    /// Clears the value unless a newer `show` happened after `token` was issued.
+    mutating func dismiss(token: Int) {
+        guard token == generation else { return }
+        value = nil
     }
 }
 

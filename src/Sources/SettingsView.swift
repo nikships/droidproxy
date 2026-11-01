@@ -357,9 +357,7 @@ struct SettingsView: View {
     @State private var advancedExpanded = false
     @State private var factoryCTAPulse = false
     @State private var factoryJustApplied = false
-    @State private var copiedToastMessage: String?
-    /// Bumped per toast so a newer copy keeps the toast up for its full duration.
-    @State private var copiedToastGeneration = 0
+    @State private var copiedToast = TransientConfirmation<String>()
     @State private var codexFastModeExpanded = true
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
@@ -449,15 +447,22 @@ struct SettingsView: View {
     }
 
     private func showCopiedToast(_ message: String) {
-        copiedToastGeneration += 1
-        let generation = copiedToastGeneration
+        var token = 0
         withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
-            copiedToastMessage = message
+            token = copiedToast.show(message)
         }
+        // VoiceOver does not read views as they appear, so speak the confirmation.
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: message,
+                .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            ]
+        )
         DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
-            guard generation == copiedToastGeneration else { return }
             withAnimation(.easeOut(duration: 0.25)) {
-                copiedToastMessage = nil
+                copiedToast.dismiss(token: token)
             }
         }
     }
@@ -787,8 +792,8 @@ struct SettingsView: View {
             .opacity(backgroundOpacity)
         )
         .overlay(alignment: .top) {
-            if let copiedToastMessage {
-                CopiedToast(message: copiedToastMessage)
+            if let message = copiedToast.value {
+                CopiedToast(message: message)
                     .padding(.top, 44)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
