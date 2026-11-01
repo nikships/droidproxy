@@ -357,6 +357,7 @@ struct SettingsView: View {
     @State private var advancedExpanded = false
     @State private var factoryCTAPulse = false
     @State private var factoryJustApplied = false
+    @State private var copiedToast = TransientConfirmation<String>()
     @State private var codexFastModeExpanded = true
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
@@ -443,6 +444,27 @@ struct SettingsView: View {
 
     private var metaVerificationURL: URL? {
         providers.connects[.meta]?.verificationURI.flatMap(URL.init(string:))
+    }
+
+    private func showCopiedToast(_ message: String) {
+        var token = 0
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            token = copiedToast.show(message)
+        }
+        // VoiceOver does not read views as they appear, so speak the confirmation.
+        NSAccessibility.post(
+            element: NSApp as Any,
+            notification: .announcementRequested,
+            userInfo: [
+                .announcement: message,
+                .priority: NSAccessibilityPriorityLevel.high.rawValue,
+            ]
+        )
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            withAnimation(.easeOut(duration: 0.25)) {
+                copiedToast.dismiss(token: token)
+            }
+        }
     }
 
     private func showAuthResult(_ message: String) {
@@ -557,7 +579,9 @@ struct SettingsView: View {
                             .opacity(oauthUsageTracker.isRefreshing ? 0.5 : 1)
                             .help("Refresh usage quotas")
                         }
-                        OAuthUsageDashboard(accounts: oauthUsageTracker.accounts)
+                        OAuthUsageDashboard(accounts: oauthUsageTracker.accounts) { account in
+                            showCopiedToast("Copied \(account.provider.displayName) usage curl")
+                        }
                     }
                     .listRowBackground(glassRowBackground)
                 }
@@ -767,6 +791,13 @@ struct SettingsView: View {
             }
             .opacity(backgroundOpacity)
         )
+        .overlay(alignment: .top) {
+            if let message = copiedToast.value {
+                CopiedToast(message: message)
+                    .padding(.top, 44)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
         .accentColor(AccountRowView.accent)
         .preferredColorScheme(.dark)
         .frame(width: 480)

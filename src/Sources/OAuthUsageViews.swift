@@ -6,6 +6,8 @@ import SwiftUI
 /// when it has several accounts to tell apart.
 struct OAuthUsageDashboard: View {
     let accounts: [OAuthAccountUsage]
+    /// Called after a gauge copies its usage `curl`, so the host window can confirm it.
+    var onCopiedCurl: (OAuthAccountUsage) -> Void = { _ in }
 
     var body: some View {
         Group {
@@ -16,7 +18,11 @@ struct OAuthUsageDashboard: View {
             } else {
                 FlowRowLayout(horizontalSpacing: 12, verticalSpacing: 8) {
                     ForEach(accounts) { account in
-                        OAuthUsageAccountGroup(account: account, showHeader: showHeader(for: account.provider))
+                        OAuthUsageAccountGroup(
+                            account: account,
+                            showHeader: showHeader(for: account.provider),
+                            onCopiedCurl: { onCopiedCurl(account) }
+                        )
                     }
                 }
             }
@@ -91,8 +97,13 @@ struct FlowRowLayout: Layout {
 struct OAuthUsageAccountGroup: View {
     let account: OAuthAccountUsage
     let showHeader: Bool
+    var onCopiedCurl: () -> Void = {}
 
-    @State private var copied = false
+    static let checkmarkDuration: TimeInterval = 1
+
+    @State private var checkmark = TransientConfirmation<Bool>()
+
+    private var copied: Bool { checkmark.value != nil }
 
     /// Shown under the hover text; clicking any gauge copies a `curl` that
     /// returns this account's live usage from ThinkingProxy.
@@ -102,10 +113,19 @@ struct OAuthUsageAccountGroup: View {
 
     private func copyUsageCurl() {
         let command = UsageEndpoint.curlCommand(provider: account.provider, accountID: account.id)
-        NSPasteboard.general.clearContents()
-        NSPasteboard.general.setString(command, forType: .string)
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        let didCopy = UsageCurlCopier.copy(command) {
+            var token = 0
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { token = checkmark.show(true) }
+            onCopiedCurl()
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.checkmarkDuration) {
+                withAnimation(.easeOut(duration: 0.2)) { checkmark.dismiss(token: token) }
+            }
+        }
+        // A failed write has already cleared the pasteboard, so an earlier
+        // click's checkmark would now be wrong.
+        if !didCopy {
+            withAnimation(.easeOut(duration: 0.2)) { checkmark.clear() }
+        }
     }
 
     var body: some View {
@@ -146,9 +166,14 @@ struct OAuthUsageAccountGroup: View {
             } else if account.windows.count > 2 {
                 // Three or more windows (only Claude's per-model buckets)
                 // fall back to a compact stack so no limit is dropped.
+                // The whole stack is one tap target for one account's curl,
+                // so every ring in it confirms the copy.
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(account.windows) { window in
                         UsageRingGauge(window: window, provider: account.provider, compact: true, footnote: copyFootnote)
+                            .overlay {
+                                if copied { UsageCopiedCheckmark(diameter: UsageRingGauge.compactDiameter) }
+                            }
                     }
                 }
                 .contentShape(Rectangle())
@@ -160,6 +185,9 @@ struct OAuthUsageAccountGroup: View {
                     provider: account.provider,
                     footnote: copyFootnote
                 )
+                .overlay {
+                    if copied { UsageCopiedCheckmark(diameter: DualUsageRingGauge.diameter) }
+                }
                 .contentShape(Circle())
                 .onTapGesture(perform: copyUsageCurl)
             } else {
@@ -179,6 +207,99 @@ private func usageIconName(for provider: ServiceType) -> String? {
     }
 }
 
+/// Writes a usage `curl` to the pasteboard and confirms only a write that
+/// landed, since `setString` fails when another app takes ownership after
+/// `clearContents()`.
+enum UsageCurlCopier {
+    @discardableResult
+    static func copy(
+        _ command: String,
+        write: (String) -> Bool = writeToGeneralPasteboard,
+        confirm: () -> Void
+    ) -> Bool {
+        guard write(command) else {
+            NSLog("Usage curl copy failed: pasteboard rejected the write")
+            return false
+        }
+        confirm()
+        return true
+    }
+
+    static func writeToGeneralPasteboard(_ string: String) -> Bool {
+        NSPasteboard.general.clearContents()
+        return NSPasteboard.general.setString(string, forType: .string)
+    }
+}
+
+/// A briefly shown value whose delayed dismissal only applies to the latest
+/// `show`, so a repeat click restarts the timer instead of being cut short by
+/// an earlier click's dismissal.
+struct TransientConfirmation<Value: Equatable>: Equatable {
+    private(set) var value: Value?
+    private var generation = 0
+
+    /// Shows `value` and returns the token its dismissal must pass back.
+    mutating func show(_ value: Value) -> Int {
+        generation += 1
+        self.value = value
+        return generation
+    }
+
+    /// Clears the value unless a newer `show` happened after `token` was issued.
+    mutating func dismiss(token: Int) {
+        guard token == generation else { return }
+        value = nil
+    }
+
+    /// Clears the value now and invalidates every pending dismissal.
+    mutating func clear() {
+        generation += 1
+        value = nil
+    }
+}
+
+/// Covers a gauge for a moment after its `curl` is copied.
+struct UsageCopiedCheckmark: View {
+    let diameter: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.green)
+            Image(systemName: "checkmark")
+                .font(.system(size: diameter * 0.42, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: diameter, height: diameter)
+        .transition(.scale(scale: 0.5).combined(with: .opacity))
+        .allowsHitTesting(false)
+        .accessibilityLabel("Copied")
+    }
+}
+
+/// Floating confirmation capsule for the Settings window.
+struct CopiedToast: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.green)
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(Color(white: 0.08)))
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
+    }
+}
+
 /// Hollow ring whose stroke is the remaining quota; it drains clockwise from 12 o'clock.
 /// The provider logo sits inside the ring, aspect-fit so it never clips or distorts;
 /// the exact percent and reset time appear in an instant hover popover (`.help()`
@@ -188,6 +309,8 @@ private func usageIconName(for provider: ServiceType) -> String? {
 /// title; the popover names the window, so all text lives on hover.
 struct UsageRingGauge: View {
     static let diameter: CGFloat = 34
+    static let compactScale: CGFloat = 0.5
+    static var compactDiameter: CGFloat { diameter * compactScale }
     /// Logo box: well inside the ~30.5pt clear inner diameter, with room to spare.
     static let logoLength: CGFloat = 20
     static let strokeWidth: CGFloat = 3.5
@@ -199,7 +322,7 @@ struct UsageRingGauge: View {
     var footnote: String?
 
     private var remaining: Double? { window.remainingPercent }
-    private var scale: CGFloat { compact ? 0.5 : 1 }
+    private var scale: CGFloat { compact ? Self.compactScale : 1 }
 
     private var tint: Color {
         ProviderUsageColors.color(for: provider)
