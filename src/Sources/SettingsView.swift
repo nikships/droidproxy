@@ -357,6 +357,9 @@ struct SettingsView: View {
     @State private var advancedExpanded = false
     @State private var factoryCTAPulse = false
     @State private var factoryJustApplied = false
+    @State private var copiedToastMessage: String?
+    /// Bumped per toast so a newer copy keeps the toast up for its full duration.
+    @State private var copiedToastGeneration = 0
     @State private var codexFastModeExpanded = true
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
@@ -443,6 +446,20 @@ struct SettingsView: View {
 
     private var metaVerificationURL: URL? {
         providers.connects[.meta]?.verificationURI.flatMap(URL.init(string:))
+    }
+
+    private func showCopiedToast(_ message: String) {
+        copiedToastGeneration += 1
+        let generation = copiedToastGeneration
+        withAnimation(.spring(response: 0.35, dampingFraction: 0.75)) {
+            copiedToastMessage = message
+        }
+        DispatchQueue.main.asyncAfter(deadline: .now() + 1.6) {
+            guard generation == copiedToastGeneration else { return }
+            withAnimation(.easeOut(duration: 0.25)) {
+                copiedToastMessage = nil
+            }
+        }
     }
 
     private func showAuthResult(_ message: String) {
@@ -557,7 +574,9 @@ struct SettingsView: View {
                             .opacity(oauthUsageTracker.isRefreshing ? 0.5 : 1)
                             .help("Refresh usage quotas")
                         }
-                        OAuthUsageDashboard(accounts: oauthUsageTracker.accounts)
+                        OAuthUsageDashboard(accounts: oauthUsageTracker.accounts) { account in
+                            showCopiedToast("Copied \(account.provider.displayName) usage curl")
+                        }
                     }
                     .listRowBackground(glassRowBackground)
                 }
@@ -767,6 +786,13 @@ struct SettingsView: View {
             }
             .opacity(backgroundOpacity)
         )
+        .overlay(alignment: .top) {
+            if let copiedToastMessage {
+                CopiedToast(message: copiedToastMessage)
+                    .padding(.top, 44)
+                    .transition(.move(edge: .top).combined(with: .opacity))
+            }
+        }
         .accentColor(AccountRowView.accent)
         .preferredColorScheme(.dark)
         .frame(width: 480)

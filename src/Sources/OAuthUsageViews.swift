@@ -6,6 +6,8 @@ import SwiftUI
 /// when it has several accounts to tell apart.
 struct OAuthUsageDashboard: View {
     let accounts: [OAuthAccountUsage]
+    /// Called after a gauge copies its usage `curl`, so the host window can confirm it.
+    var onCopiedCurl: (OAuthAccountUsage) -> Void = { _ in }
 
     var body: some View {
         Group {
@@ -16,7 +18,11 @@ struct OAuthUsageDashboard: View {
             } else {
                 FlowRowLayout(horizontalSpacing: 12, verticalSpacing: 8) {
                     ForEach(accounts) { account in
-                        OAuthUsageAccountGroup(account: account, showHeader: showHeader(for: account.provider))
+                        OAuthUsageAccountGroup(
+                            account: account,
+                            showHeader: showHeader(for: account.provider),
+                            onCopiedCurl: { onCopiedCurl(account) }
+                        )
                     }
                 }
             }
@@ -91,8 +97,14 @@ struct FlowRowLayout: Layout {
 struct OAuthUsageAccountGroup: View {
     let account: OAuthAccountUsage
     let showHeader: Bool
+    var onCopiedCurl: () -> Void = {}
+
+    static let checkmarkDuration: TimeInterval = 1
 
     @State private var copied = false
+    /// Bumped per click so a quick second click restarts the checkmark timer
+    /// instead of being cut short by the first click's reset.
+    @State private var copyGeneration = 0
 
     /// Shown under the hover text; clicking any gauge copies a `curl` that
     /// returns this account's live usage from ThinkingProxy.
@@ -104,8 +116,14 @@ struct OAuthUsageAccountGroup: View {
         let command = UsageEndpoint.curlCommand(provider: account.provider, accountID: account.id)
         NSPasteboard.general.clearContents()
         NSPasteboard.general.setString(command, forType: .string)
-        copied = true
-        DispatchQueue.main.asyncAfter(deadline: .now() + 1.5) { copied = false }
+        copyGeneration += 1
+        let generation = copyGeneration
+        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { copied = true }
+        onCopiedCurl()
+        DispatchQueue.main.asyncAfter(deadline: .now() + Self.checkmarkDuration) {
+            guard generation == copyGeneration else { return }
+            withAnimation(.easeOut(duration: 0.2)) { copied = false }
+        }
     }
 
     var body: some View {
@@ -151,6 +169,9 @@ struct OAuthUsageAccountGroup: View {
                         UsageRingGauge(window: window, provider: account.provider, compact: true, footnote: copyFootnote)
                     }
                 }
+                .overlay {
+                    if copied { UsageCopiedCheckmark(diameter: UsageRingGauge.diameter) }
+                }
                 .contentShape(Rectangle())
                 .onTapGesture(perform: copyUsageCurl)
             } else if let first = account.windows.first {
@@ -160,6 +181,9 @@ struct OAuthUsageAccountGroup: View {
                     provider: account.provider,
                     footnote: copyFootnote
                 )
+                .overlay {
+                    if copied { UsageCopiedCheckmark(diameter: DualUsageRingGauge.diameter) }
+                }
                 .contentShape(Circle())
                 .onTapGesture(perform: copyUsageCurl)
             } else {
@@ -176,6 +200,48 @@ private func usageIconName(for provider: ServiceType) -> String? {
     case .grok: return "icon-grok.svg"
     case .meta: return "icon-meta.svg"
     default: return nil
+    }
+}
+
+/// Covers a gauge for a moment after its `curl` is copied.
+struct UsageCopiedCheckmark: View {
+    let diameter: CGFloat
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .fill(Color.green)
+            Image(systemName: "checkmark")
+                .font(.system(size: diameter * 0.42, weight: .bold))
+                .foregroundColor(.white)
+        }
+        .frame(width: diameter, height: diameter)
+        .transition(.scale(scale: 0.5).combined(with: .opacity))
+        .allowsHitTesting(false)
+        .accessibilityLabel("Copied")
+    }
+}
+
+/// Floating confirmation capsule for the Settings window.
+struct CopiedToast: View {
+    let message: String
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "checkmark.circle.fill")
+                .font(.system(size: 13, weight: .semibold))
+                .foregroundColor(.green)
+            Text(message)
+                .font(.system(size: 12, weight: .medium))
+                .foregroundColor(.white)
+        }
+        .padding(.horizontal, 14)
+        .padding(.vertical, 8)
+        .background(Capsule().fill(Color(white: 0.08)))
+        .overlay(Capsule().strokeBorder(Color.white.opacity(0.18), lineWidth: 1))
+        .shadow(color: .black.opacity(0.35), radius: 10, y: 4)
+        .allowsHitTesting(false)
+        .accessibilityElement(children: .combine)
     }
 }
 
