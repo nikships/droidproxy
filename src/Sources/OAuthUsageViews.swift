@@ -113,16 +113,13 @@ struct OAuthUsageAccountGroup: View {
 
     private func copyUsageCurl() {
         let command = UsageEndpoint.curlCommand(provider: account.provider, accountID: account.id)
-        NSPasteboard.general.clearContents()
-        guard NSPasteboard.general.setString(command, forType: .string) else {
-            NSLog("Usage curl copy failed: pasteboard rejected the write")
-            return
-        }
-        var token = 0
-        withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { token = checkmark.show(true) }
-        onCopiedCurl()
-        DispatchQueue.main.asyncAfter(deadline: .now() + Self.checkmarkDuration) {
-            withAnimation(.easeOut(duration: 0.2)) { checkmark.dismiss(token: token) }
+        UsageCurlCopier.copy(command) {
+            var token = 0
+            withAnimation(.spring(response: 0.3, dampingFraction: 0.6)) { token = checkmark.show(true) }
+            onCopiedCurl()
+            DispatchQueue.main.asyncAfter(deadline: .now() + Self.checkmarkDuration) {
+                withAnimation(.easeOut(duration: 0.2)) { checkmark.dismiss(token: token) }
+            }
         }
     }
 
@@ -164,13 +161,15 @@ struct OAuthUsageAccountGroup: View {
             } else if account.windows.count > 2 {
                 // Three or more windows (only Claude's per-model buckets)
                 // fall back to a compact stack so no limit is dropped.
+                // The whole stack is one tap target for one account's curl,
+                // so every ring in it confirms the copy.
                 VStack(alignment: .leading, spacing: 2) {
                     ForEach(account.windows) { window in
                         UsageRingGauge(window: window, provider: account.provider, compact: true, footnote: copyFootnote)
+                            .overlay {
+                                if copied { UsageCopiedCheckmark(diameter: UsageRingGauge.compactDiameter) }
+                            }
                     }
-                }
-                .overlay {
-                    if copied { UsageCopiedCheckmark(diameter: UsageRingGauge.diameter) }
                 }
                 .contentShape(Rectangle())
                 .onTapGesture(perform: copyUsageCurl)
@@ -200,6 +199,30 @@ private func usageIconName(for provider: ServiceType) -> String? {
     case .grok: return "icon-grok.svg"
     case .meta: return "icon-meta.svg"
     default: return nil
+    }
+}
+
+/// Writes a usage `curl` to the pasteboard and confirms only a write that
+/// landed, since `setString` fails when another app takes ownership after
+/// `clearContents()`.
+enum UsageCurlCopier {
+    @discardableResult
+    static func copy(
+        _ command: String,
+        write: (String) -> Bool = writeToGeneralPasteboard,
+        confirm: () -> Void
+    ) -> Bool {
+        guard write(command) else {
+            NSLog("Usage curl copy failed: pasteboard rejected the write")
+            return false
+        }
+        confirm()
+        return true
+    }
+
+    static func writeToGeneralPasteboard(_ string: String) -> Bool {
+        NSPasteboard.general.clearContents()
+        return NSPasteboard.general.setString(string, forType: .string)
     }
 }
 
@@ -275,6 +298,8 @@ struct CopiedToast: View {
 /// title; the popover names the window, so all text lives on hover.
 struct UsageRingGauge: View {
     static let diameter: CGFloat = 34
+    static let compactScale: CGFloat = 0.5
+    static var compactDiameter: CGFloat { diameter * compactScale }
     /// Logo box: well inside the ~30.5pt clear inner diameter, with room to spare.
     static let logoLength: CGFloat = 20
     static let strokeWidth: CGFloat = 3.5
@@ -286,7 +311,7 @@ struct UsageRingGauge: View {
     var footnote: String?
 
     private var remaining: Double? { window.remainingPercent }
-    private var scale: CGFloat { compact ? 0.5 : 1 }
+    private var scale: CGFloat { compact ? Self.compactScale : 1 }
 
     private var tint: Color {
         ProviderUsageColors.color(for: provider)
