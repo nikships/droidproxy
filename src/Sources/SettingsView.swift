@@ -668,7 +668,7 @@ struct SettingsView: View {
                         .antigravity,
                         iconName: "icon-gemini.png",
                         toggleTint: antigravityEffortSelectionColor,
-                        helpText: "Uses your Antigravity subscription for the Antigravity-backed Gemini, Claude, and GPT-OSS models."
+                        helpText: "Uses your Antigravity subscription for the Antigravity-backed Gemini and Claude models."
                     )
 
                     providerServiceRow(

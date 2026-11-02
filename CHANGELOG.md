@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Removed
+- **Gemini 3.1 Pro and GPT-OSS 120B removed** -- `antigravity-gemini-3.1-pro`, `gemini-3.1-pro-low`, and `gpt-oss-120b-medium` are no longer registered in the DroidProxy catalog. Re-applying Factory models will prune the old `custom:droidproxy:antigravity-gemini-3.1-pro`, `custom:droidproxy:gemini-3.1-pro-low`, and `custom:droidproxy:gpt-oss-120b-medium` ids from `~/.factory/settings.json`.
+
 ### Added
 - **Control API for Droid Office** -- `/droidproxy/control/` on the proxy port lets Droid Office drive DroidProxy: read its state (`GET /status`), start or cancel a provider sign-in (`POST /connect`, `/connect/cancel`), remove an account, flip a provider switch, add DroidProxy's models to Droid (`POST /factory-models`), ask which models can run right now from your quota (`GET /models`), and open Settings. It answers only this Mac: every call needs the token DroidProxy writes to `~/.droidproxy/control.json` (private to your user, new at every launch), and requests from web pages or other machines are refused. The Settings window and the API share one controller, so a sign-in started from either shows in both. Started with `open -g -a DroidProxy.app --args --launched-by droid-office`, DroidProxy runs in the background without opening anything of its own.
 - **Copyable usage `curl`** -- Click any quota ring in **OAuth Quota Usage** to copy a `curl` for that account's live usage. It hits the new `GET /droidproxy/usage` endpoint on the proxy port (`?provider=` and `?account=` filter), which returns each window's `remaining_percent` and `resets_in_seconds` as JSON. Paste it to an agent so it can stop near 0% and wait for the reset instead of failing requests (Droid stops retrying after about 30 seconds). Successful results are cached for 15 seconds to protect the upstream usage APIs.
