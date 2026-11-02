@@ -53,6 +53,8 @@ struct AuthAccount: Identifiable, Equatable {
     let email: String?
     let login: String?  // for Copilot
     let type: ServiceType
+    /// When the file's access token stops working. With a refresh token, CLIProxyAPI swaps in a
+    /// new one on the account's next request, so this passing is not the account expiring.
     let expired: Date?
     let filePath: URL
     let isDisabled: Bool
@@ -60,10 +62,17 @@ struct AuthAccount: Identifiable, Equatable {
     let organizationName: String?
     /// Classified Settings/quota suffix (`Personal Max`, `{org} (Team)`, or raw name).
     let claudeSeatLabel: String?
+    /// The file has a refresh token, so an expired access token is renewed on use.
+    var canRefresh: Bool = false
 
-    var isExpired: Bool {
+    var isAccessExpired: Bool {
         guard let expired else { return false }
         return expired < Date()
+    }
+
+    /// The account can't be used again until the owner signs in again.
+    var isExpired: Bool {
+        isAccessExpired && !canRefresh
     }
 
     var displayName: String {
@@ -219,8 +228,14 @@ class AuthManager: ObservableObject {
 
     private func parseAccount(from file: URL) -> AuthAccount? {
         guard let data = try? Data(contentsOf: file),
-              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
-              let typeString = json["type"] as? String,
+              let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
+            return nil
+        }
+        return Self.parseAccount(json: json, file: file)
+    }
+
+    static func parseAccount(json: [String: Any], file: URL) -> AuthAccount? {
+        guard let typeString = json["type"] as? String,
               let serviceType = ServiceType(authFileType: typeString) else {
             return nil
         }
@@ -250,11 +265,12 @@ class AuthManager: ObservableObject {
             filePath: file,
             isDisabled: json["disabled"] as? Bool ?? false,
             organizationName: organizationName,
-            claudeSeatLabel: claudeSeatLabel
+            claudeSeatLabel: claudeSeatLabel,
+            canRefresh: !((json["refresh_token"] as? String) ?? "").isEmpty
         )
     }
 
-    private func parseExpiry(_ value: String?) -> Date? {
+    private static func parseExpiry(_ value: String?) -> Date? {
         guard let value else { return nil }
         for formatter in Self.dateFormatters {
             if let date = formatter.date(from: value) { return date }

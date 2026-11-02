@@ -233,12 +233,17 @@ function listCodexAccounts() {
           const data = JSON.parse(fs.readFileSync(filePath, "utf8"));
           if (String(data.type || "").toLowerCase() !== "codex") return null;
           const expired = data.expired ? Date.parse(data.expired) : null;
+          const isAccessExpired = Number.isFinite(expired) ? expired < Date.now() : false;
+          // CLIProxyAPI renews an expired access token on use when the file has a refresh token.
+          const canRefresh = Boolean(data.refresh_token);
           return {
             id: file,
             email: data.email || data.login || file,
             disabled: Boolean(data.disabled),
             expired: Number.isFinite(expired) ? new Date(expired).toISOString() : null,
-            isExpired: Number.isFinite(expired) ? expired < Date.now() : false,
+            isAccessExpired,
+            canRefresh,
+            isExpired: isAccessExpired && !canRefresh,
             path: filePath,
             hasAccessToken: Boolean(data.access_token)
           };

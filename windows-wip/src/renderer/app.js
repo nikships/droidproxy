@@ -119,7 +119,7 @@ async function refreshAccounts() {
 
 async function refreshUsage() {
   const accounts = currentAccounts.length ? currentAccounts : await refreshAccounts();
-  const account = accounts.find((item) => !item.disabled && !item.isExpired && item.hasAccessToken);
+  const account = accounts.find((item) => !item.disabled && !item.isAccessExpired && item.hasAccessToken);
   if (!account) {
     elements.usage.className = "list muted";
     elements.usage.textContent = "Connect Codex to display quota windows.";

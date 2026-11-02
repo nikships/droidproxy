@@ -147,6 +147,9 @@ final class OAuthUsageTracker: ObservableObject {
               let token = auth["access_token"] else {
             return failedAccount(account, "Missing access token")
         }
+        if account.isAccessExpired {
+            return failedAccount(account, "Access token expired; it renews on this account's next request")
+        }
         guard let url = URL(string: "https://chatgpt.com/backend-api/wham/usage") else {
             return failedAccount(account, "Invalid usage endpoint")
         }
