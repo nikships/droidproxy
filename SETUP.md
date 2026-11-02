@@ -188,7 +188,6 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 - Haiku 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Sonnet 4.6: `low`, `medium`, `high`, or `max`
 - GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
-- Gemini 3.1 Pro: `low`, `medium`, or `high`
 - Gemini 3 Flash: `minimal`, `low`, `medium`, or `high`
 - Kimi K3: `max` (the only currently supported effort)
 - Kimi K2.6: `high`
