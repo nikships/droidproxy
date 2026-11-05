@@ -1,0 +1,24 @@
+name: Image Skill
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'skills/gpt-image/**'
+      - '.github/workflows/image-skill.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'skills/gpt-image/**'
+      - '.github/workflows/image-skill.yml'
+permissions:
+  contents: read
+jobs:
+  test:
+    name: GPT Image request contracts
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: oven-sh/setup-bun@v2
+        with:
+          bun-version: '1.4.3'
+      - run: bun test ./skills/gpt-image/scripts/image.test.ts

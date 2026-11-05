@@ -41,14 +41,28 @@ See [`skills/grok-imagine/SKILL.md`](skills/grok-imagine/SKILL.md). With DroidPr
 
 ### GPT Image (Codex OAuth)
 
-Same pattern as Grok, but through Codex. ChatGPT Plus/Pro OAuth is required; Free accounts are skipped (`auth_not_found`).
+Same pattern as Grok, but through Codex. Connect Codex in Settings. Older
+backends skip Free accounts (`auth_not_found`); OpenAI announces 2.6 on all
+ChatGPT/Codex tiers, but this OAuth route's 2.6 access is not verified.
 
 ```bash
 mkdir -p ~/.factory/skills
 cp -R skills/gpt-image ~/.factory/skills/
 ```
 
-See [`skills/gpt-image/SKILL.md`](skills/gpt-image/SKILL.md). With DroidProxy running and Codex connected, the skill posts to `http://localhost:8317/v1/images/generations` (`gpt-image-2.5-flare` or `gpt-image-2.5-sunburst`); CLIProxyAPI injects your Codex bearer. Selecting a DroidProxy GPT chat model does not generate images.
+Copy the whole directory, not just `SKILL.md`; the optional helper requires
+[Bun](https://bun.sh) and no dependencies. See
+[`skills/gpt-image/SKILL.md`](skills/gpt-image/SKILL.md) for generation/edit
+examples, complexity, markup, SVG and GIF opt-ins, pricing and limits.
+
+The skill defaults to `gpt-image-2.6-flare`; choose `gpt-image-2.6-sunburst`
+for detail and consistent edits. Both use `/v1/images/generations` or
+`/v1/images/edits`, with CLIProxyAPI injecting the Codex bearer. **The current
+backend rejects both 2.6 IDs with HTTP 400.** Until backend support arrives,
+explicitly select an older model, e.g. `GPT_IMAGE_MODEL=gpt-image-2.5-flare`,
+without new feature fields. See [compatibility proof](skills/gpt-image/COMPATIBILITY.md).
+Selecting a GPT chat model does not generate images; do not add image-only
+models to Factory's chat-model list.
 
 ## 2. Configure Factory
 
