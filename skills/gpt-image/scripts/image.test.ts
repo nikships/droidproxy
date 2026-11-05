@@ -2,7 +2,7 @@ import { describe, expect, test } from "bun:test";
 import { mkdtemp, rm } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { decodeResult, models, prepareRequest, sendRequest } from "./image";
+import { configFromEnvironment, decodeResult, models, prepareRequest, sendRequest } from "./image";
 
 const prompt = "A red cube on white";
 const image = { image_url: "data:image/png;base64,aGVsbG8=" };
@@ -24,6 +24,14 @@ describe("model selection and compatibility", () => {
   test("rejects shut-down and chat models", () => {
     expect(() => prepare({ model: "gpt-image-1" })).toThrow("shut down");
     expect(() => prepare({ model: "gpt-6-astra" })).toThrow("not a chat model");
+    for (const model of ["gpt-image-", "gpt-image-2.6 flare", "chatgpt-image-latest-extra", ""])
+      expect(() => prepare({ model })).toThrow("Use an image model");
+  });
+  test("normalizes feature lists and treats blank environment overrides as unset", () => {
+    const config = configFromEnvironment({ GPT_IMAGE_MODEL: "", GPT_IMAGE_PROXY_URL: "",
+      GPT_IMAGE_FEATURES: " SVG , gif, ", GPT_IMAGE_MAX_FRAMES: "16" });
+    expect(config).toEqual({ model: undefined, proxyURL: undefined, features: ["svg", "gif"], maxFrames: 16 });
+    expect(prepareRequest("generate", { prompt, model: models.sunburst }, config).body.model).toBe(models.sunburst);
   });
   test("does not invent a dated 2.6 snapshot", () => {
     expect(Object.values(models).flat().filter((id) => /2\.6-.*2026/.test(id))).toEqual([]);
@@ -71,6 +79,15 @@ describe("request contracts", () => {
     for (const markup of [{}, { image_url: image.image_url, file_id: "file-1" }, { other: "x" }, { image_url: "http://example.com/a.png" }, { image_url: "data:image/jpeg;base64,aA==" }])
       expect(() => prepare({ images: [image], markup }, ["markup"], "edit")).toThrow();
     expect(prepare({ images: [image], markup: image }, ["markup"], "edit").body.markup).toEqual(image);
+    expect(() => prepare({ images: [image], markup: { image_url: "DATA:IMAGE/JPEG;BASE64,aA==" } }, ["markup"], "edit")).toThrow("transparent PNG");
+    for (const image_url of ["DATA:IMAGE/PNG;BASE64,aA==", "https://example.com/overlay.png"]) {
+      const markup = { image_url };
+      expect(prepare({ images: [image], markup }, ["markup"], "edit").body.markup).toEqual(markup);
+    }
+  });
+  test("rejects streaming field even when false or malformed", () => {
+    for (const stream of [true, false, null, 0, ""])
+      expect(() => prepare({ stream })).toThrow("omit streaming");
   });
   test("SVG needs n=1; no edits, streaming, partials, compression or rewriting", () => {
     expect(prepare({ output_format: "svg", n: 1 }, ["svg"]).body.output_format).toBe("svg");
@@ -85,6 +102,8 @@ describe("request contracts", () => {
     for (const frame_count of [16, 64, 65])
       expect(prepare({ output_format: "gif", frame_count }, ["gif"]).body.frame_count).toBe(frame_count);
     expect(() => prepareRequest("generate", { prompt, output_format: "gif", frame_count: 17 }, { features: ["gif"], maxFrames: 16 })).toThrow("frame_count");
+    expect(() => prepareRequest("generate", { prompt, output_format: "gif" }, { features: ["gif"], maxFrames: 2 })).toThrow("Default frame_count");
+    expect(() => prepareRequest("generate", { prompt, output_format: "gif" }, { features: ["gif"], maxFrames: NaN })).toThrow("GPT_IMAGE_MAX_FRAMES");
     for (const frame_duration_ms of [20, 2000])
       expect(prepare({ output_format: "gif", frame_duration_ms }, ["gif"]).body.frame_duration_ms).toBe(frame_duration_ms);
     for (const extra of [{ frame_count: 1 }, { frame_duration_ms: 19 }, { frame_duration_ms: 2001 }, { stream: true }, { partial_images: 0 }, { output_compression: 20 }, { prompt_rewriter: true }])
@@ -99,6 +118,9 @@ describe("result handling", () => {
     const svg = '<?xml version="1.0"?><svg xmlns="http://www.w3.org/2000/svg"><text>café</text></svg>';
     expect(decodeResult(encoded(svg), "svg")[0].bytes.toString("utf8")).toBe(svg);
     expect(decodeResult(encoded("GIF89a"), "gif")[0].format).toBe("gif");
+    for (const preamble of ['<!DOCTYPE svg>', '<?xml version="1.0"?><!--header--><!DOCTYPE svg>'])
+      expect(decodeResult(encoded(`${preamble}<svg xmlns="http://www.w3.org/2000/svg"/>`), "svg")[0].format).toBe("svg");
+    expect(decodeResult(encoded("<svg/>"), "svg")[0].format).toBe("svg");
   });
   test("recognizes old raster formats without response metadata", () => {
     for (const [bytes, format] of [
@@ -112,6 +134,7 @@ describe("result handling", () => {
     expect(() => decodeResult(encoded("GIF89a"), "svg")).toThrow("not requested svg");
     for (const response of [{}, { data: [] }, { data: [{ url: "https://example.com" }] }, { data: [{ b64_json: "$$$" }] }, encoded("not an image")])
       expect(() => decodeResult(response)).toThrow();
+    expect(() => decodeResult({ data: [null] })).toThrow("Missing or invalid b64_json");
   });
 });
 
@@ -173,7 +196,7 @@ describe("proxy integration (isolated local contract server, not live OAuth)", (
       const request = join(dir, "request.json");
       await Bun.write(request, JSON.stringify({ prompt, output_format: "svg" }));
       const child = Bun.spawn([process.execPath, join(import.meta.dir, "image.ts"), "generate", request, join(dir, "asset")], {
-        env: { ...process.env, GPT_IMAGE_MODEL: models.sunburst, GPT_IMAGE_FEATURES: "svg",
+        env: { ...process.env, GPT_IMAGE_MODEL: models.sunburst, GPT_IMAGE_FEATURES: " SVG, ",
           GPT_IMAGE_PROXY_URL: `http://127.0.0.1:${server.port}`, GPT_IMAGE_MAX_FRAMES: "" },
         stdout: "pipe", stderr: "pipe",
       });

@@ -16,6 +16,15 @@ type Request = Record<string, any>;
 type Config = { model?: string; features?: string[]; maxFrames?: number };
 const present = (body: Request, field: string) => body[field] !== undefined;
 
+export function configFromEnvironment(env: Record<string, string | undefined>) {
+  return {
+    model: env.GPT_IMAGE_MODEL || undefined,
+    features: (env.GPT_IMAGE_FEATURES || "").split(",").map((value) => value.trim().toLowerCase()).filter(Boolean),
+    maxFrames: env.GPT_IMAGE_MAX_FRAMES ? Number(env.GPT_IMAGE_MAX_FRAMES) : undefined,
+    proxyURL: env.GPT_IMAGE_PROXY_URL || undefined,
+  };
+}
+
 function integer(value: unknown, min: number, max: number, field: string) {
   if (!Number.isInteger(value) || Number(value) < min || Number(value) > max)
     throw new Error(`${field} must be an integer from ${min} to ${max}`);
@@ -36,8 +45,8 @@ export function prepareRequest(operation: string, input: Request, config: Config
   if (!["generate", "edit"].includes(operation)) throw new Error("Use generate or edit");
   if (!input || typeof input !== "object" || Array.isArray(input))
     throw new Error("Request must be a JSON object");
-  const body: Request = { ...input, model: config.model || input.model || models.flare };
-  if (typeof body.model !== "string" || !/^(gpt-image-|chatgpt-image-latest$)/.test(body.model))
+  const body: Request = { ...input, model: config.model ?? input.model ?? models.flare };
+  if (typeof body.model !== "string" || !/^(?:gpt-image-[a-z0-9][a-z0-9.-]*|chatgpt-image-latest)$/.test(body.model))
     throw new Error("Use an image model, not a chat model");
   if (body.model === "gpt-image-1") throw new Error("gpt-image-1 was shut down on 2026-10-23");
   if (typeof body.prompt !== "string" || !body.prompt.trim()) throw new Error("prompt is required");
@@ -53,7 +62,7 @@ export function prepareRequest(operation: string, input: Request, config: Config
   if (present(body, "size") && (typeof body.size !== "string" || !/^(auto|[1-9]\d*x[1-9]\d*)$/.test(body.size)))
     throw new Error("size must be auto or WIDTHxHEIGHT");
   if (present(body, "n")) integer(body.n, 1, 10, "n");
-  if (body.stream || present(body, "partial_images"))
+  if (present(body, "stream") || present(body, "partial_images"))
     throw new Error("This helper saves complete JSON results; omit streaming and partial_images");
   if (present(body, "response_format")) throw new Error("Omit response_format; GPT Image returns b64_json");
   if (present(body, "output_compression")) {
@@ -76,8 +85,8 @@ export function prepareRequest(operation: string, input: Request, config: Config
       if (present(body, "mask") || present(body, "prompt_rewriter"))
         throw new Error("markup cannot be combined with mask or prompt_rewriter");
       imageReference(body.markup, "markup");
-      if (body.markup.image_url?.startsWith("data:") &&
-          !body.markup.image_url.startsWith("data:image/png;base64,"))
+      if (typeof body.markup.image_url === "string" && /^data:/i.test(body.markup.image_url) &&
+          !/^data:image\/png;base64,/i.test(body.markup.image_url))
         throw new Error("markup must be a transparent PNG");
     }
   } else if (["images", "mask", "markup"].some((key) => present(body, key))) {
@@ -87,6 +96,11 @@ export function prepareRequest(operation: string, input: Request, config: Config
     enable(body.output_format);
     if (present(body, "prompt_rewriter")) throw new Error("SVG/GIF do not support prompt_rewriter");
     if (body.output_format === "svg" && (body.n ?? 1) !== 1) throw new Error("SVG requires n=1");
+  }
+  if (body.output_format === "gif" && config.maxFrames !== undefined) {
+    integer(config.maxFrames, 2, Number.MAX_SAFE_INTEGER, "GPT_IMAGE_MAX_FRAMES");
+    if (!present(body, "frame_count") && config.maxFrames < 9)
+      throw new Error("Default frame_count 9 exceeds GPT_IMAGE_MAX_FRAMES; set frame_count explicitly");
   }
   if (present(body, "frame_count") || present(body, "frame_duration_ms")) {
     if (body.output_format !== "gif") throw new Error("frame fields require GIF output");
@@ -104,7 +118,7 @@ export function prepareRequest(operation: string, input: Request, config: Config
 export function decodeResult(response: any, expectedFormat?: string) {
   if (!Array.isArray(response?.data) || !response.data.length) throw new Error("No image data returned");
   return response.data.map((item: any) => {
-    if (typeof item.b64_json !== "string" || !item.b64_json.length ||
+    if (typeof item?.b64_json !== "string" || !item.b64_json.length ||
         !/^[A-Za-z0-9+/\s]*={0,2}$/.test(item.b64_json))
       throw new Error("Missing or invalid b64_json");
     const bytes = Buffer.from(item.b64_json, "base64");
@@ -113,7 +127,7 @@ export function decodeResult(response: any, expectedFormat?: string) {
       : bytes[0] === 255 && bytes[1] === 216 && bytes[2] === 255 ? "jpeg"
       : bytes.toString("ascii", 0, 4) === "RIFF" && bytes.toString("ascii", 8, 12) === "WEBP" ? "webp"
       : /^GIF8[79]a/.test(head) ? "gif"
-      : /^(?:<\?xml[^>]*>\s*)?(?:<!--[\s\S]*?-->\s*)*<svg[\s>]/.test(head) ? "svg" : undefined;
+      : /^(?:(?:<\?xml[^>]*>|<!--[\s\S]*?-->|<!DOCTYPE[^>]*>)\s*)*<svg[\s/>]/i.test(head) ? "svg" : undefined;
     if (!format) throw new Error("Unrecognized image bytes; no output saved");
     if (expectedFormat && format !== expectedFormat)
       throw new Error(`Backend returned ${format}, not requested ${expectedFormat}; no output saved`);
@@ -146,12 +160,9 @@ if (import.meta.main) {
   try {
     const [operation, requestFile, outputPrefix] = Bun.argv.slice(2);
     if (!requestFile || !outputPrefix) throw new Error("Usage: bun image.ts generate|edit /absolute/request.json /absolute/output-prefix");
-    const request = prepareRequest(operation, await Bun.file(resolve(requestFile)).json(), {
-      model: Bun.env.GPT_IMAGE_MODEL,
-      features: (Bun.env.GPT_IMAGE_FEATURES || "").split(",").filter(Boolean),
-      maxFrames: Bun.env.GPT_IMAGE_MAX_FRAMES ? Number(Bun.env.GPT_IMAGE_MAX_FRAMES) : undefined,
-    });
-    const result = await sendRequest(request, Bun.env.GPT_IMAGE_PROXY_URL);
+    const config = configFromEnvironment(Bun.env);
+    const request = prepareRequest(operation, await Bun.file(resolve(requestFile)).json(), config);
+    const result = await sendRequest(request, config.proxyURL);
     const images = decodeResult(result, request.body.output_format);
     const files: string[] = [];
     for (const [index, image] of images.entries()) {
