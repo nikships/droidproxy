@@ -301,18 +301,6 @@ enum DroidProxyModelCatalog {
             // /v1 makes Factory's Droid CLI send POST /v1/chat/completions, which the
             // antigravity executor handles natively using the antigravity auth file.
             antigravityModel(
-                baseModel: "gemini-pro-agent",
-                idSlug: "antigravity-gemini-3.1-pro",
-                displayName: "Gemini 3.1 Pro (High)"
-            ),
-            antigravityModel(
-                baseModel: "gemini-3.1-pro-low",
-                idSlug: "gemini-3.1-pro-low",
-                displayName: "Gemini 3.1 Pro (Low)",
-                levels: [low],
-                defaultLevelValue: "low"
-            ),
-            antigravityModel(
                 baseModel: "gemini-3.8-flash-high",
                 idSlug: "gemini-3.8-flash-high",
                 displayName: "Gemini 3.8 Flash (High)"
@@ -354,14 +342,6 @@ enum DroidProxyModelCatalog {
                 idSlug: "ag-c46o-thinking",
                 displayName: "Claude Opus 4.6 (Thinking)",
                 maxOutputTokens: 64000
-            ),
-            antigravityModel(
-                baseModel: "gpt-oss-120b-medium",
-                idSlug: "gpt-oss-120b-medium",
-                displayName: "GPT-OSS 120B (Medium)",
-                maxOutputTokens: 32768,
-                levels: [medium],
-                defaultLevelValue: "medium"
             ),
             // CLIProxyAPI recognizes this catalog ID and removes the `kimi-` prefix,
             // sending Kimi Code's native `k3` model ID upstream.

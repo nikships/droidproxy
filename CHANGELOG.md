@@ -6,6 +6,9 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Removed
+- **Gemini 3.1 Pro and GPT-OSS 120B removed** -- `antigravity-gemini-3.1-pro`, `gemini-3.1-pro-low`, and `gpt-oss-120b-medium` are no longer registered in the DroidProxy catalog. Re-applying Factory models will prune the old `custom:droidproxy:antigravity-gemini-3.1-pro`, `custom:droidproxy:gemini-3.1-pro-low`, and `custom:droidproxy:gpt-oss-120b-medium` ids from `~/.factory/settings.json`.
+
 ### Added
 - **GPT Image 2.6 skill contracts** -- Flare is the configurable default, with Sunburst for quality/detail. A dependency-free Bun helper validates opt-in complexity, markup, SVG/GIF combinations, decodes all image results, and rejects silent format downgrades. Older image IDs remain selectable. Includes request-contract tests and CI. Live probes on November 4 returned HTTP 400 for both 2.6 IDs from CLIProxyAPI; this is client-side preparation, not verified 2.6 OAuth/backend support. No chat-model entries, invented rate limits, or changes to subscription quota accounting.
 - **Control API for Droid Office** -- `/droidproxy/control/` on the proxy port lets Droid Office drive DroidProxy: read its state (`GET /status`), start or cancel a provider sign-in (`POST /connect`, `/connect/cancel`), remove an account, flip a provider switch, add DroidProxy's models to Droid (`POST /factory-models`), ask which models can run right now from your quota (`GET /models`), and open Settings. It answers only this Mac: every call needs the token DroidProxy writes to `~/.droidproxy/control.json` (private to your user, new at every launch), and requests from web pages or other machines are refused. The Settings window and the API share one controller, so a sign-in started from either shows in both. Started with `open -g -a DroidProxy.app --args --launched-by droid-office`, DroidProxy runs in the background without opening anything of its own.
