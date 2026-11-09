@@ -35,7 +35,7 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(fable["provider"] as? String, "anthropic")
         XCTAssertEqual(fable["baseUrl"] as? String, "http://localhost:8317")
         XCTAssertEqual(fable["noImageSupport"] as? Bool, false)
-        XCTAssertEqual(fable["maxContextLimit"] as? Int, 1_000_000)
+        XCTAssertEqual(fable["maxContextLimit"] as? Int, 872_000)
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:fable-5-1"))
         XCTAssertFalse(DroidProxyModelCatalog.settingsModels { $0 != "claude" }
             .contains { ($0["id"] as? String) == "custom:droidproxy:fable-5-2" })
@@ -44,6 +44,8 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(fable["defaultReasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(fable["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
         XCTAssertEqual(fable["maxOutputTokens"] as? Int, 128000)
+        XCTAssertEqual(try XCTUnwrap(fable["maxContextLimit"] as? Int)
+                       + XCTUnwrap(fable["maxOutputTokens"] as? Int), 1_000_000)
     }
 
     func testOpus55ExposesFullEffortLevels() throws {

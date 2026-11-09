@@ -78,7 +78,7 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "apiKey": "dummy-not-used",
       "displayName": "DroidProxy: Fable 5.2",
       "maxOutputTokens": 128000,
-      "maxContextLimit": 1000000,
+      "maxContextLimit": 872000,
       "noImageSupport": false,
       "provider": "anthropic"
     },

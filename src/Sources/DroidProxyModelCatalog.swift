@@ -198,7 +198,8 @@ enum DroidProxyModelCatalog {
                 idSlug: "fable-5-2",
                 displayName: "Fable 5.2",
                 maxOutputTokens: 128000,
-                maxContextLimit: 1_000_000,
+                // Factory's limit is input-only; reserve the full output allowance.
+                maxContextLimit: 872_000,
                 provider: "anthropic",
                 providerKey: "claude",
                 baseURL: "http://localhost:8317",
