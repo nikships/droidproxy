@@ -12,7 +12,7 @@ struct OAuthUsageDashboard: View {
     var body: some View {
         Group {
             if accounts.isEmpty {
-                Text("Connect Codex, Claude, Grok, or Meta Muse OAuth accounts to show quota windows.")
+                Text("Connect Codex, Claude, Grok, Meta Muse, or Antigravity OAuth accounts to show quota windows.")
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
@@ -164,8 +164,9 @@ struct OAuthUsageAccountGroup: View {
                     .lineLimit(2)
                     .help(error)
             } else if account.windows.count > 2 {
-                // Three or more windows (only Claude's per-model buckets)
-                // fall back to a compact stack so no limit is dropped.
+                // Three or more windows (Claude's per-model buckets and
+                // Antigravity's model pools) fall back to a compact stack
+                // so no limit is dropped.
                 // The whole stack is one tap target for one account's curl,
                 // so every ring in it confirms the copy.
                 VStack(alignment: .leading, spacing: 2) {
@@ -203,6 +204,7 @@ private func usageIconName(for provider: ServiceType) -> String? {
     case .codex: return "icon-codex.png"
     case .grok: return "icon-grok.svg"
     case .meta: return "icon-meta.svg"
+    case .antigravity: return "icon-gemini.png"
     default: return nil
     }
 }

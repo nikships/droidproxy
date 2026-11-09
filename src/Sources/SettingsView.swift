@@ -359,6 +359,7 @@ struct SettingsView: View {
     @State private var factoryJustApplied = false
     @State private var copiedToast = TransientConfirmation<String>()
     @State private var codexFastModeExpanded = true
+    @State private var factoryModelsExpanded = false
     @State private var copilotModelsExpanded = true
     @State private var copilotModelSlots: [String]
     private let claudeEffortSelectionColor = Color(red: 0xD9/255, green: 0x77/255, blue: 0x57/255)
@@ -565,7 +566,9 @@ struct SettingsView: View {
 
                 if serverManager.isProviderEnabled(.codex) || authManager.hasAccounts(for: .codex) ||
                    serverManager.isProviderEnabled(.claude) || authManager.hasAccounts(for: .claude) ||
-                   serverManager.isProviderEnabled(.grok) || authManager.hasAccounts(for: .grok) {
+                   serverManager.isProviderEnabled(.grok) || authManager.hasAccounts(for: .grok) ||
+                   serverManager.isProviderEnabled(.meta) || authManager.hasAccounts(for: .meta) ||
+                   serverManager.isProviderEnabled(.antigravity) || authManager.hasAccounts(for: .antigravity) {
                     Section {
                         HStack {
                             Text("OAuth Quota Usage")
@@ -921,8 +924,98 @@ struct SettingsView: View {
                     factoryCTAPulse = true
                 }
             }
+
+            factoryModelPicker()
         }
         .padding(.vertical, 6)
+    }
+
+    @ViewBuilder
+    private func factoryModelPicker() -> some View {
+        let providerTypes: [ServiceType] = [.claude, .codex, .meta, .antigravity, .kimi, .junie, .grok]
+            .filter { type in
+                serverManager.isProviderEnabled(type)
+                    && !providers.factoryModelDefinitions(for: type).isEmpty
+            }
+        let definitions = providerTypes.flatMap { providers.factoryModelDefinitions(for: $0) }
+        let enabledCount = definitions.filter { providers.isFactoryModelEnabled($0) }.count
+
+        if !providerTypes.isEmpty {
+            Divider()
+
+            VStack(alignment: .leading, spacing: 8) {
+                Button {
+                    factoryModelsExpanded.toggle()
+                } label: {
+                    HStack(spacing: 6) {
+                        Text("Choose models")
+                            .fontWeight(.semibold)
+                        Text("\(enabledCount) of \(definitions.count) on")
+                            .font(.caption)
+                            .foregroundColor(.secondary)
+                        Spacer()
+                        Image(systemName: factoryModelsExpanded ? "chevron.down" : "chevron.right")
+                            .font(.caption2)
+                            .foregroundColor(.secondary)
+                    }
+                    .contentShape(Rectangle())
+                }
+                .buttonStyle(.plain)
+                .pointingHandCursor()
+                .accessibilityLabel(factoryModelsExpanded ? "Hide Factory models" : "Choose Factory models")
+
+                if factoryModelsExpanded {
+                    ForEach(providerTypes, id: \.self) { type in
+                        Text(type.displayName)
+                            .font(.caption)
+                            .fontWeight(.semibold)
+                            .foregroundColor(.secondary)
+                            .padding(.top, 4)
+
+                        ForEach(providers.factoryModelDefinitions(for: type), id: \.idSlug) { definition in
+                            HStack(spacing: 8) {
+                                Text(definition.displayName)
+                                    .font(.caption)
+                                Spacer()
+                                Toggle(
+                                    "In Factory",
+                                    isOn: Binding(
+                                        get: { providers.isFactoryModelEnabled(definition) },
+                                        set: { setFactoryModelEnabled(definition, enabled: $0) }
+                                    )
+                                )
+                                .toggleStyle(.checkbox)
+                                .font(.caption)
+                                .help("Turning this off removes the model from Factory immediately.")
+                                .accessibilityLabel("\(definition.displayName) in Factory")
+                            }
+                        }
+                    }
+
+                    Text("Off removes the model from Factory immediately. On adds it back.")
+                        .font(.caption2)
+                        .foregroundColor(.secondary)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    private func setFactoryModelEnabled(
+        _ definition: DroidProxyModelDefinition,
+        enabled: Bool
+    ) {
+        switch providers.setFactoryModelEnabled(definition, enabled: enabled) {
+        case .success:
+            withAnimation(.spring(response: 0.4, dampingFraction: 0.6)) {
+                factoryJustApplied = true
+            }
+            DispatchQueue.main.asyncAfter(deadline: .now() + 1.2) {
+                factoryJustApplied = false
+            }
+        case .failure(let error):
+            showAuthResult("Failed to update Factory models: \(error.localizedDescription)")
+        }
     }
 
     /// Collapsed-by-default catch-all at the bottom of the stack for settings
@@ -1526,7 +1619,8 @@ struct SettingsView: View {
             codexAccounts: authManager.accounts(for: .codex),
             claudeAccounts: authManager.accounts(for: .claude),
             grokAccounts: serverManager.isProviderEnabled(.grok) ? authManager.accounts(for: .grok) : [],
-            metaAccounts: serverManager.isProviderEnabled(.meta) ? authManager.accounts(for: .meta) : []
+            metaAccounts: serverManager.isProviderEnabled(.meta) ? authManager.accounts(for: .meta) : [],
+            antigravityAccounts: serverManager.isProviderEnabled(.antigravity) ? authManager.accounts(for: .antigravity) : []
         )
     }
 
@@ -1561,7 +1655,14 @@ struct SettingsView: View {
                 .sorted()
                 .joined(separator: "|")
             : ""
-        return "\(codexSig)||\(claudeSig)||\(grokSig)||\(metaSig)"
+        let antigravitySig = serverManager.isProviderEnabled(.antigravity)
+            ? authManager.accounts(for: .antigravity)
+                .filter { !$0.isDisabled && !$0.isExpired }
+                .map(\.id)
+                .sorted()
+                .joined(separator: "|")
+            : ""
+        return "\(codexSig)||\(claudeSig)||\(grokSig)||\(metaSig)||\(antigravitySig)"
     }
     
     private func openAuthFolder() {

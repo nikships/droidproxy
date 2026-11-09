@@ -2,6 +2,38 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class OAuthUsageTrackerTests: XCTestCase {
+    func testParseAntigravityQuotaSummaryWindowsReadsPoolsShortestFirst() throws {
+        let payload = """
+        {"groups":[
+          {"displayName":"Gemini Models","buckets":[
+            {"displayName":"Weekly Limit Remaining","remainingFraction":0.92,"resetTime":"2026-11-14T18:37:17Z"},
+            {"displayName":"Five Hour Limit Remaining","remainingFraction":0.975,"resetTime":"2026-11-09T17:37:15Z"}
+          ]},
+          {"displayName":"Claude and GPT models","buckets":[
+            {"displayName":"Weekly Limit Remaining","remainingFraction":1,"resetTime":"2026-11-16T12:53:47Z"},
+            {"displayName":"Five Hour Limit Remaining","remainingFraction":0.8,"resetTime":"2026-11-09T17:53:47Z"}
+          ]}
+        ]}
+        """
+
+        let windows = OAuthUsageTracker.parseAntigravityQuotaSummaryWindows(Data(payload.utf8))
+
+        XCTAssertEqual(windows.map(\.title), [
+            "Gemini 5-hour",
+            "Gemini Weekly",
+            "Claude/GPT 5-hour",
+            "Claude/GPT Weekly"
+        ])
+        XCTAssertEqual(try XCTUnwrap(windows.first).usedPercent ?? -1, 2.5, accuracy: 0.000_001)
+        XCTAssertEqual(try XCTUnwrap(windows.first).remainingPercent ?? -1, 97.5, accuracy: 0.000_001)
+        XCTAssertNotNil(windows.first?.resetDate)
+        XCTAssertEqual(windows.last?.remainingPercent, 100)
+    }
+
+    func testParseAntigravityQuotaSummaryWindowsHandlesMalformedJSON() {
+        XCTAssertTrue(OAuthUsageTracker.parseAntigravityQuotaSummaryWindows(Data("{ invalid json".utf8)).isEmpty)
+    }
+
     func testParseClaudeWindowsTreatsUtilizationAsPercentForSonnetBucket() throws {
         let payload = """
         {

@@ -480,9 +480,13 @@ enum DroidProxyModelCatalog {
         return list
     }
 
-    static func settingsModels(providerIsEnabled: (String) -> Bool = { _ in true }) -> [[String: Any]] {
+    static func settingsModels(
+        providerIsEnabled: (String) -> Bool = { _ in true },
+        disabledModelSlugs: Set<String> = []
+    ) -> [[String: Any]] {
         definitions.compactMap { definition in
-            guard providerIsEnabled(definition.providerKey) else { return nil }
+            guard providerIsEnabled(definition.providerKey),
+                  !disabledModelSlugs.contains(definition.idSlug) else { return nil }
             return definition.settingsEntry
         }
     }
