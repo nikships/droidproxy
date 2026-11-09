@@ -15,7 +15,7 @@ const cases = [
     index: '02',
     tag: 'Same Droid',
     title: 'Nothing about Factory Droid changes.',
-    body: 'One click writes custom models into ~/.factory/settings.json. Restart the session, pick “DroidProxy: Fable 5.1” or “DroidProxy: GPT 6 Astra,” and keep using /model, skills, missions, and the rest of the CLI.',
+    body: 'One click writes custom models into ~/.factory/settings.json. Restart the session, pick “DroidProxy: Fable 5.2” or “DroidProxy: GPT 6 Astra,” and keep using /model, skills, missions, and the rest of the CLI.',
     footLabel: 'Setup',
     footValue: 'install · sign in · apply',
     footRight: '1 click',
@@ -23,7 +23,7 @@ const cases = [
   {
     index: '03',
     tag: 'Mix labs',
-    title: 'Fable 5.1, GPT 6 Astra, Grok 4.7 — one picker.',
+    title: 'Fable 5.2, GPT 6 Astra, Grok 4.7 — one picker.',
     body: 'Connect Claude, ChatGPT, Antigravity, Copilot, Grok, Kimi, Muse, or Junie. Each account stays on your Mac. Disable any provider without touching the others.',
     footLabel: 'Providers',
     footValue: '8 labs',

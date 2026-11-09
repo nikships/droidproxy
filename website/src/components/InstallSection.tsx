@@ -6,12 +6,13 @@ import Eyebrow from './Eyebrow'
 const codePlain = `// What Apply writes.
 "customModels": [
   {
-    "model": "claude-fable-5-1",
-    "id": "custom:droidproxy:fable-5-1",
+    "model": "claude-fable-5-2",
+    "id": "custom:droidproxy:fable-5-2",
     "baseUrl": "http://localhost:8317",
     "apiKey": "***",
-    "displayName": "DroidProxy: Fable 5.1",
+    "displayName": "DroidProxy: Fable 5.2",
     "maxOutputTokens": 128000,
+    "maxContextLimit": 1000000,
     "provider": "anthropic",
     "enableThinking": true,
     "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
@@ -36,12 +37,13 @@ const codePlain = `// What Apply writes.
 const codeHtml = `<span class="c">// What Apply writes.</span>
 <span class="k">"customModels"</span>: [
   {
-    <span class="k">"model"</span>: <span class="s">"claude-fable-5-1"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:fable-5-1"</span>,
+    <span class="k">"model"</span>: <span class="s">"claude-fable-5-2"</span>,
+    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:fable-5-2"</span>,
     <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317"</span>,
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Fable 5.1"</span>,
+    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: Fable 5.2"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
+    <span class="k">"maxContextLimit"</span>: <span class="n">1000000</span>,
     <span class="k">"provider"</span>: <span class="s">"anthropic"</span>,
     <span class="k">"enableThinking"</span>: true,
     <span class="k">"supportedReasoningEfforts"</span>: [<span class="s">"low"</span>, <span class="s">"medium"</span>, <span class="s">"high"</span>, <span class="s">"xhigh"</span>, <span class="s">"max"</span>],
@@ -104,7 +106,7 @@ export default function InstallSection() {
               <span className="step-n">03</span>
               <div>
                 <h4>Click <em>Apply Factory Models</em></h4>
-                <p>{noOrphan('One click writes DroidProxy models into Factory. Restart Droid, pick Fable 5.1 or GPT 6 Astra, and your existing plan is billed.')}</p>
+                <p>{noOrphan('One click writes DroidProxy models into Factory. Restart Droid, pick Fable 5.2 or GPT 6 Astra, and your existing plan is billed.')}</p>
               </div>
             </div>
 

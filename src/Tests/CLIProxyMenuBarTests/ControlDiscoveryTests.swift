@@ -133,6 +133,35 @@ final class FactoryModelsTests: XCTestCase {
         XCTAssertTrue(status.isApplied)
     }
 
+    func testReapplyReplacesFable51With52AndPreservesOtherModels() throws {
+        try writeSettings([
+            "theme": "dark",
+            "customModels": [
+                ["id": "mine", "model": "x"],
+                ["id": "custom:droidproxy:fable-5-1", "model": "claude-fable-5-1"]
+            ]
+        ])
+        let models = DroidProxyModelCatalog.settingsModels { $0 == "claude" }
+        let ids = Set(models.compactMap { $0["id"] as? String })
+        XCTAssertTrue(FactoryModels.status(settingsAt: settings, expected: models, catalogIDs: ids).stale)
+
+        let result = try FactoryModels.apply(settingsAt: settings, models: models, catalogIDs: ids)
+        let backup = try XCTUnwrap(result.backup)
+        let previous = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: backup)) as? [String: Any])
+        let previousModels = try XCTUnwrap(previous["customModels"] as? [[String: Any]])
+        XCTAssertTrue(previousModels.contains { ($0["id"] as? String) == "custom:droidproxy:fable-5-1" })
+
+        let json = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: settings)) as? [String: Any])
+        XCTAssertEqual(json["theme"] as? String, "dark")
+        let applied = try XCTUnwrap(json["customModels"] as? [[String: Any]])
+        XCTAssertTrue(applied.contains { ($0["id"] as? String) == "mine" })
+        XCTAssertFalse(applied.contains { ($0["id"] as? String) == "custom:droidproxy:fable-5-1" })
+        let fable = try XCTUnwrap(applied.first { ($0["id"] as? String) == "custom:droidproxy:fable-5-2" })
+        XCTAssertEqual(fable["model"] as? String, "claude-fable-5-2")
+        XCTAssertEqual(fable["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+        XCTAssertFalse(FactoryModels.status(settingsAt: settings, expected: models, catalogIDs: ids).stale)
+    }
+
     func testApplyWithoutSettingsHasNoBackup() throws {
         let result = try FactoryModels.apply(settingsAt: settings, models: expected, catalogIDs: catalogIDs)
         XCTAssertNil(result.backup)
