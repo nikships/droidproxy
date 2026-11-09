@@ -150,7 +150,7 @@ final class ModelAvailabilityTests: XCTestCase {
         )
         XCTAssertEqual(judge("claude-sonnet-5-5", accounts: [account("a")], usages: usages), .ok)
         XCTAssertEqual(judge("claude-haiku-5-5", accounts: [account("a")], usages: usages), .ok)
-        XCTAssertEqual(judge("claude-fable-5-1", accounts: [account("a")], usages: usages), .ok)
+        XCTAssertEqual(judge("claude-fable-5-2", accounts: [account("a")], usages: usages), .ok)
 
         let sonnetOut = [usage("a", .claude, [window("5-hour", used: 20), window("Weekly (Sonnet)", used: 100)])]
         XCTAssertEqual(judge("claude-opus-5-5", accounts: [account("a")], usages: sonnetOut), .ok)
@@ -162,7 +162,7 @@ final class ModelAvailabilityTests: XCTestCase {
 
     func testSharedWindowsCoverEveryModel() {
         let usages = [usage("a", .claude, [window("Weekly", used: 100)])]
-        for model in ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-1"] {
+        for model in ["claude-opus-5-5", "claude-sonnet-5-5", "claude-haiku-5-5", "claude-fable-5-2"] {
             XCTAssertEqual(
                 judge(model, accounts: [account("a")], usages: usages),
                 .exhausted(until: now.addingTimeInterval(3_600), window: "Weekly", account: "a@x.com"),
@@ -178,7 +178,7 @@ final class ModelAvailabilityTests: XCTestCase {
         XCTAssertTrue(AvailabilityJudge.window("Weekly (Opus)", covers: "claude-opus-5-5"))
         XCTAssertFalse(AvailabilityJudge.window("Weekly (Opus)", covers: "claude-sonnet-5-5"))
         XCTAssertTrue(AvailabilityJudge.window("Weekly (Sonnet)", covers: "claude-sonnet-5-5"))
-        XCTAssertFalse(AvailabilityJudge.window("Weekly (Sonnet)", covers: "claude-fable-5-1"))
+        XCTAssertFalse(AvailabilityJudge.window("Weekly (Sonnet)", covers: "claude-fable-5-2"))
         XCTAssertFalse(AvailabilityJudge.window("Weekly (OAuth Apps)", covers: "claude-opus-5-5"))
         XCTAssertFalse(AvailabilityJudge.window("Weekly (Cowork)", covers: "claude-sonnet-5-5"))
         XCTAssertFalse(AvailabilityJudge.window("Weekly (Omelette)", covers: "claude-haiku-5-5"))

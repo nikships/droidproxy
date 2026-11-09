@@ -16,6 +16,7 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 - **Auto-start 5-hour window** -- Each of Claude, Codex, and Meta Muse has an opt-in daily toggle with a time picker (default 7:00). While DroidProxy is running, it sends one tiny request per account at that time (about 25 tokens) so the 5-hour window is already underway when you start work and resets sooner during your day. Weekly limits are unchanged, and a missed time is caught up within 2 hours.
 
 ### Added (Claude)
+- **Claude Fable 5.2** -- Replaces Fable 5.1 for Claude OAuth subscriptions with `claude-fable-5-2` (`low`, `medium`, `high`, `xhigh`, and `max` effort, default `xhigh`, 128k max output, 1M total context with an 872k client input limit). Apply/Re-apply removes the retired `custom:droidproxy:fable-5-1` entry. The official live model catalog lists Fable 5.2, so bundled CLIProxyAPI 8.0.61 resolves it after its normal startup/3-hour catalog refresh; no patched binary is needed. Until an upstream binary embeds the entry, first-start discovery requires access to that live catalog.
 - **Claude Haiku 5.5** -- Claude OAuth subscriptions now register `claude-haiku-5-5` as `DroidProxy: Haiku 5.5` (`low` through `max` effort, default `xhigh`, 128k max output, 1M context). It is Claude-subscription only; Antigravity, Junie, and Copilot do not get a Haiku 5.5 entry. Requests fail with `unknown provider for model claude-haiku-5-5` until the bundled CLIProxyAPI (or its remote model catalog) lists the model.
 
 ### Changed (Junie)

@@ -51,10 +51,11 @@ export type ModelRow = {
 export const models: ModelRow[] = [
   {
     icon: '/assets/icon-claude.png',
-    name: 'Claude Fable 5.1',
-    id: 'fable-5-1',
+    name: 'Claude Fable 5.2',
+    id: 'fable-5-2',
     levels: ['low', 'medium', 'high', 'xhigh', 'max'],
     max: '128,000',
+    context: '1,000,000',
     provider: 'Anthropic',
     group: 'Claude',
     color: brandColor.claude,

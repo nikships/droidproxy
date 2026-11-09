@@ -27,15 +27,25 @@ final class DroidProxyModelCatalogTests: XCTestCase {
                            ["minimal", "low", "medium", "high", "xhigh", "max"])
         }
     }
-    func testFable51ExposesFullEffortLevels() throws {
-        let fable = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:fable-5-1"))
+    func testFable52ExposesFullEffortLevels() throws {
+        let fable = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:fable-5-2"))
 
-        XCTAssertEqual(fable["model"] as? String, "claude-fable-5-1")
+        XCTAssertEqual(fable["model"] as? String, "claude-fable-5-2")
+        XCTAssertEqual(fable["displayName"] as? String, "DroidProxy: Fable 5.2")
+        XCTAssertEqual(fable["provider"] as? String, "anthropic")
+        XCTAssertEqual(fable["baseUrl"] as? String, "http://localhost:8317")
+        XCTAssertEqual(fable["noImageSupport"] as? Bool, false)
+        XCTAssertEqual(fable["maxContextLimit"] as? Int, 872_000)
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:fable-5-1"))
+        XCTAssertFalse(DroidProxyModelCatalog.settingsModels { $0 != "claude" }
+            .contains { ($0["id"] as? String) == "custom:droidproxy:fable-5-2" })
         XCTAssertEqual(fable["enableThinking"] as? Bool, true)
         XCTAssertEqual(fable["reasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(fable["defaultReasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(fable["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
         XCTAssertEqual(fable["maxOutputTokens"] as? Int, 128000)
+        XCTAssertEqual(try XCTUnwrap(fable["maxContextLimit"] as? Int)
+                       + XCTUnwrap(fable["maxOutputTokens"] as? Int), 1_000_000)
     }
 
     func testOpus55ExposesFullEffortLevels() throws {
@@ -54,12 +64,12 @@ final class DroidProxyModelCatalogTests: XCTestCase {
 
     func testApplyWritesOnlyLatestOpusAndFableForClaudeProvider() throws {
         // Apply/Re-apply serializes every enabled definition via settingsModels();
-        // Claude OAuth writes only the latest Opus (5.5) and Fable (5.1).
+        // Claude OAuth writes only the latest Opus (5.5) and Fable (5.2).
         let claudeModels = DroidProxyModelCatalog.settingsModels { $0 == "claude" }
         let ids = Set(claudeModels.compactMap { $0["id"] as? String })
         XCTAssertTrue(ids.contains("custom:droidproxy:opus-5-5"))
-        XCTAssertTrue(ids.contains("custom:droidproxy:fable-5-1"))
-        for retired in ["opus-5", "opus-4-8", "fable-5"] {
+        XCTAssertTrue(ids.contains("custom:droidproxy:fable-5-2"))
+        for retired in ["opus-5", "opus-4-8", "fable-5", "fable-5-1"] {
             XCTAssertFalse(ids.contains("custom:droidproxy:\(retired)"))
         }
 
