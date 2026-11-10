@@ -60,10 +60,12 @@ enum ProviderUsageColors {
             ProviderBrandSwatch(red: 0x82, green: 0x50, blue: 0xDF),
             ProviderBrandSwatch(red: 0x2D, green: 0xA4, blue: 0x4E),
         ],
+        // xAI/Grok branding is monochrome black and white; on the dark
+        // settings background the white end of that range is what reads.
         .grok: [
-            ProviderBrandSwatch(red: 0x1D, green: 0x9B, blue: 0xF0),
-            ProviderBrandSwatch(red: 0x0A, green: 0x6C, blue: 0x9E),
-            ProviderBrandSwatch(red: 0x5C, green: 0xC8, blue: 0xF5),
+            ProviderBrandSwatch(red: 0xFF, green: 0xFF, blue: 0xFF),
+            ProviderBrandSwatch(red: 0xD9, green: 0xD9, blue: 0xD9),
+            ProviderBrandSwatch(red: 0xB3, green: 0xB3, blue: 0xB3),
         ],
         .meta: [
             ProviderBrandSwatch(red: 0x08, green: 0x66, blue: 0xFF),
