@@ -32,8 +32,19 @@ actor OAuthUsageCache {
         }
     }
 
+    private func key(for account: AuthAccount) -> String {
+        "\(account.type.rawValue):\(account.filePath.standardizedFileURL.path)"
+    }
+
+    /// The last stored sample for an account, without fetching. Callers
+    /// that only need the shape of the quota (e.g. window lengths) must
+    /// not spend polling budget to learn it.
+    func cachedUsage(for account: AuthAccount) -> OAuthAccountUsage? {
+        entries[key(for: account)]?.usage
+    }
+
     func usage(for account: AuthAccount, fetch: @escaping () async -> OAuthAccountUsage) async -> OAuthAccountUsage {
-        let key = "\(account.type.rawValue):\(account.filePath.standardizedFileURL.path)"
+        let key = key(for: account)
         if let task = inFlight[key] { return await task.value }
         if let entry = entries[key], now() < entry.nextAttemptAt { return entry.usage }
 

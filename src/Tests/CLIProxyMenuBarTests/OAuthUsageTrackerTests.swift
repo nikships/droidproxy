@@ -68,6 +68,47 @@ final class OAuthUsageTrackerTests: XCTestCase {
         XCTAssertTrue(OAuthUsageTracker.parseAntigravityQuotaSummaryWindows(Data("{ invalid json".utf8)).isEmpty)
     }
 
+    func testHasShortWindowFollowsTheAccountPayload() throws {
+        func claude(_ payload: String) -> OAuthAccountUsage {
+            OAuthAccountUsage(
+                id: "claude-test", provider: .claude, email: "test",
+                windows: OAuthUsageTracker.parseClaudeWindows(Data(payload.utf8))
+            )
+        }
+        func codex(_ payload: String) throws -> OAuthAccountUsage {
+            let body = try JSONSerialization.jsonObject(with: Data(payload.utf8))
+            return OAuthAccountUsage(
+                id: "codex-test", provider: .codex, email: "test",
+                windows: OAuthUsageTracker.parseCodexWindows(body)
+            )
+        }
+
+        // Weekly-only Claude plan (Max/Ultra class): the five_hour bucket is null.
+        var result = claude(#"{"five_hour": null, "seven_day": {"utilization": 100.0, "resets_at": "2026-11-08T05:59:59Z"}}"#).hasShortWindow()
+        XCTAssertEqual(result.has, false)
+        XCTAssertEqual(result.known, true)
+
+        // Idle 5-hour plan: bucket present, no window started yet.
+        result = claude(#"{"five_hour": {"utilization": 0.0, "resets_at": null}, "seven_day": {"utilization": 3.0, "resets_at": "2026-11-08T05:59:59Z"}}"#).hasShortWindow()
+        XCTAssertEqual(result.has, true)
+        XCTAssertEqual(result.known, true)
+
+        // GPT Pro (prolite): only a weekly-length window.
+        result = try codex(#"{"plan_type":"prolite","rate_limit":{"primary_window":{"used_percent":38,"limit_window_seconds":604800},"secondary_window":null}}"#).hasShortWindow()
+        XCTAssertEqual(result.has, false)
+        XCTAssertEqual(result.known, true)
+
+        // Standard Codex: 5-hour plus weekly.
+        result = try codex(#"{"rate_limit":{"primary_window":{"used_percent":10,"limit_window_seconds":18000},"secondary_window":{"used_percent":20,"limit_window_seconds":604800}}}"#).hasShortWindow()
+        XCTAssertEqual(result.has, true)
+        XCTAssertEqual(result.known, true)
+
+        // No windows: the payload said nothing.
+        result = OAuthAccountUsage(id: "x", provider: .claude, email: "test").hasShortWindow()
+        XCTAssertEqual(result.has, false)
+        XCTAssertEqual(result.known, false)
+    }
+
     func testParseClaudeWindowsTreatsUtilizationAsPercentForSonnetBucket() throws {
         let payload = """
         {
