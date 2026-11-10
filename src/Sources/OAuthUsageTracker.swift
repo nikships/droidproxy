@@ -41,6 +41,15 @@ struct OAuthAccountUsage: Identifiable, Equatable, Codable {
     var retryAfter: Date?
     /// Banked usage resets held by this account (Codex and Claude only).
     var bankedResets: BankedResetCredits?
+    /// Full Codex credit list (soonest first) for redemption. Internal
+    /// only: never persisted to the usage cache or exposed.
+    var codexResetCredits: [CodexResetCredit] = []
+    /// Full Claude grant state for redemption. Internal only, as above.
+    var claudeResetState: ClaudeResetState?
+
+    private enum CodingKeys: String, CodingKey {
+        case id, provider, email, isLoading, windows, error, updatedAt, rateLimited, retryAfter, bankedResets
+    }
 
     /// Bounds a "short" window: the 5-hour class, with slack.
     static let shortWindowMaxSeconds = 6 * 3600
@@ -185,7 +194,7 @@ final class OAuthUsageTracker: ObservableObject {
         OAuthAccountUsage(id: account.id, provider: provider, email: account.displayName, isLoading: true)
     }
 
-    nonisolated private static func fetchCodexUsage(for account: AuthAccount) async -> OAuthAccountUsage {
+    nonisolated static func fetchCodexUsage(for account: AuthAccount, session: URLSession = .shared, usageURL: URL = defaultCodexUsageURL) async -> OAuthAccountUsage {
         guard let auth = authValues(from: account.filePath),
               let token = auth["access_token"] else {
             return failedAccount(account, "Missing access token")
@@ -193,11 +202,7 @@ final class OAuthUsageTracker: ObservableObject {
         if account.isAccessExpired {
             return failedAccount(account, "Access token expired; it renews on this account's next request")
         }
-        guard let url = URL(string: "https://chatgpt.com/backend-api/wham/usage") else {
-            return failedAccount(account, "Invalid usage endpoint")
-        }
-
-        var request = URLRequest(url: url)
+        var request = URLRequest(url: usageURL)
         request.httpMethod = "GET"
         request.timeoutInterval = OAuthUsageParsing.requestTimeout
         request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
@@ -207,14 +212,15 @@ final class OAuthUsageTracker: ObservableObject {
             request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
 
-        var usage = await fetchJSONUsage(account: account, request: request) { json in
+        var usage = await fetchJSONUsage(account: account, request: request, session: session) { json in
             parseCodexWindows(json)
         }
         guard usage.error == nil else { return usage }
         // Banked-reset state rides along with the usage read; it is
         // best-effort and never fails the read itself.
-        let credits = await fetchCodexBankedResets(account: account, auth: auth, token: token)
+        let credits = await fetchCodexBankedResets(account: account, auth: auth, token: token, session: session, usageURL: usageURL)
         usage.bankedResets = credits.display
+        usage.codexResetCredits = credits.credits
         if credits.rateLimited {
             usage.rateLimited = true
             usage.retryAfter = max(usage.retryAfter ?? .distantPast, credits.retryAfter ?? .distantPast)
@@ -264,7 +270,7 @@ final class OAuthUsageTracker: ObservableObject {
         }
     }
 
-    nonisolated private static func fetchClaudeUsage(for account: AuthAccount) async -> OAuthAccountUsage {
+    nonisolated static func fetchClaudeUsage(for account: AuthAccount, session: URLSession = .shared, usageURL: URL = defaultClaudeUsageURL) async -> OAuthAccountUsage {
         guard let auth = authValues(from: account.filePath),
               let token = auth["access_token"] else {
             return failedAccount(account, "Missing access token")
@@ -277,7 +283,7 @@ final class OAuthUsageTracker: ObservableObject {
         let usableToken: String
         if isExpired {
             do {
-                usableToken = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth)
+                usableToken = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth, session: session)
             } catch {
                 return failedAccount(account, "Token refresh failed: \(error.localizedDescription)")
             }
@@ -285,10 +291,10 @@ final class OAuthUsageTracker: ObservableObject {
             usableToken = token
         }
 
-        return await executeClaudeUsageRequest(account: account, token: usableToken)
+        return await executeClaudeUsageRequest(account: account, token: usableToken, session: session, url: usageURL)
     }
 
-    nonisolated static func refreshClaudeTokens(fileURL: URL, auth: [String: String]) async throws -> String {
+    nonisolated static func refreshClaudeTokens(fileURL: URL, auth: [String: String], session: URLSession = .shared) async throws -> String {
         guard let refreshToken = auth["refresh_token"] else {
             throw NSError(domain: "ClaudeUsage", code: 2, userInfo: [NSLocalizedDescriptionKey: "No refresh token available"])
         }
@@ -301,7 +307,7 @@ final class OAuthUsageTracker: ObservableObject {
         let body = "client_id=9d1c250a-e61b-44d9-88ed-5944d1962f5e&grant_type=refresh_token&refresh_token=\(encodedToken)"
         request.httpBody = body.data(using: .utf8)
 
-        let (data, response) = try await URLSession.shared.data(for: request)
+        let (data, response) = try await session.data(for: request)
         guard let httpResponse = response as? HTTPURLResponse, httpResponse.statusCode == 200 else {
             throw NSError(domain: "ClaudeUsage", code: 3, userInfo: [NSLocalizedDescriptionKey: "Token refresh failed"])
         }
@@ -329,19 +335,15 @@ final class OAuthUsageTracker: ObservableObject {
         return newAccess
     }
 
-    nonisolated private static func executeClaudeUsageRequest(account: AuthAccount, token: String) async -> OAuthAccountUsage {
-        guard let url = URL(string: "https://api.anthropic.com/api/oauth/usage") else {
-            return failedAccount(account, "Invalid usage endpoint")
-        }
-
+    nonisolated private static func executeClaudeUsageRequest(account: AuthAccount, token: String, session: URLSession, url: URL) async -> OAuthAccountUsage {
         do {
-            let (data, response) = try await URLSession.shared.data(for: makeClaudeUsageRequest(url: url, token: token))
+            let (data, response) = try await session.data(for: makeClaudeUsageRequest(url: url, token: token))
             guard let http = response as? HTTPURLResponse else {
                 return failedAccount(account, "No HTTP response")
             }
 
             if http.statusCode == 401 || http.statusCode == 403 {
-                return await retryClaudeUsageAfterRefresh(account: account, url: url)
+                return await retryClaudeUsageAfterRefresh(account: account, url: url, session: session)
             }
 
             guard (200..<300).contains(http.statusCode) else {
@@ -359,13 +361,13 @@ final class OAuthUsageTracker: ObservableObject {
         }
     }
 
-    nonisolated private static func retryClaudeUsageAfterRefresh(account: AuthAccount, url: URL) async -> OAuthAccountUsage {
+    nonisolated private static func retryClaudeUsageAfterRefresh(account: AuthAccount, url: URL, session: URLSession) async -> OAuthAccountUsage {
         do {
             guard let auth = authValues(from: account.filePath) else {
                 return failedAccount(account, "Failed to read credentials for retry")
             }
-            let newToken = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth)
-            let (data, response) = try await URLSession.shared.data(for: makeClaudeUsageRequest(url: url, token: newToken))
+            let newToken = try await refreshClaudeTokens(fileURL: account.filePath, auth: auth, session: session)
+            let (data, response) = try await session.data(for: makeClaudeUsageRequest(url: url, token: newToken))
             guard let http = response as? HTTPURLResponse else {
                 return failedAccount(account, "No HTTP response on retry")
             }
@@ -637,7 +639,9 @@ final class OAuthUsageTracker: ObservableObject {
         _ account: AuthAccount, data: Data, windows: [OAuthUsageWindow]
     ) -> OAuthAccountUsage {
         var usage = successAccount(account, windows: windows)
-        usage.bankedResets = parseClaudeResetCredits(data, now: Date())?.display
+        let resets = parseClaudeResetCredits(data, now: Date())
+        usage.bankedResets = resets?.display
+        usage.claudeResetState = resets
         return usage
     }
 
@@ -684,10 +688,11 @@ final class OAuthUsageTracker: ObservableObject {
     nonisolated private static func fetchJSONUsage(
         account: AuthAccount,
         request: URLRequest,
+        session: URLSession = .shared,
         parse: (Any) -> [OAuthUsageWindow]
     ) async -> OAuthAccountUsage {
         do {
-            let (data, response) = try await URLSession.shared.data(for: request)
+            let (data, response) = try await session.data(for: request)
             guard let http = response as? HTTPURLResponse else {
                 return failedAccount(account, "No HTTP response")
             }

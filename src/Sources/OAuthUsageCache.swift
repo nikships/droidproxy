@@ -18,7 +18,10 @@ actor OAuthUsageCache {
     private let now: () -> Date
     private let jitter: () -> TimeInterval
     private var entries: [String: Entry]
-    private var inFlight: [String: Task<OAuthAccountUsage, Never>] = [:]
+    private var inFlight: [String: (generation: Int, task: Task<OAuthAccountUsage, Never>)] = [:]
+    /// Bumped by `invalidate`: a fetch started before the bump must not
+    /// satisfy later readers or repopulate the dropped sample.
+    private var generations: [String: Int] = [:]
 
     init(fileURL: URL? = nil, now: @escaping () -> Date = Date.init, jitter: @escaping () -> TimeInterval = { Double.random(in: 0...30) }) {
         self.fileURL = fileURL
@@ -45,7 +48,8 @@ actor OAuthUsageCache {
 
     func usage(for account: AuthAccount, fetch: @escaping () async -> OAuthAccountUsage) async -> OAuthAccountUsage {
         let key = key(for: account)
-        if let task = inFlight[key] { return await task.value }
+        let generation = generations[key] ?? 0
+        if let running = inFlight[key], running.generation == generation { return await running.task.value }
         if let entry = entries[key], now() < entry.nextAttemptAt { return entry.usage }
 
         let interval: TimeInterval
@@ -63,33 +67,68 @@ actor OAuthUsageCache {
 
         let task = Task {
             let result = await fetch()
-            return finish(result, key: key, interval: interval)
+            return finish(result, key: key, interval: interval, generation: generation)
         }
-        inFlight[key] = task
+        inFlight[key] = (generation: generation, task: task)
         return await task.value
     }
 
-    private func finish(_ result: OAuthAccountUsage, key: String, interval: TimeInterval) -> OAuthAccountUsage {
+    private func finish(_ result: OAuthAccountUsage, key: String, interval: TimeInterval, generation: Int) -> OAuthAccountUsage {
         var usage = result
         let previous = entries[key]
         if result.error != nil, let cached = previous?.usage, !cached.windows.isEmpty {
             usage.windows = cached.windows
             usage.updatedAt = cached.updatedAt
             usage.bankedResets = cached.bankedResets
+            usage.codexResetCredits = cached.codexResetCredits
+            usage.claudeResetState = cached.claudeResetState
         }
+        // A fetch that started before an invalidation still answers its own
+        // awaiters, but its pre-invalidation sample must not come back.
+        guard generation == (generations[key] ?? 0) else { return usage }
         let failures = result.rateLimited ? min(5, (previous?.rateLimitFailures ?? 0) + 1) : (result.error == nil ? 0 : previous?.rateLimitFailures ?? 0)
-        let backoff = result.rateLimited ? min(3600, 300 * pow(2, Double(max(0, failures - 1)))) : interval
-        let next = now().addingTimeInterval(backoff + (usage.provider == .claude ? jitter() : 0))
-        entries[key] = Entry(usage: usage, nextAttemptAt: max(next, result.retryAfter ?? next), rateLimitFailures: failures)
-        inFlight[key] = nil
+        entries[key] = Entry(
+            usage: usage,
+            nextAttemptAt: rateLimitedNextAttempt(failures: failures, rateLimited: result.rateLimited, interval: interval, provider: usage.provider, retryAfter: result.retryAfter),
+            rateLimitFailures: failures
+        )
+        if inFlight[key]?.generation == generation { inFlight[key] = nil }
         persist()
         return usage
     }
 
+    private func rateLimitedNextAttempt(failures: Int, rateLimited: Bool, interval: TimeInterval, provider: ServiceType, retryAfter: Date?) -> Date {
+        let backoff = rateLimited ? min(3600, 300 * pow(2, Double(max(0, failures - 1)))) : interval
+        let next = now().addingTimeInterval(backoff + (provider == .claude ? jitter() : 0))
+        return max(next, retryAfter ?? next)
+    }
+
+    /// Records a 429 from a quota-adjacent call that is not itself a quota
+    /// fetch (a banked-reset redemption), so the shared budget backs off
+    /// instead of letting retries hammer the provider.
+    func recordRateLimit(for account: AuthAccount, retryAfter: Date?) {
+        let key = key(for: account)
+        let interval: TimeInterval = account.type == .claude ? 300 : 15
+        let failures = min(5, (entries[key]?.rateLimitFailures ?? 0) + 1)
+        let placeholder = OAuthAccountUsage(id: account.id, provider: account.type, email: account.displayName, error: "Usage refresh pending")
+        var entry = entries[key] ?? Entry(usage: placeholder, nextAttemptAt: now(), rateLimitFailures: 0)
+        entry.rateLimitFailures = failures
+        entry.usage.rateLimited = true
+        entry.nextAttemptAt = rateLimitedNextAttempt(failures: failures, rateLimited: true, interval: interval, provider: account.type, retryAfter: retryAfter)
+        entries[key] = entry
+        persist()
+    }
+
     /// Drops the stored sample so the next read refetches even inside the
     /// polling budget (e.g. right after a banked reset changed the quota).
+    /// Generation-aware: a fetch already in flight from before the
+    /// invalidation cannot satisfy later readers or write its older
+    /// sample back when it lands.
     func invalidate(for account: AuthAccount) {
-        entries["\(account.type.rawValue):\(account.filePath.standardizedFileURL.path)"] = nil
+        let key = key(for: account)
+        entries[key] = nil
+        generations[key] = (generations[key] ?? 0) + 1
+        inFlight[key] = nil
         persist()
     }
 

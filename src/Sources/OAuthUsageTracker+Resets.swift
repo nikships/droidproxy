@@ -90,7 +90,10 @@ extension OAuthUsageTracker {
                 endsAt = parseISO8601Date(string)
                 guard let endsAt, endsAt > now else { continue }
             }
-            let left = Int(numberValue(grant["resets_left"]) ?? 0)
+            // Clamp defensively: Int(Double) traps outside Int range, and
+            // a malformed payload runs on every Claude usage read.
+            let rawLeft = numberValue(grant["resets_left"]) ?? 0
+            let left = rawLeft.isFinite && rawLeft > 0 ? (Int(exactly: rawLeft.rounded(.down)) ?? Int.max) : 0
             count += left
             if id == nextID {
                 next = ClaudeResetState(
@@ -156,21 +159,23 @@ extension OAuthUsageTracker {
     nonisolated static func fetchCodexBankedResets(
         account: AuthAccount, auth: [String: String], token: String,
         session: URLSession = .shared, usageURL: URL = defaultCodexUsageURL
-    ) async -> (display: BankedResetCredits?, rateLimited: Bool, retryAfter: Date?) {
-        guard !account.isAccessExpired else { return (nil, false, nil) }
+    ) async -> (display: BankedResetCredits?, credits: [CodexResetCredit], rateLimited: Bool, retryAfter: Date?) {
+        guard !account.isAccessExpired else { return (nil, [], false, nil) }
         guard let response = await codexRequest(
             session: session, method: "GET", url: codexCreditsURL(fromUsage: usageURL),
             token: token, chatGPTAccountID: auth["account_id"], body: nil
         ) else {
-            return (nil, false, nil)
+            return (nil, [], false, nil)
         }
         guard (200..<300).contains(response.status) else {
             if response.status == 429 {
-                return (nil, true, OAuthUsageCache.retryDate(response.retryAfter, now: Date()))
+                return (nil, [], true, OAuthUsageCache.retryDate(response.retryAfter, now: Date()))
             }
-            return (nil, false, nil)
+            return (nil, [], false, nil)
         }
-        return (codexBankedResets(response.data, now: Date()), false, nil)
+        let credits = parseCodexCredits(response.data, now: Date())
+        let display = credits.first.map { BankedResetCredits(availableCount: credits.count, nextExpiresAt: $0.expiresAt) }
+        return (display, credits, false, nil)
     }
 
     /// Spends one banked reset for the account and returns a user-facing
@@ -179,28 +184,29 @@ extension OAuthUsageTracker {
     nonisolated static func redeemReset(
         for account: AuthAccount,
         session: URLSession = .shared,
+        cache: OAuthUsageCache = .shared,
         codexUsageURL: URL = defaultCodexUsageURL,
         claudeUsageURL: URL = defaultClaudeUsageURL
     ) async -> (message: String, ok: Bool) {
         let result: (message: String, ok: Bool)
         switch account.type {
         case .codex:
-            result = await redeemCodexReset(for: account, session: session, usageURL: codexUsageURL)
+            result = await redeemCodexReset(for: account, session: session, cache: cache, usageURL: codexUsageURL)
         case .claude:
-            result = await redeemClaudeReset(for: account, session: session, usageURL: claudeUsageURL)
+            result = await redeemClaudeReset(for: account, session: session, cache: cache, usageURL: claudeUsageURL)
         default:
             return ("Banked resets are only available for Codex and Claude accounts.", false)
         }
         if result.ok {
             // Quota and credit counts just changed provider-side; the next
             // read must not serve the pre-reset sample.
-            await OAuthUsageCache.shared.invalidate(for: account)
+            await cache.invalidate(for: account)
         }
         return result
     }
 
     nonisolated private static func redeemCodexReset(
-        for account: AuthAccount, session: URLSession, usageURL: URL
+        for account: AuthAccount, session: URLSession, cache: OAuthUsageCache, usageURL: URL
     ) async -> (message: String, ok: Bool) {
         guard let auth = authValues(from: account.filePath), let token = auth["access_token"] else {
             return ("Missing access token.", false)
@@ -208,17 +214,21 @@ extension OAuthUsageTracker {
         if account.isAccessExpired {
             return ("Access token expired; it renews on this account's next request.", false)
         }
-        let creditsURL = codexCreditsURL(fromUsage: usageURL)
-        guard let read = await codexRequest(
-            session: session, method: "GET", url: creditsURL,
-            token: token, chatGPTAccountID: auth["account_id"], body: nil
-        ), (200..<300).contains(read.status) else {
+        // The credit state comes through the shared usage cache, so a
+        // redemption never spends polling budget outside it (AGENTS.md).
+        let usage = await cache.usage(for: account) {
+            await fetchCodexUsage(for: account, session: session, usageURL: usageURL)
+        }
+        if usage.rateLimited {
+            return ("Codex is rate limiting resets. Try again soon.", false)
+        }
+        guard usage.error == nil else {
             return ("Could not read banked resets for this account.", false)
         }
-        let credits = parseCodexCredits(read.data, now: Date())
-        guard let credit = credits.first else {
+        guard let credit = usage.codexResetCredits.first else {
             return ("No banked reset is available for this account.", false)
         }
+        let creditsURL = codexCreditsURL(fromUsage: usageURL)
         let accountKey = auth["account_id"].flatMap { $0.isEmpty ? nil : $0 } ?? account.id
         guard let body = try? JSONSerialization.data(withJSONObject: [
             "redeem_request_id": redeemRequestID("\(accountKey):\(credit.id)"),
@@ -230,7 +240,14 @@ extension OAuthUsageTracker {
             session: session, method: "POST",
             url: URL(string: creditsURL.absoluteString + "/consume") ?? creditsURL,
             token: token, chatGPTAccountID: auth["account_id"], body: body
-        ), (200..<300).contains(consume.status) else {
+        ) else {
+            return ("Codex could not redeem the reset.", false)
+        }
+        if consume.status == 429 {
+            await cache.recordRateLimit(for: account, retryAfter: OAuthUsageCache.retryDate(consume.retryAfter, now: Date()))
+            return ("Codex is rate limiting resets. Try again soon.", false)
+        }
+        guard (200..<300).contains(consume.status) else {
             return ("Codex could not redeem the reset.", false)
         }
         guard let outcome = try? JSONSerialization.jsonObject(with: consume.data) as? [String: Any],
@@ -255,12 +272,12 @@ extension OAuthUsageTracker {
         }
     }
 
-    nonisolated private static func claudeToken(for account: AuthAccount) async -> String? {
+    nonisolated private static func claudeToken(for account: AuthAccount, session: URLSession) async -> String? {
         guard let auth = authValues(from: account.filePath), var token = auth["access_token"] else {
             return nil
         }
         if let expired = auth["expired"].flatMap(parseISO8601Date), expired <= Date() {
-            guard let refreshed = try? await refreshClaudeTokens(fileURL: account.filePath, auth: auth) else {
+            guard let refreshed = try? await refreshClaudeTokens(fileURL: account.filePath, auth: auth, session: session) else {
                 return nil
             }
             token = refreshed
@@ -278,18 +295,27 @@ extension OAuthUsageTracker {
     }
 
     nonisolated private static func redeemClaudeReset(
-        for account: AuthAccount, session: URLSession, usageURL: URL
+        for account: AuthAccount, session: URLSession, cache: OAuthUsageCache, usageURL: URL
     ) async -> (message: String, ok: Bool) {
-        guard let token = await claudeToken(for: account),
-              let organization = claudeOrganizationUUID(for: account) else {
+        guard let organization = claudeOrganizationUUID(for: account) else {
             return ("Sign in to Claude again to redeem resets.", false)
         }
-        guard let (data, response) = try? await session.data(for: makeClaudeUsageRequest(url: usageURL, token: token)),
-              let http = response as? HTTPURLResponse, (200..<300).contains(http.statusCode) else {
+        // The grant state comes through the shared usage cache (Claude's
+        // five-minute budget included), never a side read (AGENTS.md).
+        let usage = await cache.usage(for: account) {
+            await fetchClaudeUsage(for: account, session: session, usageURL: usageURL)
+        }
+        if usage.rateLimited {
+            return ("Claude is rate limiting resets. Try again soon.", false)
+        }
+        guard usage.error == nil else {
             return ("Could not read banked resets for this account.", false)
         }
-        guard let credits = parseClaudeResetCredits(data, now: Date()) else {
+        guard let credits = usage.claudeResetState else {
             return ("No banked reset is available for this account.", false)
+        }
+        guard let token = await claudeToken(for: account, session: session) else {
+            return ("Sign in to Claude again to redeem resets.", false)
         }
         guard var components = URLComponents(url: usageURL, resolvingAgainstBaseURL: false) else {
             return ("Claude could not redeem the reset.", false)
@@ -318,6 +344,12 @@ extension OAuthUsageTracker {
         guard let (claimData, claimResponse) = try? await session.data(for: request),
               let claimHTTP = claimResponse as? HTTPURLResponse else {
             return ("Claude could not redeem the reset.", false)
+        }
+        if claimHTTP.statusCode == 429 {
+            await cache.recordRateLimit(
+                for: account,
+                retryAfter: OAuthUsageCache.retryDate(claimHTTP.value(forHTTPHeaderField: "Retry-After"), now: Date())
+            )
         }
         if let early = claudeStatusOutcome(claimHTTP.statusCode) {
             return early

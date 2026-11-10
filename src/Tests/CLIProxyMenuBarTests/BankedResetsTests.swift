@@ -41,6 +41,29 @@ final class BankedResetsTests: XCTestCase {
         XCTAssertNil(OAuthUsageTracker.parseClaudeResetCredits(ineligible, now: now))
     }
 
+    func testParseClaudeResetCreditsToleratesMalformedCounts() {
+        let huge = Data(#"{"cedar_ember":{"eligible":true,"next_grant_id":"g1","grants":[{"id":"g1","resets_left":1e30,"ends_at":"2999-01-01T00:00:00Z","usable_now":true}]}}"#.utf8)
+        XCTAssertEqual(OAuthUsageTracker.parseClaudeResetCredits(huge, now: now)?.display.availableCount, Int.max)
+
+        let negative = Data(#"{"cedar_ember":{"eligible":true,"next_grant_id":"g1","grants":[{"id":"g1","resets_left":-3,"ends_at":"2999-01-01T00:00:00Z","usable_now":true}]}}"#.utf8)
+        XCTAssertNil(OAuthUsageTracker.parseClaudeResetCredits(negative, now: now))
+    }
+
+    func testCreditIDsAreNeverPersistedInUsageCoding() throws {
+        var usage = OAuthAccountUsage(id: "codex.json", provider: .codex, email: "owner@example.com")
+        usage.codexResetCredits = [CodexResetCredit(id: "credit-secret-1", expiresAt: now)]
+        usage.claudeResetState = ClaudeResetState(
+            display: BankedResetCredits(availableCount: 1, nextExpiresAt: nil),
+            nextCreditID: "grant-secret-1", nextResetsLeft: 1
+        )
+        let encoded = String(decoding: try JSONEncoder().encode(usage), as: UTF8.self)
+        XCTAssertFalse(encoded.contains("credit-secret-1"))
+        XCTAssertFalse(encoded.contains("grant-secret-1"))
+        let decoded = try JSONDecoder().decode(OAuthAccountUsage.self, from: Data(encoded.utf8))
+        XCTAssertTrue(decoded.codexResetCredits.isEmpty)
+        XCTAssertNil(decoded.claudeResetState)
+    }
+
     func testRedeemRequestIDMatchesUUIDv5Namespace() {
         // Same namespace as the Linux edition and T3 Code, so a retry from
         // either tool addresses the same provider-side redemption.
@@ -54,6 +77,8 @@ final class BankedResetsTests: XCTestCase {
         var consumed: [String: Any]?
         let session = mockSession { request in
             switch request.url?.path {
+            case "/wham/usage":
+                return (200, #"{"rate_limit":{"primary_window":{"used_percent":90,"limit_window_seconds":18000},"secondary_window":{"used_percent":50,"limit_window_seconds":604800}}}"#)
             case "/wham/rate-limit-reset-credits":
                 return (200, #"{"credits":[{"id":"c1","status":"available","reset_type":"codex_rate_limits","expires_at":"2999-01-01T00:00:00Z"}]}"#)
             case "/wham/rate-limit-reset-credits/consume":
@@ -66,7 +91,7 @@ final class BankedResetsTests: XCTestCase {
         let account = try writeAccount(type: .codex, json: ["access_token": "tok", "account_id": "acct-1"])
 
         let result = await OAuthUsageTracker.redeemReset(
-            for: account, session: session,
+            for: account, session: session, cache: OAuthUsageCache(fileURL: nil, jitter: { 0 }),
             codexUsageURL: URL(string: "https://example.test/wham/usage")!
         )
 
@@ -91,7 +116,7 @@ final class BankedResetsTests: XCTestCase {
         let account = try writeAccount(type: .claude, json: ["access_token": "tok", "organization_uuid": "org-1"])
 
         let result = await OAuthUsageTracker.redeemReset(
-            for: account, session: session,
+            for: account, session: session, cache: OAuthUsageCache(fileURL: nil, jitter: { 0 }),
             claudeUsageURL: URL(string: "https://example.test/api/oauth/usage")!
         )
 
@@ -122,9 +147,10 @@ final class BankedResetsTests: XCTestCase {
         }
         let account = try writeAccount(type: .claude, json: ["access_token": "tok", "organization_uuid": "org-1"])
         let usageURL = URL(string: "https://example.test/api/oauth/usage")!
+        let cache = OAuthUsageCache(fileURL: nil, jitter: { 0 })
 
         for _ in 0..<2 {
-            let result = await OAuthUsageTracker.redeemReset(for: account, session: session, claudeUsageURL: usageURL)
+            let result = await OAuthUsageTracker.redeemReset(for: account, session: session, cache: cache, claudeUsageURL: usageURL)
             XCTAssertTrue(result.ok, result.message)
         }
         XCTAssertEqual(left, 0, "both resets actually spent, request ids \(requestIDs)")
