@@ -72,10 +72,13 @@ enum ProviderUsageColors {
             ProviderBrandSwatch(red: 0x6C, green: 0x3C, blue: 0xE0),
             ProviderBrandSwatch(red: 0xE0, green: 0x3C, blue: 0x8A),
         ],
+        // Kimi branding is monochrome black and white, like Grok's; the
+        // assignment keeps Grok's white (more popular) and gives Kimi the
+        // next gray so the two rings stay tellable apart.
         .kimi: [
-            ProviderBrandSwatch(red: 0x00, green: 0xBF, blue: 0x91),
-            ProviderBrandSwatch(red: 0x0E, green: 0x7C, blue: 0x6B),
-            ProviderBrandSwatch(red: 0x5B, green: 0xE0, blue: 0xC2),
+            ProviderBrandSwatch(red: 0xFF, green: 0xFF, blue: 0xFF),
+            ProviderBrandSwatch(red: 0xCC, green: 0xCC, blue: 0xCC),
+            ProviderBrandSwatch(red: 0x99, green: 0x99, blue: 0x99),
         ],
         .junie: [
             ProviderBrandSwatch(red: 0x48, green: 0xE0, blue: 0x54),

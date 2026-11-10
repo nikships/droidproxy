@@ -8,10 +8,16 @@ final class ProviderUsageColorsTests: XCTestCase {
     }
 
     func testCurrentBrandsKeepTheirPrimaryColor() {
-        for provider in ServiceType.allCases {
+        for provider in ServiceType.allCases where provider != .kimi {
             let primary = ProviderUsageColors.palettes[provider]?.first
             XCTAssertEqual(ProviderUsageColors.swatch(for: provider), primary, "\(provider)")
         }
+        // Kimi and Grok are both monochrome white brands; Grok is more
+        // popular, so it keeps white and Kimi takes its secondary gray.
+        XCTAssertEqual(
+            ProviderUsageColors.swatch(for: .kimi),
+            ProviderBrandSwatch(red: 0xCC, green: 0xCC, blue: 0xCC)
+        )
     }
 
     func testLessPopularProviderYieldsASharedPrimary() {
