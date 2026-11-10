@@ -315,6 +315,16 @@ enum DroidProxyModelCatalog {
                 displayName: "Gemini 4 Argon",
                 levels: [low, medium, high]
             ),
+            // Carbon landed in fetchAvailableModels before the CLIProxyAPI
+            // registry listed it; the account-gated -high id answers live
+            // (verified 2026-11-09) and reasoning_effort selects the level.
+            antigravityModel(
+                baseModel: "gemini-4-carbon-high",
+                idSlug: "gemini-4-carbon-high",
+                displayName: "Gemini 4 Carbon",
+                maxOutputTokens: 262144,
+                levels: [low, medium, high]
+            ),
             // Claude 5.5 is only served to directly billed (non-trial) Google AI Pro/Ultra accounts.
             // CLIProxyAPI registers an Antigravity model only when the account's
             // fetchAvailableModels returns it, so on other accounts the 5.5 entries fail with
