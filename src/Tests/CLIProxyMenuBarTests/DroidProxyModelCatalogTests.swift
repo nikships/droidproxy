@@ -197,6 +197,23 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertFalse(modelsWithoutKimi.contains { ($0["id"] as? String) == "custom:droidproxy:kimi-k3" })
     }
 
+    func testKimiK31ProUsesMaxReasoningMetadata() throws {
+        for slug in ["kimi-k3.1-pro", "kimi-k3.1-pro-highspeed"] {
+            let kimi = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:\(slug)"))
+            XCTAssertEqual(kimi["model"] as? String, slug)
+            XCTAssertEqual(kimi["provider"] as? String, "openai")
+            XCTAssertEqual(kimi["baseUrl"] as? String, "http://localhost:8317/v1")
+            XCTAssertEqual(kimi["maxOutputTokens"] as? Int, 65536, slug)
+            XCTAssertEqual(kimi["reasoningEffort"] as? String, "max", slug)
+            XCTAssertEqual(kimi["defaultReasoningEffort"] as? String, "max", slug)
+            XCTAssertEqual(kimi["supportedReasoningEfforts"] as? [String], ["max"], slug)
+        }
+
+        // 262144 is K2.6's context length, not its max output.
+        let k26 = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:kimi-k2.6"))
+        XCTAssertEqual(k26["maxOutputTokens"] as? Int, 65536)
+    }
+
     func testGemini38FlashHighUsesAntigravityModelMetadata() throws {
         let gemini = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:gemini-3.8-flash-high"))
 

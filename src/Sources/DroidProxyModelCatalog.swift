@@ -355,8 +355,32 @@ enum DroidProxyModelCatalog {
                 displayName: "Claude Opus 4.6 (Thinking)",
                 maxOutputTokens: 64000
             ),
-            // CLIProxyAPI recognizes this catalog ID and removes the `kimi-` prefix,
-            // sending Kimi Code's native `k3` model ID upstream.
+            // CLIProxyAPI recognizes these catalog IDs and removes the `kimi-`
+            // prefix, sending Kimi Code's native model ID upstream.
+            DroidProxyModelDefinition(
+                baseModel: "kimi-k3.1-pro",
+                idSlug: "kimi-k3.1-pro",
+                displayName: "Kimi K3.1 Pro",
+                maxOutputTokens: 65536,
+                provider: "openai",
+                providerKey: "kimi",
+                baseURL: "http://localhost:8317/v1",
+                kind: .kimi,
+                levels: [max],
+                defaultLevelValue: "max"
+            ),
+            DroidProxyModelDefinition(
+                baseModel: "kimi-k3.1-pro-highspeed",
+                idSlug: "kimi-k3.1-pro-highspeed",
+                displayName: "Kimi K3.1 Pro Highspeed",
+                maxOutputTokens: 65536,
+                provider: "openai",
+                providerKey: "kimi",
+                baseURL: "http://localhost:8317/v1",
+                kind: .kimi,
+                levels: [max],
+                defaultLevelValue: "max"
+            ),
             DroidProxyModelDefinition(
                 baseModel: "kimi-k3",
                 idSlug: "kimi-k3",
@@ -373,7 +397,7 @@ enum DroidProxyModelCatalog {
                 baseModel: "kimi-k2.6",
                 idSlug: "kimi-k2.6",
                 displayName: "Kimi K2.6",
-                maxOutputTokens: 262144,
+                maxOutputTokens: 65536,
                 provider: "openai",
                 providerKey: "kimi",
                 baseURL: "http://localhost:8317/v1",
