@@ -61,6 +61,7 @@ final class ProviderController: ObservableObject {
     /// started, a Grok login until it finishes.
     @Published private(set) var launching: Set<ServiceType> = []
     @Published private(set) var factoryStatus = FactoryModels.Status(installed: 0, available: 0, stale: false)
+    @Published private(set) var disabledFactoryModelSlugs = FactoryModelPreferences.disabledModelSlugs()
 
     var openSettingsWindow: (() -> Void)?
 
@@ -442,11 +443,48 @@ final class ProviderController: ObservableObject {
 
     // MARK: - Droid's models
 
-    func enabledFactorySettingsModels() -> [[String: Any]] {
-        DroidProxyModelCatalog.settingsModels { [serverManager] providerKey in
-            guard let serviceType = ServiceType(authFileType: providerKey) else { return true }
-            return serverManager.isProviderEnabled(serviceType)
+    func factoryModelDefinitions(for type: ServiceType) -> [DroidProxyModelDefinition] {
+        DroidProxyModelCatalog.definitions.filter {
+            $0.providerKey == type.rawValue && $0.kind != .copilot
         }
+    }
+
+    func isFactoryModelEnabled(_ definition: DroidProxyModelDefinition) -> Bool {
+        !disabledFactoryModelSlugs.contains(definition.idSlug)
+    }
+
+    /// The model switch is the whole control: persist the choice and
+    /// immediately reconcile Factory, so turning a model off deletes its
+    /// DroidProxy entry and turning it back on restores it.
+    @discardableResult
+    func setFactoryModelEnabled(
+        _ definition: DroidProxyModelDefinition,
+        enabled: Bool
+    ) -> Result<FactoryModels.ApplyResult, Error> {
+        let previouslyEnabled = isFactoryModelEnabled(definition)
+        disabledFactoryModelSlugs = FactoryModelPreferences.setEnabled(
+            enabled,
+            slug: definition.idSlug
+        )
+        let result = applyFactoryModels()
+        if case .failure = result {
+            disabledFactoryModelSlugs = FactoryModelPreferences.setEnabled(
+                previouslyEnabled,
+                slug: definition.idSlug
+            )
+            refreshFactoryStatus()
+        }
+        return result
+    }
+
+    func enabledFactorySettingsModels() -> [[String: Any]] {
+        DroidProxyModelCatalog.settingsModels(
+            providerIsEnabled: { [serverManager] providerKey in
+                guard let serviceType = ServiceType(authFileType: providerKey) else { return true }
+                return serverManager.isProviderEnabled(serviceType)
+            },
+            disabledModelSlugs: disabledFactoryModelSlugs
+        )
     }
 
     func refreshFactoryStatus() {

@@ -37,7 +37,12 @@ actor OAuthUsageCache {
         if let task = inFlight[key] { return await task.value }
         if let entry = entries[key], now() < entry.nextAttemptAt { return entry.usage }
 
-        let interval: TimeInterval = account.type == .claude ? 300 : 15
+        let interval: TimeInterval
+        switch account.type {
+        case .claude: interval = 300
+        case .antigravity: interval = 60
+        default: interval = 15
+        }
         // Persist the request reservation before starting: a restart cannot immediately retry it.
         let placeholder = OAuthAccountUsage(id: account.id, provider: account.type, email: account.displayName, error: "Usage refresh pending")
         var entry = entries[key] ?? Entry(usage: placeholder, nextAttemptAt: now(), rateLimitFailures: 0)

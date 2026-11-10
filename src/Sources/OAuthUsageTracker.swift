@@ -49,15 +49,16 @@ final class OAuthUsageTracker: ObservableObject {
         refreshTask?.cancel()
     }
 
-    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount], grokAccounts: [AuthAccount] = [], metaAccounts: [AuthAccount] = []) {
+    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount], grokAccounts: [AuthAccount] = [], metaAccounts: [AuthAccount] = [], antigravityAccounts: [AuthAccount] = []) {
         refreshTask?.cancel()
 
         let enabledCodex = codexAccounts.filter { !$0.isDisabled && !$0.isExpired }
         let enabledClaude = claudeAccounts.filter { !$0.isDisabled && !$0.isExpired }
         let enabledGrok = Self.activeGrokAccounts(grokAccounts)
         let enabledMeta = metaAccounts.filter { !$0.isDisabled }
+        let enabledAntigravity = antigravityAccounts.filter { !$0.isDisabled && !$0.isExpired }
 
-        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty || !enabledGrok.isEmpty || !enabledMeta.isEmpty else {
+        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty || !enabledGrok.isEmpty || !enabledMeta.isEmpty || !enabledAntigravity.isEmpty else {
             accounts = []
             isRefreshing = false
             return
@@ -68,13 +69,15 @@ final class OAuthUsageTracker: ObservableObject {
             + enabledClaude.map { Self.loadingPlaceholder(for: $0, provider: .claude) }
             + enabledGrok.map { Self.loadingPlaceholder(for: $0, provider: .grok) }
             + enabledMeta.map { Self.loadingPlaceholder(for: $0, provider: .meta) }
+            + enabledAntigravity.map { Self.loadingPlaceholder(for: $0, provider: .antigravity) }
 
-        refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok, enabledMeta] in
+        refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok, enabledMeta, enabledAntigravity] in
             let results = await Self.fetchUsage(
                 codex: enabledCodex,
                 claude: enabledClaude,
                 grok: enabledGrok,
-                meta: enabledMeta
+                meta: enabledMeta,
+                antigravity: enabledAntigravity
             )
 
             guard !Task.isCancelled else { return }
@@ -89,7 +92,8 @@ final class OAuthUsageTracker: ObservableObject {
         codex: [AuthAccount],
         claude: [AuthAccount],
         grok: [AuthAccount],
-        meta: [AuthAccount]
+        meta: [AuthAccount],
+        antigravity: [AuthAccount] = []
     ) async -> [OAuthAccountUsage] {
         await withTaskGroup(of: OAuthAccountUsage.self) { group in
             for account in codex {
@@ -109,6 +113,11 @@ final class OAuthUsageTracker: ObservableObject {
             }
             for account in meta {
                 group.addTask { await fetchMetaUsage(for: account) }
+            }
+            for account in antigravity {
+                group.addTask {
+                    await OAuthUsageCache.shared.usage(for: account) { await fetchAntigravityUsage(for: account) }
+                }
             }
 
             var values: [OAuthAccountUsage] = []
@@ -166,6 +175,48 @@ final class OAuthUsageTracker: ObservableObject {
 
         return await fetchJSONUsage(account: account, request: request) { json in
             parseCodexWindows(json)
+        }
+    }
+
+    nonisolated private static var antigravityUserAgent: String {
+        // Mirrors the bundled CLIProxyAPI fallback client identity. Cloud Code
+        // rejects some model-list calls from older Antigravity clients.
+        #if arch(arm64)
+        return "antigravity/hub/2.29.0 (aidev_client; os_type=darwin; arch=arm64; cl=1013060670)"
+        #else
+        return "antigravity/hub/2.29.0 (aidev_client; os_type=darwin; arch=x64)"
+        #endif
+    }
+
+    nonisolated private static func fetchAntigravityUsage(for account: AuthAccount) async -> OAuthAccountUsage {
+        guard let auth = authValues(from: account.filePath),
+              let token = auth["access_token"] else {
+            return failedAccount(account, "Missing access token")
+        }
+        if account.isAccessExpired {
+            return failedAccount(account, "Access token expired; it renews on this account's next request")
+        }
+        guard let project = auth["project_id"] else {
+            return failedAccount(account, "Missing project ID")
+        }
+        guard let url = URL(string: "https://daily-cloudcode-pa.googleapis.com/v1internal:retrieveUserQuotaSummary") else {
+            return failedAccount(account, "Invalid usage endpoint")
+        }
+        guard let body = try? JSONSerialization.data(withJSONObject: ["project": project]) else {
+            return failedAccount(account, "Invalid usage request")
+        }
+
+        var request = URLRequest(url: url)
+        request.httpMethod = "POST"
+        request.timeoutInterval = OAuthUsageParsing.requestTimeout
+        request.httpBody = body
+        request.setValue("Bearer \(token)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+        request.setValue(antigravityUserAgent, forHTTPHeaderField: "User-Agent")
+
+        return await fetchJSONUsage(account: account, request: request) { json in
+            parseAntigravityQuotaSummaryWindows(json)
         }
     }
 
@@ -400,6 +451,91 @@ final class OAuthUsageTracker: ObservableObject {
         return "\(Int(minutes.rounded()))-min"
     }
 
+    nonisolated static func parseAntigravityQuotaSummaryWindows(_ data: Data) -> [OAuthUsageWindow] {
+        guard let raw = try? JSONSerialization.jsonObject(with: data) else {
+            return []
+        }
+        return parseAntigravityQuotaSummaryWindows(raw)
+    }
+
+    nonisolated private static func parseAntigravityQuotaSummaryWindows(_ object: Any) -> [OAuthUsageWindow] {
+        guard let root = object as? [String: Any],
+              let groups = root["groups"] as? [[String: Any]] else {
+            return []
+        }
+
+        func periodRank(_ bucket: [String: Any]) -> Int {
+            let name = (bucket["displayName"] as? String ?? "").lowercased()
+            if name.contains("five") || name.contains("5-hour") || name.contains("5h") { return 0 }
+            if name.contains("week") { return 1 }
+            return 2
+        }
+
+        func periodTitle(_ bucket: [String: Any]) -> String {
+            let name = (bucket["displayName"] as? String ?? "Quota")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = name.lowercased()
+            if lower.contains("five") || lower.contains("5-hour") || lower.contains("5h") { return "5-hour" }
+            if lower.contains("week") { return "Weekly" }
+            return name.replacingOccurrences(of: " Limit Remaining", with: "")
+        }
+
+        func groupTitle(_ group: [String: Any]) -> String {
+            let name = (group["displayName"] as? String ?? "Antigravity")
+                .trimmingCharacters(in: .whitespacesAndNewlines)
+            let lower = name.lowercased()
+            if lower.contains("gemini") { return "Gemini" }
+            if lower.contains("claude") && lower.contains("gpt") { return "Claude/GPT" }
+            return name
+                .replacingOccurrences(of: " Models", with: "")
+                .replacingOccurrences(of: " models", with: "")
+        }
+
+        var windows: [OAuthUsageWindow] = []
+        for group in groups {
+            let buckets = (group["buckets"] as? [[String: Any]] ?? [])
+                .sorted { periodRank($0) < periodRank($1) }
+            for bucket in buckets {
+                guard let fraction = numberValue(bucket["remainingFraction"]) else { continue }
+                let remaining = max(0.0, min(1.0, fraction))
+                let resetString = bucket["resetTime"] as? String
+                let resetDate = resetString.flatMap(parseISO8601Date)
+                windows.append(OAuthUsageWindow(
+                    title: "\(groupTitle(group)) \(periodTitle(bucket))",
+                    usedPercent: (1 - remaining) * 100,
+                    resetText: resetDate.map(resetText(for:)) ?? resetString,
+                    resetDate: resetDate
+                ))
+            }
+        }
+        return windows
+    }
+
+    /// Regroups parsed Antigravity windows into their model pools (titles
+    /// are "<pool> 5-hour" / "<pool> Weekly", shortest first within a
+    /// pool) so each pool can render as one dual gauge. Returns nil when
+    /// a pool has more windows than a dual gauge can show; the caller
+    /// then falls back to the compact stack rather than drop a limit.
+    nonisolated static func antigravityPoolGroups(_ windows: [OAuthUsageWindow]) -> [[OAuthUsageWindow]]? {
+        func poolName(_ title: String) -> String {
+            for suffix in [" 5-hour", " Weekly"] where title.hasSuffix(suffix) {
+                return String(title.dropLast(suffix.count))
+            }
+            return title
+        }
+
+        var order: [String] = []
+        var pools: [String: [OAuthUsageWindow]] = [:]
+        for window in windows {
+            let pool = poolName(window.title)
+            if pools[pool] == nil { order.append(pool) }
+            pools[pool, default: []].append(window)
+        }
+        let groups = order.compactMap { pools[$0] }
+        guard groups.allSatisfy({ $0.count <= 2 }) else { return nil }
+        return groups
+    }
+
     /// SuperGrok reports one pooled credit window per billing period.
     nonisolated static func parseGrokWindows(_ data: Data) -> [OAuthUsageWindow] {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
@@ -496,7 +632,7 @@ final class OAuthUsageTracker: ObservableObject {
                 return failedAccount(account, "No HTTP response")
             }
             guard (200..<300).contains(http.statusCode) else {
-                return failedAccount(account, "Usage API returned \(http.statusCode)")
+                return failedAccount(account, "Usage API returned \(http.statusCode)", response: http)
             }
             let json = try JSONSerialization.jsonObject(with: data)
             let windows = parse(json)

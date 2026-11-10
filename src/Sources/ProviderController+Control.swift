@@ -8,9 +8,16 @@ enum ControlUsage {
         claude: [AuthAccount],
         grok: [AuthAccount],
         meta: [AuthAccount],
+        antigravity: [AuthAccount] = [],
         now: Date
     ) async -> [OAuthAccountUsage] {
-        var usages = await OAuthUsageTracker.fetchUsage(codex: codex, claude: claude, grok: grok, meta: [])
+        var usages = await OAuthUsageTracker.fetchUsage(
+            codex: codex,
+            claude: claude,
+            grok: grok,
+            meta: [],
+            antigravity: antigravity
+        )
         usages += meta.map(OAuthUsageTracker.storedMetaUsage(for:))
         return usages
     }
@@ -125,6 +132,7 @@ extension ProviderController: ControlBackend {
             claude: live(.claude),
             grok: (enabled[.grok] ?? true) ? activeGrok : [],
             meta: (enabled[.meta] ?? true) ? (accounts[.meta] ?? []).filter { !$0.isDisabled } : [],
+            antigravity: live(.antigravity),
             now: now
         )
 
@@ -150,7 +158,7 @@ extension ProviderController: ControlBackend {
                 availability = AvailabilityJudge.judge(
                     baseModel: definition.baseModel,
                     provider: type,
-                    providerEnabled: enabled[type] ?? true,
+                    providerEnabled: (enabled[type] ?? true) && isFactoryModelEnabled(definition),
                     accounts: judgeAccounts(type),
                     usages: providerUsages,
                     now: now
