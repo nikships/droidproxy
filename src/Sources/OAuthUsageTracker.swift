@@ -511,6 +511,31 @@ final class OAuthUsageTracker: ObservableObject {
         return windows
     }
 
+    /// Regroups parsed Antigravity windows into their model pools (titles
+    /// are "<pool> 5-hour" / "<pool> Weekly", shortest first within a
+    /// pool) so each pool can render as one dual gauge. Returns nil when
+    /// a pool has more windows than a dual gauge can show; the caller
+    /// then falls back to the compact stack rather than drop a limit.
+    nonisolated static func antigravityPoolGroups(_ windows: [OAuthUsageWindow]) -> [[OAuthUsageWindow]]? {
+        func poolName(_ title: String) -> String {
+            for suffix in [" 5-hour", " Weekly"] where title.hasSuffix(suffix) {
+                return String(title.dropLast(suffix.count))
+            }
+            return title
+        }
+
+        var order: [String] = []
+        var pools: [String: [OAuthUsageWindow]] = [:]
+        for window in windows {
+            let pool = poolName(window.title)
+            if pools[pool] == nil { order.append(pool) }
+            pools[pool, default: []].append(window)
+        }
+        let groups = order.compactMap { pools[$0] }
+        guard groups.allSatisfy({ $0.count <= 2 }) else { return nil }
+        return groups
+    }
+
     /// SuperGrok reports one pooled credit window per billing period.
     nonisolated static func parseGrokWindows(_ data: Data) -> [OAuthUsageWindow] {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any],

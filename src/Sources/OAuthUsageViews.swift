@@ -163,10 +163,32 @@ struct OAuthUsageAccountGroup: View {
                     .foregroundColor(.orange)
                     .lineLimit(2)
                     .help(error)
+            } else if account.provider == .antigravity,
+                      let pools = OAuthUsageTracker.antigravityPoolGroups(account.windows),
+                      pools.count > 1 {
+                // Each Antigravity model pool is its own dual gauge
+                // (5-hour inside, Weekly outside), full size like every
+                // other provider instead of a stack of half-size rings
+                // where an exhausted pool's arc reads as nothing.
+                // The whole row is one tap target for the account's curl.
+                HStack(spacing: 12) {
+                    ForEach(Array(pools.enumerated()), id: \.offset) { _, pool in
+                        DualUsageRingGauge(
+                            inner: pool[0],
+                            outer: pool.count > 1 ? pool[1] : nil,
+                            provider: account.provider,
+                            footnote: copyFootnote
+                        )
+                        .overlay {
+                            if copied { UsageCopiedCheckmark(diameter: DualUsageRingGauge.diameter) }
+                        }
+                    }
+                }
+                .contentShape(Rectangle())
+                .onTapGesture(perform: copyUsageCurl)
             } else if account.windows.count > 2 {
-                // Three or more windows (Claude's per-model buckets and
-                // Antigravity's model pools) fall back to a compact stack
-                // so no limit is dropped.
+                // Three or more windows (Claude's per-model buckets) fall
+                // back to a compact stack so no limit is dropped.
                 // The whole stack is one tap target for one account's curl,
                 // so every ring in it confirms the copy.
                 VStack(alignment: .leading, spacing: 2) {

@@ -30,6 +30,40 @@ final class OAuthUsageTrackerTests: XCTestCase {
         XCTAssertEqual(windows.last?.remainingPercent, 100)
     }
 
+    func testAntigravityPoolGroupsKeepsPoolsPairedShortestFirst() {
+        let windows = [
+            "Gemini 5-hour", "Gemini Weekly", "Claude/GPT 5-hour", "Claude/GPT Weekly"
+        ].map { OAuthUsageWindow(title: $0, usedPercent: 10, resetText: nil, resetDate: nil) }
+
+        let pools = OAuthUsageTracker.antigravityPoolGroups(windows)
+
+        XCTAssertEqual(pools?.map { $0.map(\.title) }, [
+            ["Gemini 5-hour", "Gemini Weekly"],
+            ["Claude/GPT 5-hour", "Claude/GPT Weekly"]
+        ])
+    }
+
+    func testAntigravityPoolGroupsAllowsSingleWindowPool() {
+        let windows = [
+            "Gemini 5-hour", "Gemini Weekly", "Claude/GPT Weekly"
+        ].map { OAuthUsageWindow(title: $0, usedPercent: 10, resetText: nil, resetDate: nil) }
+
+        let pools = OAuthUsageTracker.antigravityPoolGroups(windows)
+
+        XCTAssertEqual(pools?.map { $0.map(\.title) }, [
+            ["Gemini 5-hour", "Gemini Weekly"],
+            ["Claude/GPT Weekly"]
+        ])
+    }
+
+    func testAntigravityPoolGroupsRejectsPoolTooWideForDualGauge() {
+        let windows = [
+            "Gemini 5-hour", "Gemini Weekly", "Gemini Weekly"
+        ].map { OAuthUsageWindow(title: $0, usedPercent: 10, resetText: nil, resetDate: nil) }
+
+        XCTAssertNil(OAuthUsageTracker.antigravityPoolGroups(windows))
+    }
+
     func testParseAntigravityQuotaSummaryWindowsHandlesMalformedJSON() {
         XCTAssertTrue(OAuthUsageTracker.parseAntigravityQuotaSummaryWindows(Data("{ invalid json".utf8)).isEmpty)
     }
