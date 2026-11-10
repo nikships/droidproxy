@@ -75,6 +75,7 @@ actor OAuthUsageCache {
         if result.error != nil, let cached = previous?.usage, !cached.windows.isEmpty {
             usage.windows = cached.windows
             usage.updatedAt = cached.updatedAt
+            usage.bankedResets = cached.bankedResets
         }
         let failures = result.rateLimited ? min(5, (previous?.rateLimitFailures ?? 0) + 1) : (result.error == nil ? 0 : previous?.rateLimitFailures ?? 0)
         let backoff = result.rateLimited ? min(3600, 300 * pow(2, Double(max(0, failures - 1)))) : interval
@@ -83,6 +84,13 @@ actor OAuthUsageCache {
         inFlight[key] = nil
         persist()
         return usage
+    }
+
+    /// Drops the stored sample so the next read refetches even inside the
+    /// polling budget (e.g. right after a banked reset changed the quota).
+    func invalidate(for account: AuthAccount) {
+        entries["\(account.type.rawValue):\(account.filePath.standardizedFileURL.path)"] = nil
+        persist()
     }
 
     private func persist() {

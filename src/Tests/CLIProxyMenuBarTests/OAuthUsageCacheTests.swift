@@ -129,6 +129,24 @@ final class OAuthUsageCacheTests: XCTestCase {
         XCTAssertFalse(saved.contains("refresh_token"))
     }
 
+    func testInvalidateForcesARefetchInsideThePollingBudget() async {
+        let clock = Clock()
+        let cache = OAuthUsageCache(now: { clock.date }, jitter: { 0 })
+        let probe = Probe()
+        let account = account()
+        let usage = sample(account, at: clock.date)
+
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        var calls = await probe.calls
+        XCTAssertEqual(calls, 1)
+
+        await cache.invalidate(for: account)
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        calls = await probe.calls
+        XCTAssertEqual(calls, 2)
+    }
+
     func testRetryAfterHandlesSecondsHTTPDatesAndMissingOrInvalidValues() {
         let now = Date(timeIntervalSince1970: 0)
         XCTAssertEqual(OAuthUsageCache.retryDate("300", now: now), now.addingTimeInterval(300))

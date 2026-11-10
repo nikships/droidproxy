@@ -39,6 +39,8 @@ struct OAuthAccountUsage: Identifiable, Equatable, Codable {
     var updatedAt: Date?
     var rateLimited = false
     var retryAfter: Date?
+    /// Banked usage resets held by this account (Codex and Claude only).
+    var bankedResets: BankedResetCredits?
 
     /// Bounds a "short" window: the 5-hour class, with slack.
     static let shortWindowMaxSeconds = 6 * 3600
@@ -62,7 +64,7 @@ struct OAuthAccountUsage: Identifiable, Equatable, Codable {
     }
 }
 
-private enum OAuthUsageParsing {
+enum OAuthUsageParsing {
     static let requestTimeout: TimeInterval = 15
     static let formURLEncodedAllowedCharacters: CharacterSet = {
         var allowed = CharacterSet.alphanumerics
@@ -205,9 +207,19 @@ final class OAuthUsageTracker: ObservableObject {
             request.setValue(accountId, forHTTPHeaderField: "ChatGPT-Account-Id")
         }
 
-        return await fetchJSONUsage(account: account, request: request) { json in
+        var usage = await fetchJSONUsage(account: account, request: request) { json in
             parseCodexWindows(json)
         }
+        guard usage.error == nil else { return usage }
+        // Banked-reset state rides along with the usage read; it is
+        // best-effort and never fails the read itself.
+        let credits = await fetchCodexBankedResets(account: account, auth: auth, token: token)
+        usage.bankedResets = credits.display
+        if credits.rateLimited {
+            usage.rateLimited = true
+            usage.retryAfter = max(usage.retryAfter ?? .distantPast, credits.retryAfter ?? .distantPast)
+        }
+        return usage
     }
 
     nonisolated private static var antigravityUserAgent: String {
@@ -276,7 +288,7 @@ final class OAuthUsageTracker: ObservableObject {
         return await executeClaudeUsageRequest(account: account, token: usableToken)
     }
 
-    nonisolated private static func refreshClaudeTokens(fileURL: URL, auth: [String: String]) async throws -> String {
+    nonisolated static func refreshClaudeTokens(fileURL: URL, auth: [String: String]) async throws -> String {
         guard let refreshToken = auth["refresh_token"] else {
             throw NSError(domain: "ClaudeUsage", code: 2, userInfo: [NSLocalizedDescriptionKey: "No refresh token available"])
         }
@@ -341,7 +353,7 @@ final class OAuthUsageTracker: ObservableObject {
                 return failedAccount(account, "Usage response did not include quota windows")
             }
 
-            return successAccount(account, windows: windows)
+            return claudeSuccessAccount(account, data: data, windows: windows)
         } catch {
             return failedAccount(account, error.localizedDescription)
         }
@@ -360,13 +372,13 @@ final class OAuthUsageTracker: ObservableObject {
             guard http.statusCode == 200 else {
                 return failedAccount(account, "Claude usage returned \(http.statusCode) after refresh retry", response: http)
             }
-            return successAccount(account, windows: parseClaudeWindows(data))
+            return claudeSuccessAccount(account, data: data, windows: parseClaudeWindows(data))
         } catch {
             return failedAccount(account, "Retry token refresh failed: \(error.localizedDescription)")
         }
     }
 
-    nonisolated private static func makeClaudeUsageRequest(url: URL, token: String) -> URLRequest {
+    nonisolated static func makeClaudeUsageRequest(url: URL, token: String) -> URLRequest {
         var request = URLRequest(url: url)
         request.httpMethod = "GET"
         request.timeoutInterval = OAuthUsageParsing.requestTimeout
@@ -619,6 +631,16 @@ final class OAuthUsageTracker: ObservableObject {
         )
     }
 
+    /// Claude success, with the banked-reset state read from the same
+    /// usage payload (the cedar_ember block rides along with the windows).
+    nonisolated private static func claudeSuccessAccount(
+        _ account: AuthAccount, data: Data, windows: [OAuthUsageWindow]
+    ) -> OAuthAccountUsage {
+        var usage = successAccount(account, windows: windows)
+        usage.bankedResets = parseClaudeResetCredits(data, now: Date())?.display
+        return usage
+    }
+
     nonisolated static func parseClaudeWindows(_ data: Data) -> [OAuthUsageWindow] {
         guard let raw = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return []
@@ -695,7 +717,7 @@ final class OAuthUsageTracker: ObservableObject {
         )
     }
 
-    nonisolated private static func authValues(from url: URL) -> [String: String]? {
+    nonisolated static func authValues(from url: URL) -> [String: String]? {
         guard let data = try? Data(contentsOf: url),
               let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any] else {
             return nil
@@ -846,7 +868,7 @@ final class OAuthUsageTracker: ObservableObject {
         return nil
     }
 
-    nonisolated private static func parseISO8601Date(_ string: String) -> Date? {
+    nonisolated static func parseISO8601Date(_ string: String) -> Date? {
         let withFractionalSeconds = ISO8601DateFormatter()
         withFractionalSeconds.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         if let date = withFractionalSeconds.date(from: string) {
@@ -866,7 +888,7 @@ final class OAuthUsageTracker: ObservableObject {
         return "\(relative) (\(absoluteFormatter.string(from: date)))"
     }
 
-    nonisolated private static func numberValue(_ value: Any?) -> Double? {
+    nonisolated static func numberValue(_ value: Any?) -> Double? {
         if let value = value as? Double { return value }
         if let value = value as? Int { return Double(value) }
         if let value = value as? NSNumber { return value.doubleValue }
