@@ -99,6 +99,14 @@ final class WindowPrimer {
         lastAttempt[provider] = now
         inFlight.insert(provider)
         Task {
+            guard await Self.applies(for: provider) else {
+                inFlight.remove(provider)
+                // Positively no short window to start today; record the
+                // decision so the tick does not re-check until tomorrow.
+                UserDefaults.standard.set(Date(), forKey: provider.lastFiredKey)
+                NSLog("[WindowPrimer] %@: skipped, no account has a short window", provider.rawValue)
+                return
+            }
             let sent = await Self.sendPrimers(for: provider)
             inFlight.remove(provider)
             if sent > 0 {
@@ -106,6 +114,34 @@ final class WindowPrimer {
             }
             NSLog("[WindowPrimer] %@: %d request(s) started a window", provider.rawValue, sent)
         }
+    }
+
+    /// Whether Auto-start daily can do anything for these accounts: false
+    /// only when every account's payload positively states it has no short
+    /// window (Claude Max/Ultra class, GPT Pro). Unknown usage and an
+    /// empty account list keep the primer available.
+    nonisolated static func applies(accounts: [OAuthAccountUsage]) -> Bool {
+        for account in accounts {
+            let (has, known) = account.hasShortWindow()
+            if has || !known { return true }
+        }
+        return accounts.isEmpty
+    }
+
+    /// `applies(accounts:)` over the provider's last stored usage samples,
+    /// read without spending any polling budget.
+    nonisolated static func applies(for provider: WindowPrimerProvider) async -> Bool {
+        let accounts = (AuthManager().loadAccountsSnapshot()[provider.serviceType] ?? [])
+            .filter { !$0.isDisabled && !$0.isExpired }
+        if provider == .meta {
+            return applies(accounts: accounts.map(OAuthUsageTracker.storedMetaUsage(for:)))
+        }
+        var usages: [OAuthAccountUsage] = []
+        for account in accounts {
+            let cached = await OAuthUsageCache.shared.cachedUsage(for: account)
+            usages.append(cached ?? OAuthAccountUsage(id: account.id, provider: account.type, email: account.displayName))
+        }
+        return applies(accounts: usages)
     }
 
     /// Returns how many requests succeeded. Zero also covers "no accounts".

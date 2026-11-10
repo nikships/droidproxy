@@ -7,9 +7,20 @@ struct OAuthUsageWindow: Identifiable, Equatable, Codable {
     let usedPercent: Double?
     let resetText: String?
     let resetDate: Date?
+    /// Window length when the provider's payload states it (or the bucket
+    /// implies it); nil when unknown. Drives short-window detection.
+    let lengthSeconds: Int?
+
+    init(title: String, usedPercent: Double?, resetText: String?, resetDate: Date?, lengthSeconds: Int? = nil) {
+        self.title = title
+        self.usedPercent = usedPercent
+        self.resetText = resetText
+        self.resetDate = resetDate
+        self.lengthSeconds = lengthSeconds
+    }
 
     private enum CodingKeys: String, CodingKey {
-        case title, usedPercent, resetText, resetDate
+        case title, usedPercent, resetText, resetDate, lengthSeconds
     }
 
     var remainingPercent: Double? {
@@ -28,6 +39,27 @@ struct OAuthAccountUsage: Identifiable, Equatable, Codable {
     var updatedAt: Date?
     var rateLimited = false
     var retryAfter: Date?
+
+    /// Bounds a "short" window: the 5-hour class, with slack.
+    static let shortWindowMaxSeconds = 6 * 3600
+
+    /// Whether this account's plan includes a short rolling window worth
+    /// priming. `known` is false when the payload said nothing either way,
+    /// so callers can stay permissive on unknown usage.
+    func hasShortWindow() -> (has: Bool, known: Bool) {
+        var has = false
+        var known = false
+        for window in windows {
+            if let length = window.lengthSeconds, length > 0 {
+                known = true
+                if length <= Self.shortWindowMaxSeconds { has = true }
+            } else if window.title == "5-hour" {
+                has = true
+                known = true
+            }
+        }
+        return (has, known)
+    }
 }
 
 private enum OAuthUsageParsing {
@@ -432,13 +464,15 @@ final class OAuthUsageTracker: ObservableObject {
                 title: metaWindowTitle(minutes: snapshot.windowDurationMins),
                 usedPercent: max(0.0, min(100.0, snapshot.windowUsedPercent)),
                 resetText: "\(resetText(for: snapshot.windowResetsAt)) · as of \(observed)",
-                resetDate: snapshot.windowResetsAt
+                resetDate: snapshot.windowResetsAt,
+                lengthSeconds: snapshot.windowDurationMins > 0 ? Int(snapshot.windowDurationMins * 60) : nil
             ),
             OAuthUsageWindow(
                 title: "Weekly",
                 usedPercent: max(0.0, min(100.0, snapshot.weeklyUsedPercent)),
                 resetText: "\(resetText(for: snapshot.weeklyResetsAt)) · as of \(observed)",
-                resetDate: snapshot.weeklyResetsAt
+                resetDate: snapshot.weeklyResetsAt,
+                lengthSeconds: 7 * 86_400
             )
         ]
     }
@@ -504,7 +538,8 @@ final class OAuthUsageTracker: ObservableObject {
                     title: "\(groupTitle(group)) \(periodTitle(bucket))",
                     usedPercent: (1 - remaining) * 100,
                     resetText: resetDate.map(resetText(for:)) ?? resetString,
-                    resetDate: resetDate
+                    resetDate: resetDate,
+                    lengthSeconds: periodRank(bucket) == 0 ? 5 * 3600 : (periodRank(bucket) == 1 ? 7 * 86_400 : nil)
                 ))
             }
         }
@@ -555,10 +590,11 @@ final class OAuthUsageTracker: ObservableObject {
 
         let period = config["currentPeriod"] as? [String: Any]
         let title: String
+        let lengthSeconds: Int?
         switch period?["type"] as? String {
-        case "USAGE_PERIOD_TYPE_WEEKLY": title = "Weekly"
-        case "USAGE_PERIOD_TYPE_MONTHLY": title = "Monthly"
-        default: title = "Credits"
+        case "USAGE_PERIOD_TYPE_WEEKLY": title = "Weekly"; lengthSeconds = 7 * 86_400
+        case "USAGE_PERIOD_TYPE_MONTHLY": title = "Monthly"; lengthSeconds = 30 * 86_400
+        default: title = "Credits"; lengthSeconds = nil
         }
 
         let resetString = (period?["end"] as? String) ?? (config["billingPeriodEnd"] as? String)
@@ -568,7 +604,8 @@ final class OAuthUsageTracker: ObservableObject {
             title: title,
             usedPercent: max(0.0, min(100.0, usedPercent)),
             resetText: resetDate.map(resetText(for:)) ?? resetString,
-            resetDate: resetDate
+            resetDate: resetDate,
+            lengthSeconds: lengthSeconds
         )]
     }
 
@@ -587,18 +624,18 @@ final class OAuthUsageTracker: ObservableObject {
             return []
         }
 
-        let knownBuckets: [(key: String, title: String)] = [
-            ("five_hour", "5-hour"),
-            ("seven_day", "Weekly"),
-            ("seven_day_opus", "Weekly (Opus)"),
-            ("seven_day_sonnet", "Weekly (Sonnet)"),
-            ("seven_day_oauth_apps", "Weekly (OAuth Apps)"),
-            ("seven_day_cowork", "Weekly (Cowork)"),
-            ("seven_day_omelette", "Weekly (Omelette)")
+        let knownBuckets: [(key: String, title: String, lengthSeconds: Int)] = [
+            ("five_hour", "5-hour", 5 * 3600),
+            ("seven_day", "Weekly", 7 * 86_400),
+            ("seven_day_opus", "Weekly (Opus)", 7 * 86_400),
+            ("seven_day_sonnet", "Weekly (Sonnet)", 7 * 86_400),
+            ("seven_day_oauth_apps", "Weekly (OAuth Apps)", 7 * 86_400),
+            ("seven_day_cowork", "Weekly (Cowork)", 7 * 86_400),
+            ("seven_day_omelette", "Weekly (Omelette)", 7 * 86_400)
         ]
 
         var windows: [OAuthUsageWindow] = []
-        for (key, title) in knownBuckets {
+        for (key, title, lengthSeconds) in knownBuckets {
             guard let dict = raw[key] as? [String: Any],
                   let utilization = numberValue(dict["utilization"]) else {
                 continue
@@ -614,7 +651,8 @@ final class OAuthUsageTracker: ObservableObject {
                 title: title,
                 usedPercent: usedPercent,
                 resetText: resetText,
-                resetDate: resetDate
+                resetDate: resetDate,
+                lengthSeconds: lengthSeconds
             ))
         }
 
@@ -686,11 +724,13 @@ final class OAuthUsageTracker: ObservableObject {
     nonisolated private static func codexWindow(fallbackTitle: String, from value: Any?) -> OAuthUsageWindow? {
         guard let window = value as? [String: Any] else { return nil }
         let resetDate = resetDate(from: window)
+        let lengthSeconds = numberValue(window["limit_window_seconds"]).flatMap { $0 > 0 ? Int($0) : nil }
         return OAuthUsageWindow(
             title: codexWindowTitle(seconds: numberValue(window["limit_window_seconds"]), fallback: fallbackTitle),
             usedPercent: numberValue(window["used_percent"]),
             resetText: resetDate.map(resetText(for:)) ?? resetText(from: window),
-            resetDate: resetDate
+            resetDate: resetDate,
+            lengthSeconds: lengthSeconds
         )
     }
 

@@ -601,7 +601,7 @@ struct SettingsView: View {
                         toggleTint: claudeEffortSelectionColor
                     )
 
-                    if serverManager.isProviderEnabled(.claude) {
+                    if serverManager.isProviderEnabled(.claude), primerApplies(for: .claude) {
                         WindowPrimerRow(provider: .claude)
                     }
 
@@ -612,7 +612,9 @@ struct SettingsView: View {
                     )
 
                     if serverManager.isProviderEnabled(.codex) {
-                        WindowPrimerRow(provider: .codex)
+                        if primerApplies(for: .codex) {
+                            WindowPrimerRow(provider: .codex)
+                        }
 
                         VStack(alignment: .leading, spacing: 6) {
                             HStack(spacing: 4) {
@@ -664,7 +666,9 @@ struct SettingsView: View {
                         metaContributorModeRow()
                             .padding(.leading, 28)
 
-                        WindowPrimerRow(provider: .meta)
+                        if primerApplies(for: .meta) {
+                            WindowPrimerRow(provider: .meta)
+                        }
                     }
 
                     providerServiceRow(
@@ -1173,6 +1177,13 @@ struct SettingsView: View {
     }
 
     // MARK: - Actions
+
+    /// Auto-start daily only helps plans with a short rolling window;
+    /// hide its row when every connected account positively has none
+    /// (Claude Max/Ultra class, GPT Pro). Unknown usage keeps it visible.
+    private func primerApplies(for provider: WindowPrimerProvider) -> Bool {
+        WindowPrimer.applies(accounts: oauthUsageTracker.accounts.filter { $0.provider == provider.serviceType })
+    }
 
     @ViewBuilder
     private func copilotServiceRow() -> some View {
