@@ -461,6 +461,7 @@ final class ProviderController: ObservableObject {
         _ definition: DroidProxyModelDefinition,
         enabled: Bool
     ) -> Result<FactoryModels.ApplyResult, Error> {
+        let previouslyEnabled = isFactoryModelEnabled(definition)
         disabledFactoryModelSlugs = FactoryModelPreferences.setEnabled(
             enabled,
             slug: definition.idSlug
@@ -468,7 +469,7 @@ final class ProviderController: ObservableObject {
         let result = applyFactoryModels()
         if case .failure = result {
             disabledFactoryModelSlugs = FactoryModelPreferences.setEnabled(
-                !enabled,
+                previouslyEnabled,
                 slug: definition.idSlug
             )
             refreshFactoryStatus()

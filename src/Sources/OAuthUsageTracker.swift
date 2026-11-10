@@ -632,7 +632,7 @@ final class OAuthUsageTracker: ObservableObject {
                 return failedAccount(account, "No HTTP response")
             }
             guard (200..<300).contains(http.statusCode) else {
-                return failedAccount(account, "Usage API returned \(http.statusCode)")
+                return failedAccount(account, "Usage API returned \(http.statusCode)", response: http)
             }
             let json = try JSONSerialization.jsonObject(with: data)
             let windows = parse(json)
