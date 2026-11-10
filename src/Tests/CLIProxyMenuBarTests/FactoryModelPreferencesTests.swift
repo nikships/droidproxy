@@ -26,6 +26,6 @@ final class FactoryModelPreferencesTests: XCTestCase {
         let ids = Set(entries.compactMap { $0["id"] as? String })
 
         XCTAssertFalse(ids.contains("custom:droidproxy:opus-5-5"))
-        XCTAssertTrue(ids.contains("custom:droidproxy:fable-5-1"))
+        XCTAssertTrue(ids.contains("custom:droidproxy:fable-5-2"))
     }
 }
