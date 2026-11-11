@@ -188,6 +188,7 @@ final class WindowPrimer {
         request.timeoutInterval = 60
         request.setValue("application/json", forHTTPHeaderField: "Content-Type")
         request.setValue("2023-06-01", forHTTPHeaderField: "anthropic-version")
+        request.setValue("window-primer", forHTTPHeaderField: "X-DroidProxy-Origin")
         request.httpBody = Data(spec.body.utf8)
         do {
             let (_, response) = try await URLSession.shared.data(for: request)

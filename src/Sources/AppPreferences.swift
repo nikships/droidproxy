@@ -17,6 +17,7 @@ enum AppPreferences {
     static let betaFlagKey = "BETA_FLAG"
     static let verboseLoggingKey = "verboseLogging"
     static let sequentialAccountFailoverKey = "sequentialAccountFailover"
+    static let requestJournalKey = "requestJournal"
 
     static let defaultGpt6AstraFastMode = false
     static let defaultGpt61SolFastMode = false
@@ -30,6 +31,7 @@ enum AppPreferences {
     static let defaultBackgroundOpacity = 0.55
     static let defaultBetaFlag = false
     static let defaultVerboseLogging = false
+    static let defaultRequestJournal = false
     /// Opt-in. Off preserves the historical round-robin routing and globally
     /// disabled cooldowns, so existing single-account users see no change.
     static let defaultSequentialAccountFailover = false
@@ -91,6 +93,10 @@ enum AppPreferences {
 
     static var verboseLogging: Bool {
         UserDefaults.standard.bool(forKey: verboseLoggingKey)
+    }
+
+    static var requestJournal: Bool {
+        UserDefaults.standard.bool(forKey: requestJournalKey)
     }
 
     static var sequentialAccountFailover: Bool {
