@@ -8,6 +8,10 @@ struct OAuthUsageDashboard: View {
     let accounts: [OAuthAccountUsage]
     /// Called after a gauge copies its usage `curl`, so the host window can confirm it.
     var onCopiedCurl: (OAuthAccountUsage) -> Void = { _ in }
+    /// Called when the user confirms spending one of an account's banked resets.
+    var onRedeemReset: (OAuthAccountUsage) -> Void = { _ in }
+    /// Account with a redemption in flight, so its button can disable.
+    var redeemingAccountID: String?
 
     var body: some View {
         Group {
@@ -21,7 +25,9 @@ struct OAuthUsageDashboard: View {
                         OAuthUsageAccountGroup(
                             account: account,
                             showHeader: showHeader(for: account.provider),
-                            onCopiedCurl: { onCopiedCurl(account) }
+                            onCopiedCurl: { onCopiedCurl(account) },
+                            onRedeemReset: { onRedeemReset(account) },
+                            isRedeeming: redeemingAccountID == account.id
                         )
                     }
                 }
@@ -98,10 +104,13 @@ struct OAuthUsageAccountGroup: View {
     let account: OAuthAccountUsage
     let showHeader: Bool
     var onCopiedCurl: () -> Void = {}
+    var onRedeemReset: () -> Void = {}
+    var isRedeeming = false
 
     static let checkmarkDuration: TimeInterval = 1
 
     @State private var checkmark = TransientConfirmation<Bool>()
+    @State private var confirmingRedeem = false
 
     private var copied: Bool { checkmark.value != nil }
 
@@ -216,7 +225,49 @@ struct OAuthUsageAccountGroup: View {
             } else {
                 EmptyView()
             }
+
+            if let resets = account.bankedResets, resets.availableCount > 0, !account.isLoading, account.error == nil {
+                bankedResetsRow(resets)
+            }
         }
+    }
+
+    /// Banked resets sit under the gauges they can refill. Spending one
+    /// is a deliberate two-step action: the button only opens a
+    /// confirmation whose default is Cancel.
+    private func bankedResetsRow(_ resets: BankedResetCredits) -> some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.counterclockwise.circle")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+            Text(bankedResetsLabel(resets))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+            Button(isRedeeming ? "Redeeming…" : "Use reset") {
+                confirmingRedeem = true
+            }
+            .controlSize(.mini)
+            .disabled(isRedeeming)
+        }
+        .confirmationDialog(
+            "Use one banked reset?",
+            isPresented: $confirmingRedeem,
+            titleVisibility: .visible
+        ) {
+            Button("Use Reset", role: .destructive) { onRedeemReset() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This spends one banked reset on \(account.email) to reset its quota windows now. It cannot be undone.")
+        }
+    }
+
+    private func bankedResetsLabel(_ resets: BankedResetCredits) -> String {
+        var label = resets.availableCount == 1 ? "1 banked reset" : "\(resets.availableCount) banked resets"
+        if let expires = resets.nextExpiresAt {
+            label += " · next expires \(expires.formatted(date: .abbreviated, time: .omitted))"
+        }
+        return label
     }
 }
 

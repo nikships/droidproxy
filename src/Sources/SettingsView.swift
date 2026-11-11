@@ -349,6 +349,8 @@ struct SettingsView: View {
     @AppStorage(AppPreferences.sequentialAccountFailoverKey) private var sequentialAccountFailover = AppPreferences.defaultSequentialAccountFailover
     @State private var showingAuthResult = false
     @State private var authResultMessage = ""
+    @State private var redeemingAccountID: String?
+    @State private var redeemResultMessage: String?
     @State private var showingJunieApiKeyAlert = false
     @State private var junieApiKey = ""
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
@@ -582,9 +584,16 @@ struct SettingsView: View {
                             .opacity(oauthUsageTracker.isRefreshing ? 0.5 : 1)
                             .help("Refresh usage quotas")
                         }
-                        OAuthUsageDashboard(accounts: oauthUsageTracker.accounts) { account in
-                            showCopiedToast("Copied \(account.provider.displayName) usage curl")
-                        }
+                        OAuthUsageDashboard(
+                            accounts: oauthUsageTracker.accounts,
+                            onCopiedCurl: { account in
+                                showCopiedToast("Copied \(account.provider.displayName) usage curl")
+                            },
+                            onRedeemReset: { usage in
+                                redeemBankedReset(for: usage)
+                            },
+                            redeemingAccountID: redeemingAccountID
+                        )
                     }
                     .listRowBackground(glassRowBackground)
                 }
@@ -839,6 +848,14 @@ struct SettingsView: View {
             Button("OK", role: .cancel) { }
         } message: {
             Text(authResultMessage)
+        }
+        .alert("Banked Reset", isPresented: Binding(
+            get: { redeemResultMessage != nil },
+            set: { if !$0 { redeemResultMessage = nil } }
+        )) {
+            Button("OK", role: .cancel) { }
+        } message: {
+            Text(redeemResultMessage ?? "")
         }
         .alert("Add Junie API Key", isPresented: $showingJunieApiKeyAlert) {
             SecureField("Enter Junie Key", text: $junieApiKey)
@@ -1623,6 +1640,25 @@ struct SettingsView: View {
             authResultMessage = "Failed to update \(account.displayName). Please try again."
         }
         showingAuthResult = true
+    }
+
+    /// Spends one banked reset after the gauge's own confirmation. The
+    /// tracker re-reads the account's credits at spend time and invalidates
+    /// its usage cache on success, so the refresh shows post-reset quota.
+    private func redeemBankedReset(for usage: OAuthAccountUsage) {
+        guard redeemingAccountID == nil,
+              let account = authManager.accounts(for: usage.provider).first(where: { $0.id == usage.id }) else {
+            return
+        }
+        redeemingAccountID = usage.id
+        Task {
+            let result = await OAuthUsageTracker.redeemReset(for: account)
+            redeemingAccountID = nil
+            redeemResultMessage = result.message
+            if result.ok {
+                refreshOAuthUsage()
+            }
+        }
     }
 
     private func refreshOAuthUsage() {

@@ -129,6 +129,90 @@ final class OAuthUsageCacheTests: XCTestCase {
         XCTAssertFalse(saved.contains("refresh_token"))
     }
 
+    func testInvalidateForcesARefetchInsideThePollingBudget() async {
+        let clock = Clock()
+        let cache = OAuthUsageCache(now: { clock.date }, jitter: { 0 })
+        let probe = Probe()
+        let account = account()
+        let usage = sample(account, at: clock.date)
+
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        var calls = await probe.calls
+        XCTAssertEqual(calls, 1)
+
+        await cache.invalidate(for: account)
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        calls = await probe.calls
+        XCTAssertEqual(calls, 2)
+    }
+
+    private actor Gate {
+        private var continuation: CheckedContinuation<Void, Never>?
+        func wait() async {
+            await withCheckedContinuation { continuation = $0 }
+        }
+        func open() {
+            continuation?.resume()
+            continuation = nil
+        }
+    }
+
+    func testInvalidateDuringInFlightFetchCannotRepopulateCache() async {
+        let clock = Clock()
+        let cache = OAuthUsageCache(now: { clock.date }, jitter: { 0 })
+        let gate = Gate()
+        let account = account()
+        let stale = sample(account, at: clock.date)
+        let fresh = sample(account, at: clock.date.addingTimeInterval(60))
+
+        // First fetch hangs inside the gate so invalidation lands mid-flight.
+        let first = Task {
+            await cache.usage(for: account) {
+                await gate.wait()
+                return stale
+            }
+        }
+        // Let the first fetch start and register as in-flight.
+        await Task.yield()
+        await Task.yield()
+        await cache.invalidate(for: account)
+
+        // A post-invalidation reader must not join the pre-reset fetch.
+        let second = await cache.usage(for: account) { fresh }
+        XCTAssertEqual(second.updatedAt, fresh.updatedAt)
+
+        await gate.open()
+        _ = await first.value
+
+        // The stale fetch answered its own awaiter but wrote nothing back.
+        let probe = Probe()
+        let third = await cache.usage(for: account) { await probe.fetch(stale) }
+        XCTAssertEqual(third.updatedAt, fresh.updatedAt)
+        let calls = await probe.calls
+        XCTAssertEqual(calls, 0)
+    }
+
+    func testRecordRateLimitExtendsThePollingBudget() async {
+        let clock = Clock()
+        let cache = OAuthUsageCache(now: { clock.date }, jitter: { 0 })
+        let probe = Probe()
+        let account = account()
+        let usage = sample(account, at: clock.date)
+
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        await cache.recordRateLimit(for: account, retryAfter: clock.date.addingTimeInterval(600))
+        clock.date.addTimeInterval(301)
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        var calls = await probe.calls
+        XCTAssertEqual(calls, 1, "Retry-After from a redemption 429 must hold the budget")
+
+        clock.date.addTimeInterval(300)
+        _ = await cache.usage(for: account) { await probe.fetch(usage) }
+        calls = await probe.calls
+        XCTAssertEqual(calls, 2)
+    }
+
     func testRetryAfterHandlesSecondsHTTPDatesAndMissingOrInvalidValues() {
         let now = Date(timeIntervalSince1970: 0)
         XCTAssertEqual(OAuthUsageCache.retryDate("300", now: now), now.addingTimeInterval(300))
