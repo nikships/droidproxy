@@ -152,17 +152,68 @@ final class ResponseObservationTests: XCTestCase {
         XCTAssertEqual(r.tokens, chatTokens)
     }
 
-    func testSSELineCapExcludesTheLineTerminator() throws {
-        let prefix = #"data: {"choices":[],"usage":{"prompt_tokens":3,"completion_tokens":5},"pad":""#
-        let pad = String(repeating: "a", count: 256 * 1024 - prefix.utf8.count - 2)
-        let atCap = prefix + pad + #""}"#
-        XCTAssertEqual(atCap.utf8.count, 256 * 1024)
-        let fits = try observe(sseHead + atCap + "\r\n\r\ndata: [DONE]\r\n\r\n", path: "/v1/chat/completions")
-        XCTAssertEqual(fits.outcome, "complete")
-        XCTAssertEqual(fits.tokens, chatTokens)
-        let over = try observe(sseHead + prefix + pad + #"a"}"# + "\r\n\r\ndata: [DONE]\r\n\r\n", path: "/v1/chat/completions")
-        XCTAssertEqual(over.outcome, "complete")
-        XCTAssertNil(over.tokens)
+    /// A data line's cap counts "data:" and any space before the value, while the event-data cap counts only the
+    /// assembled values, so a single data line meets the line cap before its data can meet the event-data cap.
+    func testSSELineAndEventDataCapsAtTwoMiB() throws {
+        let lineCap = 2 * 1024 * 1024, eventCap = 2 * 1024 * 1024
+        let usage = #"{"object":"chat.completion.chunk","model":"inside-cap","choices":[],"usage":{"prompt_tokens":9,"completion_tokens":5}}"#
+        let untypedError = #"{"error":{"message":"overlong"}}"#
+        /// One data line of exactly `n` bytes before its terminator: `payload` with a one-string "pad" array added,
+        /// left open when `closed` is false for a later data line to close.
+        func dataLine(_ n: Int, space: Bool, closed: Bool, _ payload: String) -> String {
+            let head = (space ? "data: " : "data:") + payload.dropLast() + #","pad":[""#
+            let tail = closed ? #""]}"# : #"""#
+            return head + String(repeating: "p", count: n - head.utf8.count - tail.utf8.count) + tail
+        }
+        /// The second line of a two-line event: assembled data is the first line's value, the LF between the lines,
+        /// and this value.
+        func closing(_ firstLine: String, data: Int) -> String {
+            "data:," + String(repeating: "1", count: data - (firstLine.utf8.count - 5) - 1 - 3) + "]}"
+        }
+        let atCap = dataLine(lineCap, space: false, closed: false, usage)
+        // The later event carries no usage, so its model shows that scanning resumed without replacing usage.
+        let later = #"data: {"object":"chat.completion.chunk","model":"after-cap","choices":[{"index":0,"delta":{}}]}"# + "\n\n"
+        let kept = JournalTokens(input_uncached: 9, cache_read: 0, cache_creation: nil, output: 5, reasoning: nil)
+        let cases: [(name: String, event: String, line: Int, data: Int, outcome: String, tokens: JournalTokens?, model: String?)] = [
+            ("line at cap", dataLine(lineCap, space: true, closed: true, usage) + "\n\n", lineCap, lineCap - 6, "complete", kept, "after-cap"),
+            ("line at cap ending in CRLF", dataLine(lineCap, space: true, closed: true, usage) + "\r\n\r\n", lineCap, lineCap - 6, "complete", kept, "after-cap"),
+            ("line at cap without a space", dataLine(lineCap, space: false, closed: true, usage) + "\n\n", lineCap, lineCap - 5, "complete", kept, "after-cap"),
+            ("line one over cap", dataLine(lineCap + 1, space: true, closed: true, usage) + "\n\n", lineCap + 1, lineCap - 5, "complete", nil, "after-cap"),
+            ("line one over cap ending in CRLF", dataLine(lineCap + 1, space: true, closed: true, usage) + "\r\n\r\n", lineCap + 1, lineCap - 5, "complete", nil, "after-cap"),
+            ("line one over cap without a space", dataLine(lineCap + 1, space: false, closed: true, usage) + "\n\n", lineCap + 1, lineCap - 4, "complete", nil, "after-cap"),
+            // An untyped top-level error is a protocol error only when its line is read.
+            ("error line at cap", dataLine(lineCap, space: true, closed: true, untypedError) + "\n\n", lineCap, lineCap - 6, "upstream_error", nil, nil),
+            ("error line one over cap", dataLine(lineCap + 1, space: true, closed: true, untypedError) + "\n\n", lineCap + 1, lineCap - 5, "complete", nil, "after-cap"),
+            ("two lines with data at the event cap", atCap + "\n" + closing(atCap, data: eventCap) + "\n\n", lineCap, eventCap, "complete", kept, "after-cap"),
+            ("two lines with data one over the event cap", atCap + "\n" + closing(atCap, data: eventCap + 1) + "\n\n", lineCap, eventCap + 1, "complete", nil, "after-cap")
+        ]
+        let head = Data(sseHead.utf8)
+        for c in cases {
+            let lines = c.event.replacingOccurrences(of: "\r", with: "").split(separator: "\n")
+            let values = lines.map { $0.dropFirst(5).utf8.count - ($0.dropFirst(5).first == " " ? 1 : 0) }
+            XCTAssertEqual(lines.map(\.utf8.count).max(), c.line, c.name)
+            XCTAssertEqual(values.reduce(-1) { $0 + 1 + $1 }, c.data, c.name)
+
+            let event = Data(c.event.utf8)
+            let wire = head + event + Data((later + "data: [DONE]\n\n").utf8)
+            let lineEnd = head.count + event.firstIndex { $0 == 10 || $0 == 13 }!
+            let eventEnd = head.count + event.range(of: Data((event.contains(13) ? "\r\n\r\n" : "\n\n").utf8))!.lowerBound
+            let boundaries = [head.count + lineCap, lineEnd, eventEnd]
+            var replays: [(String, [Data])] = [("whole", [wire])]
+            let splits = Set(boundaries.flatMap { ($0 - 1)...($0 + 2) }).sorted()
+            replays += splits.map { ("split \($0)", [Data(wire.prefix($0)), Data(wire.dropFirst($0))]) }
+            let cuts = Set(boundaries.flatMap { ($0 - 2)...($0 + 3) }).sorted()
+            replays.append(("bytewise around the boundaries", zip([0] + cuts, cuts + [wire.count]).map { Data(wire[$0..<$1]) }))
+            for size in [4093, 32 * 1024] {
+                replays.append(("reads of \(size)", stride(from: 0, to: wire.count, by: size).map { Data(wire[$0..<min($0 + size, wire.count)]) }))
+            }
+            for (label, reads) in replays {
+                let r = try observe(reads: reads, path: "/v1/chat/completions", forwarded: nil)
+                XCTAssertEqual(r.outcome, c.outcome, "\(c.name), \(label)")
+                XCTAssertEqual(r.tokens, c.tokens, "\(c.name), \(label)")
+                XCTAssertEqual(r.response_model, c.model, "\(c.name), \(label)")
+            }
+        }
     }
 
     func testTransferCodingListDecidesChunkingAndOpacity() throws {
@@ -552,7 +603,7 @@ final class ResponseObservationTests: XCTestCase {
         let largeJSON = try observe("HTTP/1.1 200 OK\r\nContent-Length: \(body.count)\r\n\r\n\(body)")
         XCTAssertEqual(largeJSON.outcome, "complete")
         XCTAssertNil(largeJSON.tokens)
-        let line = String(repeating: "a", count: 256 * 1024 + 1)
+        let line = String(repeating: "a", count: 2 * 1024 * 1024 + 1)
         let largeSSE = try observe("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nContent-Length: \(line.count)\r\n\r\n\(line)")
         XCTAssertEqual(largeSSE.outcome, "complete")
         XCTAssertNil(largeSSE.tokens)

@@ -124,7 +124,7 @@ Strip this internal marker before forwarding. It does not exclude the request.
 Never alter relayed bytes. For observed requests only, remove `Accept-Encoding`
 on the :8317 → :8318 hop; do not change bundled compression settings. Ignore
 interim 1xx heads and use the final status. Header names are case-insensitive.
-Observation caps (head 64 KiB, SSE line 256 KiB, SSE event data 2 MiB,
+Observation caps (head 64 KiB, SSE line 2 MiB, SSE event data 2 MiB,
 non-stream JSON body 2 MiB) never stop the relay; usage that is not observed
 stays null.
 
@@ -198,13 +198,15 @@ are never changed.
 
 ### SSE
 
-SSE lines are capped at 256 KiB and an assembled event's data at 2 MiB. Line
+SSE lines are capped at 2 MiB and an assembled event's data at 2 MiB. Line
 limits count bytes before the line terminator, including the field name and
 colon but excluding CR and LF. Event-data limits count the assembled data bytes,
 including the LF inserted between data lines and excluding the final LF removed
-for dispatch. Exceeding either limit discards the whole current event; scanning
-resumes after the next blank line that delimits events. HTTP framing is tracked
-throughout.
+for dispatch. Because a line counts its field name and colon, an event with one
+data line reaches the line limit first; only an event of several data lines can
+exceed the event-data limit. Exceeding either limit discards the whole current
+event; scanning resumes after the next blank line that delimits events. HTTP
+framing is tracked throughout.
 
 Protocol completion is a strict-JSON payload whose `type` is `message_stop`,
 `response.completed`, or `response.incomplete`, or assembled data exactly equal
@@ -423,9 +425,13 @@ trailing line, retries short writes, fsyncs the file, and fsyncs the directory o
 month-file creation. Successful fsynced appends are durable; overflow/crash
 before append can lose records.
 
-The relay never waits on journal work. Process shutdown may wait only until a
-bounded flush deadline; records remaining after it are counted as dropped. A
-bounded process-local queue never blocks the relay. Lock acquisition gives up
+Response observation (HTTP framing, SSE scanning, and decoding a completed JSON
+payload) runs inline on the relay as bounded CPU work, linear in the size of the
+observed payload, with no I/O, locks, or waits. All other journal work runs off
+the relay: request body parsing, seat work, file I/O, and file locks. A
+finalized record is handed to a bounded process-local queue that never blocks
+the relay. Process shutdown may wait only until a bounded flush deadline;
+records remaining after it are counted as dropped. Lock acquisition gives up
 after a short bounded wait and counts the record as dropped. Drop and write-error
 diagnostics are aggregated and emitted without blocking the relay, and never
 fail it. Emitting them, including at shutdown, never holds a flush or close past
@@ -499,15 +505,14 @@ boundaries, framing violations (bare LF in status, header, and trailer lines,
 trailer lines without a colon, and padded chunk-size lines), chunk-size lines
 at and one byte over the line limit, chunk sizes at and one over the int64
 maximum, repeated trace headers, JSON nested at and one over the depth limit,
-the head and SSE caps
-(including a head that reaches the cap without its terminator and then ends),
-protocol errors, null optional and extreme or fractional counters, unrecognized
-envelopes, non-strict request and response JSON, repeated request members,
-response-model location order, out-of-range status codes, close-delimited SSE,
-event names without a completion payload, SSE lines at and one byte over the
-line cap, the chat cache-creation fallback and null finish reasons, bytes after
-`[DONE]`, failed client writes, and SSE usage of a family other than the
-forwarded path's, including a forwarded path that differs from the original.
+the head cap (including a head that reaches the cap without its terminator and
+then ends), protocol errors, null optional and extreme or fractional counters,
+unrecognized envelopes, non-strict request and response JSON, repeated request
+members, response-model location order, out-of-range status codes,
+close-delimited SSE, event names without a completion payload, the chat
+cache-creation fallback and null finish reasons, bytes after `[DONE]`, failed
+client writes, and SSE usage of a family other than the forwarded path's,
+including a forwarded path that differs from the original.
 Their provenance is recorded per case; they are not claimed as real captures.
 
 Each implementation tests these rules itself rather than through transcripts:
@@ -522,13 +527,16 @@ Each implementation tests these rules itself rather than through transcripts:
 - Learning the status line or trace header from undelivered bytes, because
   the result depends on where a read boundary falls relative to the failing
   write, so no single expected record holds at every split point.
-- An event over the 2 MiB data cap, because its fixture would exceed 2 MiB,
-  which is too large to keep in the repository.
+- SSE lines at and one byte over the 2 MiB line cap, and an event over the
+  2 MiB data cap, because their fixtures would exceed 2 MiB, which is too
+  large to keep in the repository.
 
 ### Limits in v1
 
 - Non-text inference routes are admitted. Their usage is null, even when a
   stream carries a text-format usage shape.
+- Response observation adds relay CPU time that grows linearly with the
+  observed payload, up to the observation caps.
 - The relay recognizes `/api/v1/responses`, but CLIProxyAPI v8.0.61 does not
   serve that path, so it is not admitted.
 - `complete` means delivered protocol completion or HTTP framing completion.

@@ -42,8 +42,10 @@ final class ResponseObservation {
 
     private static let cr: UInt8 = 13
     private static let lf: UInt8 = 10
+    // The caps bound the memory and the inline CPU work of observing one response; reaching one never stops or
+    // delays the relay.
     private static let headCap = 64 * 1024
-    private static let sseLineCap = 256 * 1024
+    private static let sseLineCap = 2 * 1024 * 1024
     private static let eventDataCap = 2 * 1024 * 1024
     private static let bodyCap = 2 * 1024 * 1024
     private static let chunkLineCap = 64 * 1024

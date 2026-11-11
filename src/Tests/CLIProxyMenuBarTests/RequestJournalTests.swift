@@ -31,7 +31,7 @@ final class RequestJournalTests: XCTestCase {
     func testContractDigests() throws {
         let manifest = try XCTUnwrap(String(data: resource("CONTRACT_SOURCE"), encoding: .utf8))
         XCTAssertTrue(manifest.contains("nikships/droidproxy-omarchy"))
-        XCTAssertTrue(manifest.contains("bfdc5c396c1d69ea372395193ad0a28b951c30b6"))
+        XCTAssertTrue(manifest.contains("9aeb1428975398671146253653a2cb5ad8f1c1ff"))
         let lines = manifest.split(separator: "\n").filter { $0.contains("  request-journal-") }
         XCTAssertEqual(lines.count, 4)
         for line in lines {
