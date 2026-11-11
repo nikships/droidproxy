@@ -526,6 +526,55 @@ final class RequestJournalTests: XCTestCase {
         return try String(contentsOf: file).split(separator: "\n").count
     }
 
+    func testEnqueueAndDropAccountingNeverWaitForWriterState() throws {
+        let journal = directory.appendingPathComponent("journal")
+        let writer = JournalWriter(directory: journal, capacity: 1, log: { _ in })
+        let record = try sampleRecord()
+        let available = millisecondsWithLocksHeld(in: [writer]) { writer.enqueue { record } }
+        XCTAssertLessThan(available, 10, "enqueue with a free slot waited \(available) ms")
+        let active = DispatchSemaphore(value: 0), gate = DispatchSemaphore(value: 0)
+        writer.enqueue { active.signal(); gate.wait(); return record }
+        XCTAssertEqual(active.wait(timeout: .now() + 3), .success)
+        let full = millisecondsWithLocksHeld(in: [writer]) { writer.enqueue { record } }
+        XCTAssertLessThan(full, 10, "dropping on a full queue waited \(full) ms")
+        gate.signal()
+        writer.flush()
+        let counted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in writer.counters.drops == 2 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [counted], timeout: 3), .completed)
+        XCTAssertEqual(try journalLines(journal), 1)
+    }
+
+    func testObservationCallsNeverWaitForJournalState() throws {
+        let auth = directory.appendingPathComponent("auth"), journal = directory.appendingPathComponent("journal")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        let file = auth.appendingPathComponent("seat.json")
+        try Data(#"{"type":"claude","email":"seat@example.invalid"}"#.utf8).write(to: file)
+        let seats = JournalSeatIndex(directory: auth)
+        let writer = JournalWriter(directory: journal, log: { _ in })
+        let head = "HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(JournalSeatIndex.index(type: "claude", path: file.path))"
+            + "-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n"
+        func observation() -> ResponseObservation {
+            ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: writer.enqueue)
+        }
+        deliver(observation(), Data((head + "{}").utf8))
+        writer.flush()
+        let (delivering, failing, finishing) = (observation(), observation(), observation())
+        let calls: [(String, () -> Void)] = [
+            ("delivered", { deliver(delivering, Data((head + "{}").utf8)) }),
+            ("writeFailed", { failWrite(failing, accepted: Data(head.utf8), undelivered: Data("{}".utf8)) }),
+            ("delivered head", { deliver(finishing, Data(head.utf8)) }),
+            ("finish", { finishing.finish(.eof) })
+        ]
+        for (name, call) in calls {
+            let elapsed = millisecondsWithLocksHeld(in: [delivering, failing, finishing, writer, seats], call)
+            XCTAssertLessThan(elapsed, 10, "\(name) waited \(elapsed) ms")
+        }
+        let counted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in writer.counters.drops == 3 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [counted], timeout: 3), .completed)
+        writer.flush()
+        XCTAssertEqual(try journalLines(journal), 1)
+    }
+
     func testFlushDeadlineCountsQueuedAndInFlightRecordsOnceAndNeverWritesThem() throws {
         let logged = NSLock()
         var lines: [String] = []

@@ -880,6 +880,9 @@ class ThinkingProxy {
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(targetHost), port: port)
         let parameters = NWParameters.tcp
         let targetConnection = NWConnection(to: endpoint, using: parameters)
+        // Serializes the observation, which holds no lock: target callbacks run on this queue and client send
+        // completions hand their observation calls to it with async, which never waits.
+        let relay = DispatchQueue(label: "io.automaze.droidproxy.relay", qos: .userInitiated)
         var dialed = false
         
         targetConnection.stateUpdateHandler = { state in
@@ -918,7 +921,7 @@ class ThinkingProxy {
                         } else {
                             self.receiveResponse(from: targetConnection,
                                                  originalConnection: originalConnection,
-                                                 observation: observation)
+                                                 observation: observation, relay: relay)
                         }
                     }))
                 }
@@ -934,7 +937,7 @@ class ThinkingProxy {
             }
         }
         
-        targetConnection.start(queue: .global(qos: .userInitiated))
+        targetConnection.start(queue: relay)
     }
     /**
      Receives response from CLIProxyAPI
@@ -942,9 +945,9 @@ class ThinkingProxy {
      */
     private func receiveResponse(from targetConnection: NWConnection,
                                  originalConnection: NWConnection,
-                                 observation: ResponseObservation?) {
+                                 observation: ResponseObservation?, relay: DispatchQueue) {
         // Start the streaming loop
-        streamNextChunk(from: targetConnection, to: originalConnection, observation: observation)
+        streamNextChunk(from: targetConnection, to: originalConnection, observation: observation, relay: relay)
     }
     
     /**
@@ -952,7 +955,7 @@ class ThinkingProxy {
      */
     private func streamNextChunk(from targetConnection: NWConnection,
                                  to originalConnection: NWConnection,
-                                 observation: ResponseObservation?) {
+                                 observation: ResponseObservation?, relay: DispatchQueue) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
 
@@ -972,20 +975,22 @@ class ThinkingProxy {
                         NSLog("[ThinkingProxy] Send response error: \(sendError)")
                     }
                     if let observation, let readAt {
-                        // NWConnection reports no accepted byte count for a failed send, so the whole buffer is undelivered.
-                        if sendError != nil {
-                            observation.writeFailed(accepted: Data(), undelivered: data, readAt: readAt)
-                        } else {
-                            observation.delivered(data, readAt: readAt)
+                        relay.async {
+                            // NWConnection reports no accepted byte count for a failed send, so the whole buffer is undelivered.
+                            if sendError != nil {
+                                observation.writeFailed(accepted: Data(), undelivered: data, readAt: readAt)
+                            } else {
+                                observation.delivered(data, readAt: readAt)
+                            }
+                            if isComplete { observation.finish(.eof) }
                         }
                     }
 
                     if isComplete {
-                        observation?.finish(.eof)
                         self.finishStreaming(target: targetConnection, client: originalConnection)
                     } else {
                         // Schedule next iteration of the streaming loop
-                        self.streamNextChunk(from: targetConnection, to: originalConnection, observation: observation)
+                        self.streamNextChunk(from: targetConnection, to: originalConnection, observation: observation, relay: relay)
                     }
                 }))
             } else if isComplete {

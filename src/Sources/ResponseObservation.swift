@@ -32,7 +32,7 @@ final class JournalPending<Value> {
     }
 }
 
-/// Relay callbacks arrive on concurrent queues, so every entry point is serialized by `lock`.
+/// Holds no lock: the caller makes every call from one serial context (ThinkingProxy uses the connection's relay queue).
 final class ResponseObservation {
     private enum Phase {
         case head, fixed, closeDelimited, chunkSize, chunkData, chunkDataEnd, trailers, ignored
@@ -71,7 +71,6 @@ final class ResponseObservation {
     private let started: JournalInstant
     private let bindSeat: (String) -> JournalSeatBinding?
     private let emit: (@escaping () -> JournalRecord) -> Void
-    private let lock = NSLock()
 
     private var phase = Phase.head
     private var line = Data()
@@ -133,8 +132,6 @@ final class ResponseObservation {
     /// Bytes a successful client write accepted; `readAt` is when the upstream read that carried them returned.
     /// Finalizes at this write when it reaches protocol completion, framing completion, or a protocol error.
     func delivered(_ data: Data, readAt: JournalInstant) {
-        lock.lock()
-        defer { lock.unlock() }
         guard !finalized else { return }
         consume(data, readAt: readAt)
         if protocolError { finalize("upstream_error") } else if completed { finalize("complete") }
@@ -142,8 +139,6 @@ final class ResponseObservation {
 
     /// A client write that accepted `accepted` and then failed; `undelivered` is the rest of its buffer.
     func writeFailed(accepted: Data, undelivered: Data, readAt: JournalInstant) {
-        lock.lock()
-        defer { lock.unlock() }
         guard !finalized else { return }
         consume(accepted, readAt: readAt)
         if phase == .head {
@@ -154,8 +149,6 @@ final class ResponseObservation {
     }
 
     func finish(_ signal: JournalEnd) {
-        lock.lock()
-        defer { lock.unlock() }
         guard !finalized else { return }
         if case .eof = signal, phase == .closeDelimited, !sse { endBody() }
         finalize(outcome(signal))

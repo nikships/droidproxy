@@ -1,6 +1,7 @@
 import Foundation
 import CryptoKit
 import Darwin
+import os
 
 struct JournalTokens: Codable, Equatable {
     var input_uncached: Int64
@@ -316,46 +317,65 @@ final class JournalSeatIndex {
 final class JournalWriter {
     private struct LockTimeout: Error {}
     private struct Abandoned: Error {}
+    private struct State {
+        var drops = 0
+        var errors = 0
+        var lastError: String?
+        var reportScheduled = false
+        /// Accepted records whose writer-queue work has not ended; at most `capacity`.
+        var queued = 0
+        /// Accepted records not yet claimed for writing, whether queued or in flight.
+        var unsettled = 0
+        var closed = false
+
+        /// True when the caller must schedule the next report.
+        mutating func count(drops: Int = 0, errors: Int = 0, error: String? = nil) -> Bool {
+            self.drops += drops
+            self.errors += errors
+            if let error { lastError = error }
+            let schedule = !reportScheduled
+            reportScheduled = true
+            return schedule
+        }
+    }
     private static let diagnostics = DispatchQueue(label: "io.automaze.droidproxy.journal-diagnostics")
     private static let lockWait: TimeInterval = 1
     private let directory: URL
     private let queue = DispatchQueue(label: "io.automaze.droidproxy.journal-writer")
-    private let slots: DispatchSemaphore
-    private let lock = NSLock()
-    private var counts = (drops: 0, errors: 0)
-    private var lastError: String?
-    private var reportScheduled = false
-    /// Accepted records not yet claimed for writing, whether queued or in flight.
-    private var unsettled = 0
-    private var closed = false
+    private let capacity: Int
+    private let state = OSAllocatedUnfairLock(initialState: State())
     private let log: (String) -> Void
 
     init(directory: URL, capacity: Int = 256, log: @escaping (String) -> Void = { NSLog("%@", $0) }) {
         self.directory = directory
-        self.slots = DispatchSemaphore(value: capacity)
+        self.capacity = capacity
         self.log = log
     }
 
     var counters: (drops: Int, errors: Int) {
-        lock.lock()
-        defer { lock.unlock() }
-        return counts
+        state.withLock { (drops: $0.drops, errors: $0.errors) }
     }
 
-    /// Never blocks the caller: a full queue or a closed writer counts the record as dropped.
-    /// `build` runs on the writer queue, so work it does or waits for stays off the caller's thread.
+    /// Never waits: a full queue, a closed writer, or writer state another thread holds at that instant drops the
+    /// record and counts it. `build` runs on the writer queue, so work it does or waits for stays off the caller's thread.
     func enqueue(_ build: @escaping () -> JournalRecord) {
-        guard slots.wait(timeout: .now()) == .success else { return note(drops: 1) }
-        lock.lock()
-        let accepted = !closed
-        if accepted { unsettled += 1 }
-        lock.unlock()
-        guard accepted else {
-            slots.signal()
-            return note(drops: 1)
+        let capacity = capacity
+        let admission = state.withLockIfAvailable { s -> (accepted: Bool, report: Bool) in
+            guard !s.closed, s.queued < capacity else { return (false, s.count(drops: 1)) }
+            s.queued += 1
+            s.unsettled += 1
+            return (true, false)
+        }
+        guard let admission else {
+            // DispatchQueue.async only enqueues the block, so the caller never waits to count this drop.
+            return Self.diagnostics.async { self.note(drops: 1) }
+        }
+        guard admission.accepted else {
+            if admission.report { scheduleReport() }
+            return
         }
         queue.async {
-            defer { self.slots.signal() }
+            defer { self.state.withLock { $0.queued -= 1 } }
             var claimed = false
             do {
                 guard !self.isClosed else { throw Abandoned() }
@@ -378,57 +398,52 @@ final class JournalWriter {
         let done = DispatchSemaphore(value: 0)
         queue.async { done.signal() }
         guard done.wait(timeout: .now() + timeout) == .timedOut else { return }
-        lock.lock()
-        closed = true
-        counts.drops += unsettled
-        unsettled = 0
-        lock.unlock()
+        state.withLock { s in
+            s.closed = true
+            s.drops += s.unsettled
+            s.unsettled = 0
+        }
         Self.diagnostics.async { self.report() }
     }
 
     private var isClosed: Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        return closed
+        state.withLock { $0.closed }
     }
 
     /// Takes the record out of the shutdown count just before its bytes are written; false once flush has counted it.
     private func claim() -> Bool {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !closed else { return false }
-        unsettled -= 1
-        return true
+        state.withLock { s in
+            guard !s.closed else { return false }
+            s.unsettled -= 1
+            return true
+        }
     }
 
     /// An unclaimed record after the flush deadline was already counted as dropped there.
     private func failed(_ error: Error, claimed: Bool) {
-        lock.lock()
-        let counted = !claimed && closed
-        if !claimed && !closed { unsettled -= 1 }
-        lock.unlock()
+        let counted = state.withLock { s -> Bool in
+            if !claimed && !s.closed { s.unsettled -= 1 }
+            return !claimed && s.closed
+        }
         guard !counted else { return }
         if error is LockTimeout { note(drops: 1) } else { note(errors: 1, error: error.localizedDescription) }
     }
 
     /// Counts are updated at once; the log line is emitted later on another queue, at most once per interval.
     private func note(drops: Int = 0, errors: Int = 0, error: String? = nil) {
-        lock.lock()
-        counts.drops += drops
-        counts.errors += errors
-        if let error { lastError = error }
-        let schedule = !reportScheduled
-        reportScheduled = true
-        lock.unlock()
-        if schedule { Self.diagnostics.asyncAfter(deadline: .now() + 5) { [weak self] in self?.report() } }
+        if state.withLock({ $0.count(drops: drops, errors: errors, error: error) }) { scheduleReport() }
+    }
+
+    private func scheduleReport() {
+        Self.diagnostics.asyncAfter(deadline: .now() + 5) { [weak self] in self?.report() }
     }
 
     private func report() {
-        lock.lock()
-        let (current, error) = (counts, lastError)
-        reportScheduled = false
-        lock.unlock()
-        log("[RequestJournal] \(current.drops) records dropped, \(current.errors) write errors" + (error.map { "; last error: \($0)" } ?? ""))
+        let (drops, errors, error) = state.withLock { s in
+            s.reportScheduled = false
+            return (s.drops, s.errors, s.lastError)
+        }
+        log("[RequestJournal] \(drops) records dropped, \(errors) write errors" + (error.map { "; last error: \($0)" } ?? ""))
     }
 
     private func lockExclusive(_ fd: Int32) throws {
