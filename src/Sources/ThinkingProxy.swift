@@ -424,8 +424,7 @@ class ThinkingProxy {
                 return (String(line[..<colon]).trimmingCharacters(in: httpWhitespace),
                         String(line[line.index(after: colon)...]).trimmingCharacters(in: httpWhitespace))
             }
-            let body = (try? JSONSerialization.jsonObject(with: Data(bodyString.utf8))) as? [String: Any] ?? [:]
-            observation = journal.begin(JournalRequest(endpoint: path, forwardedEndpoint: rewrittenPath, headers: originalHeaders, body: body))
+            observation = journal.begin(JournalRequest(endpoint: path, forwardedEndpoint: rewrittenPath, headers: originalHeaders, body: Data(bodyString.utf8)))
         }
         forwardRequest(method: method, path: rewrittenPath, version: httpVersion, headers: forwardHeaders, body: modifiedBody, originalConnection: connection, observation: observation)
     }
@@ -966,19 +965,25 @@ class ThinkingProxy {
             }
 
             if let data = data, !data.isEmpty {
+                let readAt = observation == nil ? nil : JournalInstant.now()
                 // Forward response chunk to original client
                 originalConnection.send(content: data, completion: .contentProcessed({ sendError in
-                    observation?.feed(data)
                     if let sendError = sendError {
                         NSLog("[ThinkingProxy] Send response error: \(sendError)")
-                        observation?.finish(.clientDisconnected)
+                    }
+                    if let observation, let readAt {
+                        // NWConnection reports no accepted byte count for a failed send, so the whole buffer is undelivered.
+                        if sendError != nil {
+                            observation.writeFailed(accepted: Data(), undelivered: data, readAt: readAt)
+                        } else {
+                            observation.delivered(data, readAt: readAt)
+                        }
                     }
 
                     if isComplete {
                         observation?.finish(.eof)
                         self.finishStreaming(target: targetConnection, client: originalConnection)
                     } else {
-                        observation?.finish(.delivered)
                         // Schedule next iteration of the streaming loop
                         self.streamNextChunk(from: targetConnection, to: originalConnection, observation: observation)
                     }

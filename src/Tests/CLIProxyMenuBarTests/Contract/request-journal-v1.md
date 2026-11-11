@@ -49,6 +49,11 @@ the forwarded path differs. For example, `/v1/responses?x=1` with
 native Gemini URL use its model identifier. Do not invent a model for an
 agent-only interactions request or an unparsed multipart body.
 
+Request bodies are parsed as strict RFC 8259 JSON: no trailing commas,
+comments, `NaN`, or other extensions. A body that is not strict JSON gives
+requested_model null and no body-based session candidates; the request is still
+observed and forwarded unchanged.
+
 ### Provider derivation
 
 This is a request-family label, not the credential's provider or billing owner.
@@ -70,6 +75,7 @@ uses a Codex seat. Unknown seat metadata does not change this label.
 Choose the first valid string, in order:
 `X-Session-ID`, `X-Claude-Code-Session-Id`, body `prompt_cache_key`, then the
 session id in string body `metadata.user_id` (forms below).
+Body candidates exist only when the request body is strict JSON.
 Header names are case-insensitive; repeated values are tried in wire order.
 Remove HTTP header surrounding SP/HTAB only; body values are not trimmed.
 Accept only `^[A-Za-z0-9_.:-]{8,128}$`. Skip malformed candidates and continue;
@@ -113,82 +119,211 @@ limited alphabet), so an id CLIProxyAPI accepts may be null here.
 `X-DroidProxy-Origin: window-primer` sets origin `primer`; otherwise `client`.
 Strip this internal marker before forwarding. It does not exclude the request.
 
-## Response observation and usage
+## Response observation
 
 Never alter relayed bytes. For observed requests only, remove `Accept-Encoding`
-on the :8317 → :8318 hop; do not change bundled compression settings. Decode HTTP
-chunk framing before scanning the entity body. Ignore interim 1xx heads and use
-the final status. Header names are case-insensitive. Compressed bodies remain
-opaque if received anyway: tokens and response_model are null, not zero.
-Observation caps (head 64 KiB, SSE line 256 KiB, JSON body 2 MiB) never stop the
-relay; unobserved usage stays null.
+on the :8317 → :8318 hop; do not change bundled compression settings. Ignore
+interim 1xx heads and use the final status. Header names are case-insensitive.
+Observation caps (head 64 KiB, SSE line 256 KiB, SSE event data 2 MiB,
+non-stream JSON body 2 MiB) never stop the relay; usage that is not observed
+stays null.
 
-Use only nonnegative integral counters. A missing usage object, malformed
-required counter, or negative value makes the whole `tokens` value null. For
-OpenAI shapes only, a cached count greater than the input total also makes
+### HTTP framing
+
+The observer accepts only this framing:
+
+- The status line is `HTTP/1.0` or `HTTP/1.1`, a space, and a three-digit
+  status code from 100 through 599, followed either directly by CRLF or by a
+  space, any reason text (possibly empty), and CRLF. `HTTP/1.1 200`,
+  `HTTP/1.1 200 ` and `HTTP/1.1 200 OK` are valid; `HTTP/1.1 20`,
+  `HTTP/2 200 OK`, `HTTP/1.1 200OK`, and `HTTP/1.1 999 Custom` are malformed.
+- Every header line contains a colon, and the header name before it is a
+  nonempty token.
+- Every chunk-size line, and the line ending after each chunk's data, ends in
+  CRLF. A bare LF there is a violation.
+
+Any violation is malformed framing. The record's outcome is `upstream_error`
+whichever exit finalizes it, `status` is the final status as observed, and
+`tokens` is null.
+
+The final status is retained as soon as its status line is complete (ends in
+CRLF) and valid, even if the rest of the head never arrives. A malformed status
+line, including one whose code is outside 100 through 599, retains no status, so
+`status` is null.
+
+The final head's terminator must occur within the first 64 KiB of that head,
+counted from its first byte, however the bytes were split across reads. If it
+does not, observation of that response stops: the outcome is `upstream_error`,
+`status` comes from the status line if one was observed, `tokens`,
+`response_model`, and `ttft_ms` are null, and no framing completion is inferred.
+The relay keeps relaying the response.
+
+`Transfer-Encoding` is a comma-separated list of codings. Chunk framing applies
+when the last coding is `chunked` (case-insensitive) and is decoded before the
+entity body is scanned. If any other transfer coding is listed, the entity is
+opaque: `tokens` and `response_model` are null, but framing is still tracked, so
+such a response can still be complete. A `Content-Encoding` other than
+`identity` also makes the entity opaque. Opaque usage is null, not zero.
+
+EOF ends a close-delimited body. For a non-stream body that is framing
+completion and the outcome is complete. For an SSE body it is not: the outcome
+is complete only if protocol completion was delivered first, otherwise
+`upstream_closed_early`; terminal usage already published is kept.
+
+### JSON
+
+Request and response JSON is parsed as strict RFC 8259 JSON: no trailing commas,
+comments, `NaN`, or other extensions. A response body or SSE payload that is not
+strict JSON contributes no usage, no response model, and no payload-based
+protocol error; for a non-stream body this means `tokens` is null. Requests are
+covered under Admission and paths. For repeated member names in any JSON
+object, only the last occurrence counts. Forwarded bytes are never changed.
+
+### SSE
+
+SSE lines are capped at 256 KiB and an assembled event's data at 2 MiB. Line
+limits count bytes before the line terminator, including the field name and
+colon but excluding CR and LF. Event-data limits count the assembled data bytes,
+including the LF inserted between data lines and excluding the final LF removed
+for dispatch. Exceeding either limit discards the whole current event; scanning
+resumes after the next blank line that delimits events. HTTP framing is tracked
+throughout.
+
+Protocol completion is a strict-JSON payload whose `type` is `message_stop`,
+`response.completed`, or `response.incomplete`, or assembled data exactly equal
+to `[DONE]`. An `event:` name alone does not establish completion.
+
+A protocol error is exactly one of:
+
+- an SSE event whose `event:` field is `error`;
+- an SSE payload whose `type` is `error`, `response.failed`, or
+  `response.error`;
+- an SSE payload with no `type` member and a non-null top-level `error`.
+
+Nothing else is a protocol error. In particular, a non-stream JSON error body,
+such as a 429 response, is not one.
+
+### Response model
+
+`response_model` comes from observed SSE payloads and non-stream JSON bodies.
+Within each payload, consider top-level `model`, `message.model`, and
+`response.model` in that order, keeping each nonempty string; the last
+qualifying location wins. Later observed payloads replace earlier ones. It is
+not the requested model by default, and it can be known even when `tokens` is
+not.
+
+## Usage
+
+A counter must be a JSON integer literal (no fraction and no exponent) from 0
+to 9223372036854775807. A negative, fractional, exponent-form, or out-of-range
+counter is malformed; `1.0` and `1e3` are malformed even though their values are
+whole numbers.
+
+The required counters are Anthropic `input_tokens` and `output_tokens`,
+Responses `input_tokens` and `output_tokens`, and chat/text completions
+`prompt_tokens` and `completion_tokens`. A missing usage object, or a required
+counter that is missing, null, or malformed, makes the whole `tokens` value
+null. Optional counters and optional details objects (Anthropic
+`cache_read_input_tokens` and `cache_creation_input_tokens`; OpenAI
+`input_tokens_details`, `prompt_tokens_details`, `cached_tokens`,
+`output_tokens_details`, `completion_tokens_details`, `reasoning_tokens`,
+`cache_write_tokens`, and `cached_creation_tokens`) that are absent or null are
+treated as absent, and the defaults below apply. A present, non-null, malformed
+optional value makes `tokens` null. A present zero counter is known zero.
+
+For OpenAI shapes only, a cached count greater than the input total also makes
 `tokens` null: Responses `input_tokens` and chat/completions `prompt_tokens`
 include cached tokens, so a larger cached count is malformed. This rule does not
 apply to Anthropic: its `input_tokens` already excludes cache reads and
-creations, so `cache_read_input_tokens` may exceed it and the usage is valid. A
-present zero counter is known zero.
+creations, so `cache_read_input_tokens` may exceed it and the usage is valid.
 
 | Format | Terminal usage |
 | --- | --- |
-| Anthropic SSE | Merge `message_start.message.usage` with `message_delta.usage` by field; later values replace, never sum. Require a message_delta usage with final output. Input/cache fields may come from message_start; a start alone is not terminal usage. `message_stop` is the stream terminator. |
+| Anthropic SSE | Usage objects from `message_start.message.usage` and from every `message_delta.usage` merge field by field; later values replace earlier ones and are never summed. Terminal usage exists once any message_delta has carried `output_tokens`. After that it is re-normalized on every later usage update, and the record keeps the latest merged state. A message_start alone is not terminal usage. `message_stop` is the stream terminator. |
 | Responses SSE | Use `response.usage` only in `response.completed` or `response.incomplete`, both terminal. Incomplete is a completed protocol exchange, not premature EOF. Never use a partial response.created usage. |
-| Chat/text completions SSE | Use the final chunk's non-null `usage` before `[DONE]`, including usage on a finish_reason chunk or an empty-choices usage chunk. Do not treat finish_reason alone as stream end; `[DONE]` is terminal. Without usage, tokens are null. |
-| Non-stream JSON | Only a fully framed, decoded response object's `usage`; Anthropic and OpenAI shapes as below. Missing usage means null. |
-| Other formats | v1 does not normalize native Gemini, interactions, media, search, compact-specific, or live-session usage. Tokens stay null unless the body actually has a supported terminal text-format usage shape. |
+| Chat/text completions SSE | A chunk with non-null `usage` that also has a `finish_reason`, or has an empty `choices` array, publishes terminal usage immediately; a later chunk with non-null `usage` replaces it. A finish reason qualifies only when at least one choices entry has a non-null string `finish_reason`; a present null does not qualify. `[DONE]` or HTTP framing completion (not EOF of a close-delimited SSE body) is still required for outcome complete, and terminal usage already published is kept if the stream is later truncated. finish_reason alone does not end the stream. Without usage, tokens are null. |
+| Non-stream JSON | Usage is read only from a fully framed, decoded body whose envelope matches the family of the path forwarded to CLIProxyAPI (the original path unless it was rewritten): Anthropic `type: "message"`; Responses `object: "response"`; chat completions `object: "chat.completion"`; text completions `object: "text_completion"`. Any other body gives tokens null; `response_model` is still read from it. A recognized envelope without usage also gives null. |
+| Other formats | v1 does not normalize native Gemini, interactions, media, search, compact-specific, or live-session usage. Their non-stream bodies have no recognized envelope, so tokens are null; an SSE stream on these paths gives tokens only if it carries one of the text-format terminal usage shapes above. |
 
 Anthropic: `input_uncached = input_tokens`, `cache_read =
 cache_read_input_tokens`, `cache_creation = cache_creation_input_tokens`,
-`output = output_tokens`, `reasoning = null`. Missing Anthropic cache counters
-in otherwise valid terminal usage mean zero (non-cached protocol variant).
+`output = output_tokens`, `reasoning = null`. Absent or null Anthropic cache
+counters in otherwise valid terminal usage mean zero (non-cached protocol
+variant).
 Responses: subtract `input_tokens_details.cached_tokens` from `input_tokens`;
 chat/completions: subtract `prompt_tokens_details.cached_tokens` from
-`prompt_tokens`. Missing OpenAI cached detail means zero. Output is respectively
-`output_tokens` or `completion_tokens`; reasoning comes from the corresponding
-output/completion details or is null. Responses cache_creation is always null,
-even if an extension reports cache_write_tokens. Chat cache_creation is null
-unless explicit prompt details report `cache_write_tokens` (or, if absent,
-`cached_creation_tokens`); never derive it from the input total. Do not sum
+`prompt_tokens`. An absent or null OpenAI cached detail means zero. Output is
+respectively `output_tokens` or `completion_tokens`; reasoning comes from the
+corresponding output/completion details or is null. Responses cache_creation is
+always null, even if an extension reports cache_write_tokens. Chat
+cache_creation is null unless explicit prompt details report
+`cache_write_tokens`; an absent or null `cache_write_tokens` permits using
+`cached_creation_tokens`. Never derive it from the input total. Do not sum
 reasoning into output or add cache_creation to OpenAI input totals.
 
-Retain terminal usage already observed even if the later exit is a failed
-client write or truncated transport. Before terminal usage it is null.
-`response_model` is the last explicit nonempty response model, not the requested
-model by default; it can be known even when tokens are not.
+Usage, `response_model`, `ttft_ms`, and completion come only from bytes
+delivered to the client (see below). Terminal usage already observed is kept
+even if the later exit is a failed client write or truncated transport. Before
+terminal usage, tokens is null.
 
 ## Termination, status, and clocks
 
-Finalize exactly once. `status` is the final status line observed from :8318,
-not a guessed client-delivered status. The one exception is the proxy's own
-dial-failure 502. A failed client write does not erase an observed status.
+Finalize exactly once, at the earliest of:
 
-| Relay exit | outcome | status |
+1. a successful client write after which the observation has reached protocol
+   completion (defined under SSE), HTTP framing completion, or a protocol
+   error;
+2. a relay exit in the table below.
+
+`ended_at` and `latency_ms` are taken at that moment. Bytes relayed after
+finalization are not observed; the relay keeps relaying them unchanged.
+
+Process accepted bytes in wire order. Within a successful write, observation
+stops at the first delivered protocol completion, protocol error, or HTTP
+framing completion, even when the same write accepted more bytes; finalize at
+that write's completion time. Bytes after that point contribute nothing to the
+record.
+
+`status` is the final status line observed from :8318, not a guessed
+client-delivered status. The one exception is the proxy's own dial-failure 502.
+A failed client write does not erase an observed status.
+
+A byte is delivered once a client write has accepted it. When a write reports a
+positive accepted byte count together with an error, the accepted prefix is
+delivered and the rest of its buffer is undelivered. Undelivered bytes may be
+used only to learn the final status line and the `X-CPA-TRACE-ID` header while
+the response head is still incomplete; they never contribute usage,
+`response_model`, `ttft_ms`, or completion. A failed write gives
+`client_disconnected`, even if its undelivered bytes would have completed
+framing, unless the observation had already finalized.
+
+| Finalizing event | outcome | status |
 | --- | --- | --- |
 | Backend dial failure | backend_unreachable | 502 |
 | Upstream request send failure | upstream_error | null (no response head read) |
-| Upstream read error, timeout, malformed HTTP framing, or explicit protocol error event before completion | upstream_error | observed final status, else null |
-| Framing complete: protocol terminal event, Content-Length reached, or complete chunked terminator/trailers | complete | observed final status |
+| Upstream read error or timeout before completion | upstream_error | observed final status, else null |
+| Delivered protocol error before completion | upstream_error | observed final status |
+| Delivered protocol completion, or framing completion: Content-Length reached, or complete chunked terminator/trailers | complete | observed final status |
 | Upstream EOF before framing end, including empty connection/partial head | upstream_closed_early | observed final status, else null |
 | EOF ending a legal close-delimited non-stream body | complete | observed final status |
+| EOF ending a close-delimited SSE body before delivered protocol completion | upstream_closed_early | observed final status |
 | Failed client response write | client_disconnected | observed final status, else null |
 | Cancellation without failed client write and before completion | upstream_error | observed final status, else null |
 
-First finalizer wins. A failed write of the bytes that would have completed
-framing is client_disconnected, not complete. No separate disconnect monitor
-exists. A clean HTTP chunk end without an SSE terminal event is complete, since
-framing ended, but has tokens null if no terminal usage arrived.
-Conversely a terminal SSE event can complete before the HTTP connection closes.
-`complete` describes delivery/framing, not HTTP success: a fully delivered 429
-JSON error is complete with status 429, last_tried seat, and tokens null.
+Malformed framing and an over-cap head make the outcome `upstream_error`
+whichever row finalizes the record. No separate disconnect monitor exists. A
+clean HTTP chunk end without an SSE terminal event is complete, since framing
+ended, but has tokens null if no terminal usage arrived. Conversely a terminal
+SSE event can complete before the HTTP connection closes. `complete` describes
+delivery/framing, not HTTP success: a fully delivered 429 JSON error is complete
+with status 429, last_tried seat, and tokens null.
 
 Start at the forwarding attempt (before dialing); end at finalization.
-Latency and ttft use monotonic elapsed time, floored to integer milliseconds;
-ttft is null until the first entity-body byte, not a header or chunk-size byte.
-It is no greater than latency. Timestamps use wall-clock UTC with exactly three
-fractional digits and Z:
+Latency and ttft use monotonic elapsed time, floored to integer milliseconds.
+ttft is taken when the upstream read containing the first entity-body byte
+returns (not a header or chunk-size byte) and counts only once that byte is
+delivered; until then it is null. It is no greater than latency. Timestamps use
+wall-clock UTC with exactly three fractional digits and Z:
 `^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\.[0-9]{3}Z$`.
 Wall-clock adjustment can differ from monotonic latency; do not reconstruct
 latency by subtracting serialized timestamps.
@@ -197,59 +332,117 @@ latency by subtracting serialized timestamps.
 
 Split `X-CPA-TRACE-ID` with at most three parts:
 `YYYYMMDDHHMMSS-<16 lowercase hex auth_index>-<request UUID>`.
-Preserve the raw header as trace_id; execution_id is its request UUID (normally
-UUIDv7). Without a usable UUID mint UUIDv4. Without a fully usable trace/index,
-seat is null; never recover a seat from the model or current account selection.
-The UUID and index must match the header, a semantic rule beyond this schema.
-Fixed redacted fixture traces are syntactically valid, not real account traces.
+Preserve the raw header as trace_id. execution_id is the third segment whenever
+that segment alone is a valid UUID (per the schema's `uuid` definition; normally
+UUIDv7), whatever the other segments contain; otherwise mint a UUIDv4. The seat
+needs the whole trace to be valid: a 14-digit timestamp, a 16-character
+lowercase hex index, and a valid UUID. Without a valid trace, seat is null; never
+recover a seat from the model or current account selection. The UUID and index
+must match the header, a semantic rule beyond this schema. Fixed redacted
+fixture traces are syntactically valid, not real account traces.
 
-For a usable index, seat contains auth_index and role even when unresolved.
+For a valid trace, seat contains auth_index and role even when unresolved.
 Role is served for 2xx, last_tried otherwise; the schema enforces both directions
 with if/then/else, including rejecting served + 429. Neither a 2xx nor role served
 alone proves spend. Do not use last_tried for spend.
 
-Build the index map from auth-directory entries:
-`hex(sha256(lower(type) + ":" + clean_absolute_path)[:8])`.
+The seat index covers only entries directly in `~/.cli-proxy-api` whose names
+end in `.json` (case-sensitive). Each entry's index is
+`hex(sha256(lower(type) + ":" + clean_absolute_path)[:8])`. Only regular files
+owned by the running user can be bound to a request. Symlinks, other
+non-regular files, and files not owned by the running user are indexed, so a
+trace that names them still resolves, but they are never bound: the seat is
+`{auth_index, role}` only. A basename that fails the schema's `file` pattern is
+omitted from the seat.
+
 Refresh on auth-dir watcher events and on a miss at most once per second.
 On every hit stat and compare size, mtime, and inode where available; re-read
-identity fields on change before binding. At finalization revalidate against
-the fingerprint bound for this request: a replacement, disappearance, duplicate
-index, ambiguity, or unreadable identity leaves only `{auth_index, role}`.
-Do not attach a replacement file's current metadata to an earlier request.
-Read only identity fields for binding: type, email, organization_uuid/nested
-organization, Codex top-level account_id, and basename. Unknown identity fields
-are omitted, not null. No management key or usage-queue consumer is needed.
+identity fields on change before binding. Identity reading decodes only these
+members of a credential file: `type`, `email`, `organization_uuid` or the
+nested organization uuid, and the Codex top-level `account_id`. No other member
+is materialized. For Claude organization identity, use a nonempty string
+`organization_uuid`; otherwise a nonempty string `organization.uuid`. Omit `org`
+when neither qualifies. The basename comes from the directory entry. Unknown
+identity fields are omitted, not null. No management key or usage-queue consumer
+is needed.
+
+At finalization the binding is revalidated: the file must have the same
+fingerprint that was bound for this request, must still be readable, and its
+auth_index must still be unique in the current map. Any failure, including a
+replacement, disappearance, or duplicate index, leaves only
+`{auth_index, role}`. Do not attach a replacement file's current metadata to an
+earlier request.
 
 ## Persistence and fixtures
 
 Append one UTF-8 JSON object with no trailing spaces and one LF to
 `~/.droidproxy/journal/requests-YYYY-MM.jsonl`, using the UTC month of started_at.
 Directory mode 0700, file mode 0600; create no-follow and verify owner and regular
-file. A bounded process-local queue must not block the relay. Each append takes
-an advisory exclusive lock, repairs an incomplete trailing line, retries short
-writes, fsyncs the file, and fsyncs the directory on month-file creation.
-Successful fsynced appends are durable; overflow/crash before append can lose
-records. Count drops/write errors and log failures without failing the relay.
+file. Each append takes an advisory exclusive lock, repairs an incomplete
+trailing line, retries short writes, fsyncs the file, and fsyncs the directory on
+month-file creation. Successful fsynced appends are durable; overflow/crash
+before append can lose records.
+
+The relay never waits on journal work. Process shutdown may wait only until a
+bounded flush deadline; records remaining after it are counted as dropped. A
+bounded process-local queue never blocks the relay. Lock acquisition gives up
+after a short bounded wait and counts the record as dropped. Drop and write-error
+diagnostics are aggregated and emitted without blocking the relay, and never
+fail it.
 
 Golden lines wrap `{name, valid, reason?, record}`. Invalid cases isolate schema
 violations, not unprovable provenance: a schema cannot distinguish invented
 zero usage from observed zero usage.
 
 Transcripts contain raw response bytes represented as Latin-1 JSON strings:
-map each Unicode code point 0–255 back to one byte, NOT UTF-8 (gzip case).
-HTTP lines use explicit CRLF; captured SSE body lines legitimately use LF.
-Replay every split point and one byte at a time, preserving the result.
-Each case supplies content-free request context, synthetic seat identities,
-clock observations, end signal, and a full expected record. The `request` object
-holds `method`, `endpoint`, `headers` (only those that affect the record, as a
-name-to-value map) and `body` (only the fields that do, such as `model`,
-`prompt_cache_key`, and `metadata.user_id`). Session and usage-validation cases
-include the metadata JSON form, header precedence, malformed JSON, a grammar
-failure, and OpenAI cached-over-input (`tokens` null) beside the Anthropic
-cache-read-over-input case (valid). Clock values are
-fixture inputs, not measured capture timings. For the missing-trace case only,
-the expected execution_id is a representative UUIDv4: compare UUIDv4 validity,
-not that literal value; no test-only production UUID hook is required.
+map each Unicode code point 0–255 back to one byte, NOT UTF-8 (gzip cases).
+HTTP lines use explicit CRLF unless a case tests a framing violation; captured
+SSE body lines legitimately use LF. Each case supplies content-free request
+context, synthetic seat identities, clock observations, an end signal, and a
+full expected record.
+
+- `request` holds `method`, `endpoint`, `headers` (only those that affect the
+  record, as a name-to-value map), and exactly one of `body` or `body_raw`.
+  `body` is a JSON object with only the fields that affect the record, such as
+  `model`, `prompt_cache_key`, and `metadata.user_id`; send it serialized as
+  JSON. `body_raw` is the exact request body text, for bodies that are not
+  strict JSON or repeat a member; send it as its UTF-8 bytes with nothing
+  added.
+- `observation` gives the clock. Elapsed time 0 is `started_at`. Every upstream
+  read returns at `first_body_elapsed_ms`. Every client write completes at the
+  elapsed time of `ended_at`. The end signal arrives at `end_signal_elapsed_ms`
+  when present, otherwise at the elapsed time of `ended_at`; a later end signal
+  shows that latency was taken at an earlier write. Fixture clocks have no
+  wall-clock adjustment: a write's elapsed time is `ended_at - started_at`.
+  Clock values are fixture inputs, not measured capture timings.
+- `end_signal` is `eof` (upstream EOF after the last response byte) or
+  `client_write_failed`. With `client_write_failed`, `client_write_fails_at` is
+  a byte offset after the response head. Failure offsets are zero-based
+  absolute response-wire byte offsets, including the response head and
+  transfer framing. The write whose buffer contains that offset, or starts at
+  it, accepts only the bytes before the offset and reports an error; nothing
+  after that buffer is read, and the relay exits with the failed client write.
+- `body_read_error` marks a response whose body ends early (truncated
+  transport).
+- `nonstandard_wire`, when present, explains why the bytes are deliberately not
+  a complete, generally parseable HTTP/1.1 response (a framing violation, a head
+  cut short, or a transfer coding generic clients reject). The fixture
+  structure check does not parse these as HTTP.
+- `nondeterministic_fields` lists fields the expected record cannot fix. Only
+  `execution_id` may appear: the expected value is a representative UUIDv4, so
+  compare UUIDv4 validity, not that literal value; no test-only production UUID
+  hook is required.
+
+Replay every split point and one byte at a time, preserving the result. A
+split at k supplies exactly two upstream reads, bytes [0,k) and [k,N), where N
+is the response length. Whole replay supplies one read; bytewise replay
+supplies one byte per read. Each read is followed by one client write of that
+buffer before the next read. For responses over 64 KiB, two-read splits may be
+limited to k = 509, 1018, … below N, plus whole and bytewise replay.
+
+Session and usage-validation cases include the metadata JSON form, header
+precedence, malformed JSON, a grammar failure, and OpenAI cached-over-input
+(`tokens` null) beside the Anthropic cache-read-over-input case (valid).
 
 Six source captures were made through a local macOS DroidProxy on :8317 (bundled
 CLIProxyAPI v8.0.66), 2026-11-11, with identity
@@ -258,16 +451,41 @@ provider's stable safety_identifier to fixed placeholders. Fixture seat email,
 org and account IDs are wholly synthetic. Both chat captures returned usage,
 even without include_usage; the actually usage-free case is explicitly derived.
 Derived fixtures also cover incomplete Responses, cache subtraction, Anthropic
-merge-only usage, 429, missing trace, truncation, gzip, and chunk boundaries.
+merge-only and later cache-only usage, a message_delta model, 429, missing and
+malformed traces, truncation, gzip content and transfer codings, chunk
+boundaries, framing violations, the head and SSE caps, protocol errors, null
+optional and extreme or fractional counters, unrecognized envelopes, non-strict
+request and response JSON, repeated request members, response-model location
+order, out-of-range status codes, close-delimited SSE, event names without a
+completion payload, SSE lines at and one byte over the line cap, the chat
+cache-creation fallback and null finish reasons, bytes after `[DONE]`, and
+failed client writes.
 Their provenance is recorded per case; they are not claimed as real captures.
+
+Each implementation tests these rules itself rather than through transcripts:
+
+- The seat index's file rules, identity decoding, and finalization
+  revalidation, because they need real directory entries, symlinks, file
+  ownership, and file changes between binding and finalization. The transcript
+  seat identity carries one `org` value, so precedence between
+  `organization_uuid` and `organization.uuid` is tested the same way.
+- Persistence limits (lock wait, shutdown flush, aggregated diagnostics),
+  because they need lock contention and process shutdown.
+- Learning the status line or trace header from undelivered bytes, because
+  the result depends on where a read boundary falls relative to the failing
+  write, so no single expected record holds at every split point.
+- An event over the 2 MiB data cap, because its fixture would exceed 2 MiB,
+  which is too large to keep in the repository.
 
 ### Limits in v1
 
-- Non-text inference routes are admitted, but their usage is null.
+- Non-text inference routes are admitted. Their usage is null except for
+  supported terminal text-format SSE usage described above.
 - The relay recognizes `/api/v1/responses`, but CLIProxyAPI v8.0.61 does not
   serve that path, so it is not admitted.
-- `complete` means the response framing ended. HTTP errors that were fully
-  delivered are complete; status and seat role carry the failure.
+- `complete` means delivered protocol completion or HTTP framing completion.
+  Fully delivered HTTP errors are complete; status and seat role carry the
+  failure.
 - CLIProxyAPI's parent and agent identities, canonical-UUID projection, and
   affinity normalization are not adopted; only `session_id` from the JSON or
   suffix form of `metadata.user_id` is read.

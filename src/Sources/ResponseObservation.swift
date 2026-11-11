@@ -10,32 +10,54 @@ struct JournalInstant {
 }
 
 enum JournalEnd {
-    case delivered, eof, upstreamError, clientDisconnected, backendUnreachable
+    case eof, upstreamError, clientDisconnected, backendUnreachable
 }
 
-/// Relay callbacks arrive on concurrent queues, so `feed` and `finish` are serialized by `lock`.
+/// Relay callbacks arrive on concurrent queues, so every entry point is serialized by `lock`.
 final class ResponseObservation {
-    private enum Framing {
-        case head, fixed, closeDelimited, chunkSize, chunkBody, chunkCRLF, trailers, done, opaque
+    private enum Phase {
+        case head, fixed, closeDelimited, chunkSize, chunkData, chunkDataEnd, trailers, ignored
     }
+    private enum UsageFormat { case anthropic, responses, chat }
+    private enum Counter { case absent, value(Int64), malformed }
+
+    private static let cr: UInt8 = 13
+    private static let lf: UInt8 = 10
+    private static let headCap = 64 * 1024
+    private static let sseLineCap = 256 * 1024
+    private static let eventDataCap = 2 * 1024 * 1024
+    private static let bodyCap = 2 * 1024 * 1024
+
     private let request: JournalRequest
     private let clock: () -> JournalInstant
     private let started: JournalInstant
     private let bindSeat: (String) -> JournalSeatBinding?
     private let emit: (JournalRecord) -> Void
     private let lock = NSLock()
-    private var framing = Framing.head
+
+    private var phase = Phase.head
+    private var line = Data()
+    private var headBytes = 0
     private var sawStatusLine = false
-    private var scratch = Data()
+    private var interim = false
+    private var headers: [String: String] = [:]
     private var remaining = 0
     private var trailerBytes = 0
-    private var body = Data()
-    private var line = Data()
-    private var event = ""
-    private var eventData = Data()
-    private var scanning = true
+    private var malformed = false
+    private var headOverflow = false
     private var sse = false
-    private var compressed = false
+    private var opaque = false
+
+    private var body = Data()
+    private var bodyOverflow = false
+    private var sseLine = Data()
+    private var sseLineOverflow = false
+    private var afterCR = false
+    private var eventName = ""
+    private var eventData = Data()
+    private var eventHasData = false
+    private var discardEvent = false
+
     private var status: Int?
     private var trace: String?
     private var execution = UUID().uuidString.lowercased()
@@ -44,9 +66,9 @@ final class ResponseObservation {
     private var firstBody: UInt64?
     private var model: String?
     private var tokens: JournalTokens?
-    private var chatUsage: JournalTokens?
-    private var sawChatUsage = false
-    private var anthropicUsage: [String: Any] = [:]
+    private var chatPublished = false
+    private var anthropicUsage: [String: JournalJSON] = [:]
+    private var anthropicTerminal = false
     private var completed = false
     private var protocolError = false
     private var finalized = false
@@ -61,122 +83,174 @@ final class ResponseObservation {
         self.emit = emit
     }
 
-    func feed(_ data: Data) {
+    /// Bytes a successful client write accepted; `readAt` is when the upstream read that carried them returned.
+    /// Finalizes at this write when it reaches protocol completion, framing completion, or a protocol error.
+    func delivered(_ data: Data, readAt: JournalInstant) {
         lock.lock()
         defer { lock.unlock() }
         guard !finalized else { return }
-        let now = clock()
-        for byte in data {
-            switch framing {
+        consume(data, readAt: readAt, delivered: true)
+        if protocolError { finalize("upstream_error") } else if completed { finalize("complete") }
+    }
+
+    /// A client write that accepted `accepted` and then failed; `undelivered` is the rest of its buffer.
+    func writeFailed(accepted: Data, undelivered: Data, readAt: JournalInstant) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !finalized else { return }
+        consume(accepted, readAt: readAt, delivered: true)
+        if phase == .head { consume(undelivered, readAt: readAt, delivered: false) }
+        finalize(outcome(.clientDisconnected))
+    }
+
+    func finish(_ signal: JournalEnd) {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !finalized else { return }
+        if case .eof = signal, phase == .closeDelimited, !sse { endBody() }
+        finalize(outcome(signal))
+    }
+
+    private var stopped: Bool { phase == .ignored || completed || protocolError }
+
+    private func consume(_ data: Data, readAt: JournalInstant, delivered: Bool) {
+        var i = data.startIndex
+        while i < data.endIndex, !stopped {
+            switch phase {
             case .head:
-                scratch.append(byte)
-                if !sawStatusLine, scratch.suffix(2).elementsEqual([13, 10]) {
-                    sawStatusLine = true
-                    let parts = String(decoding: scratch.dropLast(2), as: UTF8.self).split(separator: " ")
-                    if parts.count >= 2, ["HTTP/1.0", "HTTP/1.1"].contains(String(parts[0])),
-                       let code = Int(parts[1]), (100...599).contains(code) {
-                        if code >= 200 { status = code }
-                    } else {
-                        malformed()
-                    }
+                headByte(data[i], delivered: delivered)
+                i += 1
+            case .fixed, .chunkData:
+                let n = min(remaining, data.endIndex - i)
+                entity(data[i..<(i + n)], readAt: readAt)
+                i += n
+                remaining -= n
+                if remaining == 0, !stopped {
+                    if phase == .fixed { endBody() } else { phase = .chunkDataEnd }
                 }
-                if scratch.count > 64 * 1024 {
-                    scratch.removeAll()
-                    framing = .opaque
-                } else if scratch.suffix(4).elementsEqual([13, 10, 13, 10]) {
-                    parseHead()
-                }
-            case .fixed:
-                entity(byte, now: now)
-                remaining -= 1
-                if remaining == 0 { endBody() }
             case .closeDelimited:
-                entity(byte, now: now)
+                entity(data[i...], readAt: readAt)
+                i = data.endIndex
             case .chunkSize:
-                scratch.append(byte)
-                if scratch.count > 64 * 1024 { malformed() }
-                else if scratch.suffix(2).elementsEqual([13, 10]) {
-                    let raw = String(decoding: scratch.dropLast(2), as: UTF8.self)
-                    let size = raw.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false)[0]
-                    guard !size.isEmpty, size.allSatisfy({ $0.isASCII && $0.isHexDigit }),
-                          let count = Int(size, radix: 16) else { malformed(); continue }
-                    scratch.removeAll(keepingCapacity: true)
-                    remaining = count
-                    framing = count == 0 ? .trailers : .chunkBody
+                chunkSizeByte(data[i])
+                i += 1
+            case .chunkDataEnd:
+                line.append(data[i])
+                if line.first != Self.cr || (line.count == 2 && line.last != Self.lf) { violation() }
+                else if line.count == 2 {
+                    line.removeAll(keepingCapacity: true)
+                    phase = .chunkSize
                 }
-            case .chunkBody:
-                entity(byte, now: now)
-                remaining -= 1
-                if remaining == 0 { framing = .chunkCRLF }
-            case .chunkCRLF:
-                scratch.append(byte)
-                if (scratch.count == 1 && byte != 13) || (scratch.count == 2 && byte != 10) { malformed() }
-                else if scratch.count == 2 {
-                    scratch.removeAll(keepingCapacity: true)
-                    framing = .chunkSize
-                }
+                i += 1
             case .trailers:
-                trailerBytes += 1
-                scratch.append(byte)
-                if trailerBytes > 64 * 1024 { malformed() }
-                else if scratch.suffix(2).elementsEqual([13, 10]) {
-                    if scratch.count == 2 { endBody() }
-                    else if !scratch.dropLast(2).contains(58) { malformed() }
-                    scratch.removeAll(keepingCapacity: true)
-                }
-            case .done, .opaque:
-                break
+                trailerByte(data[i])
+                i += 1
+            case .ignored:
+                return
             }
         }
     }
 
-    private func malformed() {
-        if !completed { protocolError = true }
-        framing = .opaque
-        scratch.removeAll()
+    private func violation() {
+        malformed = true
+        phase = .ignored
+        line = Data()
     }
 
-    private func parseHead() {
-        let lines = String(decoding: scratch, as: UTF8.self).components(separatedBy: "\r\n")
-        scratch.removeAll(keepingCapacity: true)
-        let parts = (lines.first ?? "").split(separator: " ", omittingEmptySubsequences: true)
-        guard parts.count >= 2, parts[0].hasPrefix("HTTP/1."),
-              let code = Int(parts[1]), (100...599).contains(code) else { malformed(); return }
-        if (100..<200).contains(code) { sawStatusLine = false; return }
-        status = code
-        var headers: [String: String] = [:]
-        for line in lines.dropFirst() where !line.isEmpty {
-            guard let colon = line.firstIndex(of: ":") else { malformed(); return }
-            let name = line[..<colon].lowercased()
-            let value = String(line[line.index(after: colon)...]).trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
-            if let prior = headers[name], name == "content-length", prior != value { malformed(); return }
+    /// Appends to `line` and reports a CRLF-terminated line; a bare LF is a framing violation.
+    private func lineByte(_ byte: UInt8) -> Bool {
+        guard byte == Self.lf else {
+            line.append(byte)
+            return false
+        }
+        guard line.last == Self.cr else {
+            violation()
+            return false
+        }
+        line.removeLast()
+        return true
+    }
+
+    private func headByte(_ byte: UInt8, delivered: Bool) {
+        headBytes += 1
+        if lineByte(byte) {
+            headLine(delivered: delivered)
+            line.removeAll(keepingCapacity: true)
+        }
+        if phase == .head, headBytes >= Self.headCap {
+            headOverflow = true
+            phase = .ignored
+            line = Data()
+        }
+    }
+
+    private static func isToken(_ byte: UInt8) -> Bool {
+        switch byte {
+        case 0x30...0x39, 0x41...0x5A, 0x61...0x7A: return true
+        default: return Array("!#$%&'*+-.^_`|~".utf8).contains(byte)
+        }
+    }
+
+    private static func isHex(_ byte: UInt8) -> Bool {
+        (0x30...0x39).contains(byte) || (0x41...0x46).contains(byte) || (0x61...0x66).contains(byte)
+    }
+
+    private static func statusCode(_ line: Data) -> Int? {
+        let b = [UInt8](line)
+        guard b.count >= 12, b[0..<7].elementsEqual("HTTP/1.".utf8), b[7] == 0x30 || b[7] == 0x31, b[8] == 0x20,
+              b[9..<12].allSatisfy({ (0x30...0x39).contains($0) }), b.count == 12 || b[12] == 0x20,
+              let code = Int(String(decoding: b[9..<12], as: UTF8.self)), (100...599).contains(code) else { return nil }
+        return code
+    }
+
+    private func headLine(delivered: Bool) {
+        if !sawStatusLine {
+            sawStatusLine = true
+            guard let code = Self.statusCode(line) else { return violation() }
+            interim = code < 200
+            if !interim { status = code }
+            return
+        }
+        if line.isEmpty {
+            if interim {
+                sawStatusLine = false
+                interim = false
+                headBytes = 0
+            } else if delivered {
+                beginBody()
+            } else {
+                phase = .ignored
+            }
+            return
+        }
+        guard let colon = line.firstIndex(of: 58), colon > line.startIndex,
+              line[..<colon].allSatisfy(Self.isToken) else { return violation() }
+        guard !interim else { return }
+        let name = String(decoding: line[..<colon], as: UTF8.self).lowercased()
+        let value = String(decoding: line[(colon + 1)...], as: UTF8.self).trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
+        if name == "x-cpa-trace-id" { learnTrace(value) }
+        guard delivered else { return }
+        switch name {
+        case "transfer-encoding", "content-encoding":
+            headers[name] = headers[name].map { "\($0),\(value)" } ?? value
+        case "content-length":
+            if let prior = headers[name], prior != value { return violation() }
+            headers[name] = value
+        default:
             headers[name] = value
         }
-        trace = headers["x-cpa-trace-id"].flatMap { $0.isEmpty ? nil : $0 }
-        if let trace {
-            let pieces = trace.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
-            if pieces.count == 3, Self.matches(pieces[2], "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$") {
-                execution = pieces[2]
-                if Self.matches(pieces[0], "^[0-9]{14}$"), Self.matches(pieces[1], "^[0-9a-f]{16}$") {
-                    index = pieces[1]
-                    boundSeat = bindSeat(pieces[1])
-                }
-            }
-        }
-        sse = headers["content-type"]?.lowercased().split(separator: ";").first == "text/event-stream"
-        compressed = headers["content-encoding"].map { $0.lowercased() != "identity" && !$0.isEmpty } ?? false
-        if code == 204 || code == 304 { endBody(); return }
-        if let transfer = headers["transfer-encoding"] {
-            guard transfer.lowercased() == "chunked" else { malformed(); return }
-            framing = .chunkSize
-        } else if let length = headers["content-length"] {
-            guard !length.isEmpty, length.allSatisfy({ $0.isASCII && $0.isNumber }),
-                  let n = Int(length) else { malformed(); return }
-            remaining = n
-            framing = .fixed
-            if n == 0 { endBody() }
-        } else {
-            framing = .closeDelimited
+    }
+
+    private func learnTrace(_ value: String) {
+        trace = value.isEmpty ? nil : value
+        index = nil
+        boundSeat = nil
+        let pieces = value.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
+        guard pieces.count == 3, Self.matches(pieces[2], "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$") else { return }
+        execution = pieces[2]
+        if Self.matches(pieces[0], "^[0-9]{14}$"), Self.matches(pieces[1], "^[0-9a-f]{16}$") {
+            index = pieces[1]
+            boundSeat = bindSeat(pieces[1])
         }
     }
 
@@ -184,173 +258,263 @@ final class ResponseObservation {
         value.range(of: pattern, options: .regularExpression) != nil
     }
 
-    private func entity(_ byte: UInt8, now: JournalInstant) {
-        if firstBody == nil { firstBody = now.monotonic }
-        guard scanning, !compressed, !completed, !protocolError else { return }
-        if sse {
-            if byte == 10 {
-                if line.last == 13 { line.removeLast() }
-                sseLine()
-                line.removeAll(keepingCapacity: true)
-            } else {
-                line.append(byte)
-                if line.count > 256 * 1024 { stopScanning() }
-            }
+    private static func codings(_ value: String?) -> [String] {
+        (value ?? "").split(separator: ",").map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t")).lowercased() }.filter { !$0.isEmpty }
+    }
+
+    private func beginBody() {
+        sse = headers["content-type"]?.split(separator: ";", maxSplits: 1, omittingEmptySubsequences: false).first
+            .map { $0.trimmingCharacters(in: CharacterSet(charactersIn: " \t")).lowercased() } == "text/event-stream"
+        let transfer = Self.codings(headers["transfer-encoding"])
+        opaque = Self.codings(headers["content-encoding"]).contains { $0 != "identity" } || transfer.contains { $0 != "chunked" }
+        if status == 204 || status == 304 { return endBody() }
+        if !transfer.isEmpty {
+            phase = transfer.last == "chunked" ? .chunkSize : .closeDelimited
+        } else if let length = headers["content-length"] {
+            guard !length.isEmpty, length.utf8.allSatisfy({ (0x30...0x39).contains($0) }), let n = Int(length) else { return violation() }
+            remaining = n
+            phase = .fixed
+            if n == 0 { endBody() }
         } else {
-            body.append(byte)
-            if body.count > 2 * 1024 * 1024 { stopScanning() }
+            phase = .closeDelimited
         }
     }
 
-    private func stopScanning() {
-        scanning = false
-        line.removeAll()
-        eventData.removeAll()
-        body.removeAll()
-    }
-
-    private func sseLine() {
-        if line.isEmpty {
-            processEvent()
-            event = ""
-            eventData.removeAll(keepingCapacity: true)
+    private func chunkSizeByte(_ byte: UInt8) {
+        guard lineByte(byte) else {
+            if phase == .chunkSize, line.count > Self.headCap { violation() }
             return
         }
-        let text = String(decoding: line, as: UTF8.self)
-        if text.hasPrefix("event:") {
-            event = String(text.dropFirst(6)).trimmingCharacters(in: CharacterSet(charactersIn: " "))
-        } else if text.hasPrefix("data:") {
-            var value = text.dropFirst(5)
-            if value.first == " " { value = value.dropFirst() }
-            if !eventData.isEmpty { eventData.append(10) }
-            eventData.append(contentsOf: value.utf8)
-            if eventData.count > 2 * 1024 * 1024 { stopScanning() }
+        let size = line.prefix { $0 != UInt8(ascii: ";") }
+        guard !size.isEmpty, size.count <= 15, size.allSatisfy(Self.isHex),
+              let count = Int(String(decoding: size, as: UTF8.self), radix: 16) else { return violation() }
+        line.removeAll(keepingCapacity: true)
+        remaining = count
+        phase = count == 0 ? .trailers : .chunkData
+    }
+
+    private func trailerByte(_ byte: UInt8) {
+        trailerBytes += 1
+        if trailerBytes > Self.headCap { return violation() }
+        guard lineByte(byte) else { return }
+        if line.isEmpty { return endBody() }
+        guard let colon = line.firstIndex(of: 58), colon > line.startIndex,
+              line[..<colon].allSatisfy(Self.isToken) else { return violation() }
+        line.removeAll(keepingCapacity: true)
+    }
+
+    private func entity(_ bytes: Data, readAt: JournalInstant) {
+        guard !bytes.isEmpty else { return }
+        if firstBody == nil { firstBody = readAt.monotonic }
+        guard !opaque else { return }
+        if sse {
+            scanSSE(bytes)
+        } else if !bodyOverflow {
+            if body.count + bytes.count > Self.bodyCap {
+                bodyOverflow = true
+                body = Data()
+            } else {
+                body.append(bytes)
+            }
         }
     }
 
-    private func reportedModel(_ object: [String: Any]) {
-        if let value = object["model"] as? String, !value.isEmpty { model = value }
+    private func scanSSE(_ bytes: Data) {
+        var i = bytes.startIndex
+        while i < bytes.endIndex, !stopped {
+            let byte = bytes[i]
+            if byte == Self.lf || byte == Self.cr {
+                let crlf = byte == Self.lf && afterCR
+                afterCR = byte == Self.cr
+                if !crlf { endSSELine() }
+                i += 1
+                continue
+            }
+            afterCR = false
+            let end = bytes[i...].firstIndex { $0 == Self.lf || $0 == Self.cr } ?? bytes.endIndex
+            if !sseLineOverflow {
+                if sseLine.count + (end - i) > Self.sseLineCap {
+                    sseLineOverflow = true
+                    sseLine = Data()
+                } else {
+                    sseLine.append(bytes[i..<end])
+                }
+            }
+            i = end
+        }
     }
 
-    private func processEvent() {
-        guard !completed, !protocolError else { return }
-        if eventData == Data("[DONE]".utf8) {
-            if sawChatUsage { tokens = chatUsage }
+    private func endSSELine() {
+        defer {
+            sseLine.removeAll(keepingCapacity: true)
+            sseLineOverflow = false
+        }
+        if sseLineOverflow { return discardCurrentEvent() }
+        if sseLine.isEmpty { return dispatchEvent() }
+        if discardEvent || sseLine.first == 58 { return }
+        let colon = sseLine.firstIndex(of: 58)
+        let name = sseLine[..<(colon ?? sseLine.endIndex)]
+        var value = colon.map { sseLine[($0 + 1)...] } ?? sseLine[sseLine.endIndex...]
+        if value.first == 0x20 { value = value.dropFirst() }
+        if name.elementsEqual("event".utf8) {
+            eventName = String(decoding: value, as: UTF8.self)
+        } else if name.elementsEqual("data".utf8) {
+            if eventData.count + value.count + (eventHasData ? 1 : 0) > Self.eventDataCap { return discardCurrentEvent() }
+            if eventHasData { eventData.append(Self.lf) }
+            eventData.append(value)
+            eventHasData = true
+        }
+    }
+
+    private func discardCurrentEvent() {
+        discardEvent = true
+        eventData = Data()
+    }
+
+    private func dispatchEvent() {
+        defer {
+            eventName = ""
+            eventData.removeAll(keepingCapacity: true)
+            eventHasData = false
+            discardEvent = false
+        }
+        guard !discardEvent, eventHasData else { return }
+        let payload = JournalJSON.parse(eventData)?.object
+        if let payload { reportModel(payload) }
+        if eventName == "error" {
+            protocolError = true
+            return
+        }
+        if eventData.elementsEqual("[DONE]".utf8) {
             completed = true
             return
         }
-        guard let object = try? JSONSerialization.jsonObject(with: eventData) as? [String: Any] else {
-            if event == "error" { protocolError = true }
-            return
-        }
-        let type = object["type"] as? String ?? event
-        reportedModel(object)
-        if let response = object["response"] as? [String: Any] { reportedModel(response) }
-        if let message = object["message"] as? [String: Any] { reportedModel(message) }
-        if event == "error" || object["error"] is [String: Any] {
+        guard let object = payload else { return }
+        let type = object["type"]
+        if let name = type?.string, ["error", "response.failed", "response.error"].contains(name) {
             protocolError = true
             return
         }
-        switch type {
-        case "error", "response.failed", "response.error":
+        if type == nil, let error = object["error"], error != .null {
             protocolError = true
+            return
+        }
+        switch type?.string {
         case "message_start":
-            anthropicUsage = (object["message"] as? [String: Any])?["usage"] as? [String: Any] ?? [:]
+            mergeAnthropic(object["message"]?["usage"], delta: false)
         case "message_delta":
-            if let usage = object["usage"] as? [String: Any] {
-                anthropicUsage.merge(usage) { _, new in new }
-                tokens = usage["output_tokens"] == nil ? nil : Self.normalize(anthropicUsage, format: "anthropic")
-            }
+            mergeAnthropic(object["usage"], delta: true)
         case "message_stop":
             completed = true
         case "response.completed", "response.incomplete":
-            if let response = object["response"] as? [String: Any],
-               let usage = response["usage"] as? [String: Any] {
-                tokens = Self.normalize(usage, format: "responses")
-            }
+            tokens = Self.normalize(object["response"]?["usage"], format: .responses)
             completed = true
         default:
-            if let usage = object["usage"] as? [String: Any], let choices = object["choices"] as? [[String: Any]] {
-                sawChatUsage = true
-                chatUsage = Self.normalize(usage, format: "chat")
-                let finalChunk = choices.isEmpty || choices.contains { $0["finish_reason"] != nil && !($0["finish_reason"] is NSNull) }
-                tokens = finalChunk ? chatUsage : nil
+            guard let usage = object["usage"], usage != .null else { return }
+            let choices = object["choices"]?.array
+            let qualifies = choices?.isEmpty == true || choices?.contains { $0["finish_reason"]?.string != nil } == true
+            if qualifies || chatPublished {
+                chatPublished = true
+                tokens = Self.normalize(usage, format: .chat)
             }
+        }
+    }
+
+    private func mergeAnthropic(_ usage: JournalJSON?, delta: Bool) {
+        guard let usage = usage?.object else { return }
+        for (key, value) in usage where value != .null { anthropicUsage[key] = value }
+        if delta, usage["output_tokens"].map({ $0 != .null }) == true { anthropicTerminal = true }
+        if anthropicTerminal { tokens = Self.normalize(.object(anthropicUsage), format: .anthropic) }
+    }
+
+    private func reportModel(_ object: [String: JournalJSON]) {
+        for candidate in [object["model"], object["message"]?["model"], object["response"]?["model"]] {
+            if let value = candidate?.string, !value.isEmpty { model = value }
         }
     }
 
     private func endBody() {
-        framing = .done
-        if !sse && scanning && !compressed {
-            if let object = try? JSONSerialization.jsonObject(with: body) as? [String: Any] {
-                reportedModel(object)
-                if let usage = object["usage"] as? [String: Any] {
-                    let format: String
-                    if object["object"] as? String == "response" { format = "responses" }
-                    else if usage["prompt_tokens"] != nil { format = "chat" }
-                    else if object["type"] as? String == "message" || request.endpoint == "/v1/messages" { format = "anthropic" }
-                    else { format = "responses" }
-                    tokens = Self.normalize(usage, format: format)
-                }
-            }
+        completed = true
+        phase = .ignored
+        defer { body = Data() }
+        guard !sse, !opaque, !bodyOverflow, let object = JournalJSON.parse(body)?.object else { return }
+        reportModel(object)
+        let format: UsageFormat
+        switch request.forwardedEndpoint ?? request.endpoint {
+        case "/v1/messages" where object["type"]?.string == "message": format = .anthropic
+        case "/v1/responses", "/backend-api/codex/responses":
+            guard object["object"]?.string == "response" else { return }
+            format = .responses
+        case "/v1/chat/completions" where object["object"]?.string == "chat.completion": format = .chat
+        case "/v1/completions" where object["object"]?.string == "text_completion": format = .chat
+        default: return
         }
-        if !protocolError { completed = true }
-        body.removeAll()
+        tokens = Self.normalize(object["usage"], format: format)
     }
 
-    private static func counter(_ value: Any?) -> Int64? {
-        guard let n = value as? NSNumber, CFGetTypeID(n) != CFBooleanGetTypeID() else { return nil }
-        let d = n.doubleValue
-        guard d >= 0, d < Double(Int64.max), d.rounded(.down) == d else { return nil }
-        return n.int64Value
+    private static func counter(_ value: JournalJSON?) -> Counter {
+        guard let value, value != .null else { return .absent }
+        guard case .number(let literal) = value, literal.utf8.allSatisfy({ (0x30...0x39).contains($0) }),
+              let n = Int64(literal) else { return .malformed }
+        return .value(n)
     }
 
-    private static func normalize(_ usage: [String: Any], format: String) -> JournalTokens? {
-        let anthropic = format == "anthropic"
-        let chat = format == "chat"
-        guard let input = counter(usage[chat ? "prompt_tokens" : "input_tokens"]),
-              let output = counter(usage[chat ? "completion_tokens" : "output_tokens"]) else { return nil }
-        if anthropic {
-            guard let read = counter(usage["cache_read_input_tokens"] ?? 0),
-                  let creation = counter(usage["cache_creation_input_tokens"] ?? 0) else { return nil }
-            return JournalTokens(input_uncached: input, cache_read: read, cache_creation: creation, output: output, reasoning: nil)
+    private static func required(_ value: JournalJSON?) -> Int64? {
+        if case .value(let n) = counter(value) { return n }
+        return nil
+    }
+
+    /// `.some(nil)` when absent or null; nil when present and malformed.
+    private static func optional(_ value: JournalJSON?) -> Int64?? {
+        switch counter(value) {
+        case .absent: return .some(nil)
+        case .value(let n): return .some(n)
+        case .malformed: return nil
         }
-        let inputKey = chat ? "prompt_tokens_details" : "input_tokens_details"
-        let outputKey = chat ? "completion_tokens_details" : "output_tokens_details"
-        if let details = usage[inputKey], !(details is [String: Any]) { return nil }
-        if let details = usage[outputKey], !(details is [String: Any]) { return nil }
-        let details = usage[inputKey] as? [String: Any] ?? [:]
-        let outDetails = usage[outputKey] as? [String: Any] ?? [:]
-        guard let cached = counter(details["cached_tokens"] ?? 0), cached <= input else { return nil }
+    }
+
+    private static func details(_ value: JournalJSON?) -> [String: JournalJSON]? {
+        guard let value, value != .null else { return [:] }
+        return value.object
+    }
+
+    private static func normalize(_ usage: JournalJSON?, format: UsageFormat) -> JournalTokens? {
+        guard let usage = usage?.object else { return nil }
+        if format == .anthropic {
+            guard let input = required(usage["input_tokens"]), let output = required(usage["output_tokens"]),
+                  let read = optional(usage["cache_read_input_tokens"]),
+                  let creation = optional(usage["cache_creation_input_tokens"]) else { return nil }
+            return JournalTokens(input_uncached: input, cache_read: read ?? 0, cache_creation: creation ?? 0, output: output, reasoning: nil)
+        }
+        let chat = format == .chat
+        guard let input = required(usage[chat ? "prompt_tokens" : "input_tokens"]),
+              let output = required(usage[chat ? "completion_tokens" : "output_tokens"]),
+              let inputDetails = details(usage[chat ? "prompt_tokens_details" : "input_tokens_details"]),
+              let outputDetails = details(usage[chat ? "completion_tokens_details" : "output_tokens_details"]),
+              let cached = optional(inputDetails["cached_tokens"]), (cached ?? 0) <= input,
+              let reasoning = optional(outputDetails["reasoning_tokens"]) else { return nil }
         var creation: Int64?
-        if chat, let value = details["cache_write_tokens"] ?? details["cached_creation_tokens"] {
-            guard let count = counter(value) else { return nil }
-            creation = count
+        if chat {
+            guard let write = optional(inputDetails["cache_write_tokens"]),
+                  let fallback = optional(inputDetails["cached_creation_tokens"]) else { return nil }
+            creation = write ?? fallback
         }
-        var reasoning: Int64?
-        if let value = outDetails["reasoning_tokens"] {
-            guard let count = counter(value) else { return nil }
-            reasoning = count
-        }
-        return JournalTokens(input_uncached: input - cached, cache_read: cached, cache_creation: creation, output: output, reasoning: reasoning)
+        return JournalTokens(input_uncached: input - (cached ?? 0), cache_read: cached ?? 0, cache_creation: creation, output: output, reasoning: reasoning)
     }
 
-    /// `.delivered` checks for framing completion; other signals finalize immediately.
-    func finish(_ signal: JournalEnd) {
-        lock.lock()
-        defer { lock.unlock() }
-        guard !finalized else { return }
-        if case .delivered = signal, !completed, !protocolError { return }
-        if case .eof = signal, framing == .closeDelimited, !sse { endBody() }
-        let outcome: String
+    private func outcome(_ signal: JournalEnd) -> String {
+        if malformed || headOverflow { return "upstream_error" }
         switch signal {
-        case .clientDisconnected: outcome = "client_disconnected"
-        case .backendUnreachable: outcome = "backend_unreachable"; status = 502
-        case .upstreamError: outcome = completed ? "complete" : "upstream_error"
-        case .delivered, .eof:
-            outcome = protocolError ? "upstream_error" : completed ? "complete" : "upstream_closed_early"
+        case .clientDisconnected: return "client_disconnected"
+        case .backendUnreachable: return "backend_unreachable"
+        case .upstreamError: return completed ? "complete" : "upstream_error"
+        case .eof: return protocolError ? "upstream_error" : completed ? "complete" : "upstream_closed_early"
         }
+    }
+
+    private func finalize(_ outcome: String) {
         finalized = true
+        if outcome == "backend_unreachable" { status = 502 }
         let ended = clock()
         let latency = Self.milliseconds(started.monotonic, ended.monotonic)
         var seat: JournalSeat?
@@ -358,13 +522,14 @@ final class ResponseObservation {
             seat = boundSeat.flatMap { $0.isValid() ? $0.identity : nil } ?? JournalSeat(auth_index: index, role: "last_tried")
             seat?.role = status.map { (200..<300).contains($0) } == true ? "served" : "last_tried"
         }
+        let unusable = malformed || headOverflow
         emit(JournalRecord(
             execution_id: execution, trace_id: trace,
             started_at: Self.timestamp(started.wall), ended_at: Self.timestamp(ended.wall),
             latency_ms: latency, ttft_ms: firstBody.map { min(latency, Self.milliseconds(started.monotonic, $0)) },
             origin: request.origin, endpoint: request.endpoint, forwarded_endpoint: request.forwardedEndpoint,
-            provider: request.provider, requested_model: request.model, response_model: model,
-            status: status, outcome: outcome, seat: seat, client_session: request.session, tokens: tokens
+            provider: request.provider, requested_model: request.model, response_model: headOverflow ? nil : model,
+            status: status, outcome: outcome, seat: seat, client_session: request.session, tokens: unusable ? nil : tokens
         ))
     }
 

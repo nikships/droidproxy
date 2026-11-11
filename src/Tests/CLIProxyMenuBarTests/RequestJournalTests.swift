@@ -31,7 +31,7 @@ final class RequestJournalTests: XCTestCase {
     func testContractDigests() throws {
         let manifest = try XCTUnwrap(String(data: resource("CONTRACT_SOURCE"), encoding: .utf8))
         XCTAssertTrue(manifest.contains("nikships/droidproxy-omarchy"))
-        XCTAssertTrue(manifest.contains("ce6d3e2"))
+        XCTAssertTrue(manifest.contains("03ebb83f222871d78ca35d1f865a6d14aaf11df7"))
         let lines = manifest.split(separator: "\n").filter { $0.contains("  request-journal-") }
         XCTAssertEqual(lines.count, 4)
         for line in lines {
@@ -56,6 +56,7 @@ final class RequestJournalTests: XCTestCase {
         }
     }
 
+    /// Contract replay: whole, bytewise, and every two-read split (every 509th offset over 64 KiB).
     func testEveryTranscriptAtEverySplitAndBytewise() throws {
         let schema = try JournalSchema(data: resource("request-journal-v1.schema.json"))
         var dumped = Data()
@@ -64,66 +65,97 @@ final class RequestJournalTests: XCTestCase {
             let bytes = Data(try raw.unicodeScalars.map { try XCTUnwrap(UInt8(exactly: $0.value)) })
             let name = try XCTUnwrap(fixture["name"] as? String)
             let expected = try XCTUnwrap(fixture["expect"] as? NSDictionary)
-            for split in 0...bytes.count {
-                let record = try replay(fixture, chunks: [Data(bytes.prefix(split)), Data(bytes.dropFirst(split))])
-                try compare(record, expected: expected, name: "\(name) split \(split)")
-                if split == 0 {
+            let splits = bytes.count > 64 * 1024 ? Array(stride(from: 509, to: bytes.count, by: 509)) : Array(0...bytes.count)
+            var replays: [(String, [Data])] = [("whole", [bytes]), ("bytewise", bytes.map { Data([$0]) })]
+            replays += splits.map { ("split \($0)", [Data(bytes.prefix($0)), Data(bytes.dropFirst($0))]) }
+            var mismatches: [String] = []
+            for (label, reads) in replays {
+                let record = try replay(fixture, reads: reads)
+                if let difference = try difference(record, expected: expected, fixture: fixture) {
+                    mismatches.append("\(label): \(difference)")
+                }
+                if label == "whole" {
                     XCTAssertTrue(schema.valid(try object(record)), name)
                     dumped.append(try JSONEncoder().encode(record))
                     dumped.append(10)
                 }
             }
-            try compare(replay(fixture, chunks: bytes.map { Data([$0]) }), expected: expected, name: "\(name) bytewise")
+            XCTAssertTrue(mismatches.isEmpty, "\(name): \(mismatches.count) of \(replays.count) replays differ; first \(mismatches.first ?? "")")
         }
         if let path = ProcessInfo.processInfo.environment["JOURNAL_RECORDS_PATH"] {
             try dumped.write(to: URL(fileURLWithPath: path))
         }
     }
 
-    private func compare(_ record: JournalRecord, expected: NSDictionary, name: String) throws {
+    private func difference(_ record: JournalRecord, expected: NSDictionary, fixture: [String: Any]) throws -> String? {
         let actual = try object(record).mutableCopy() as! NSMutableDictionary
-        if name.hasPrefix("no_trace_header") {
-            XCTAssertNotNil(record.execution_id.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", options: .regularExpression))
+        if (fixture["nondeterministic_fields"] as? [String])?.contains("execution_id") == true {
+            guard record.execution_id.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", options: .regularExpression) != nil else {
+                return "execution_id \(record.execution_id) is not a UUIDv4"
+            }
             actual["execution_id"] = expected["execution_id"]
         }
-        XCTAssertEqual(actual, expected, name)
+        guard actual != expected else { return nil }
+        let keys = Set(actual.allKeys.compactMap { $0 as? String }).union(expected.allKeys.compactMap { $0 as? String })
+        return keys.sorted().filter { !((actual[$0] as? NSObject)?.isEqual(expected[$0]) ?? (expected[$0] == nil)) }
+            .map { "\($0)=\(actual[$0] ?? "absent") want \(expected[$0] ?? "absent")" }.joined(separator: ", ")
     }
 
-    private func replay(_ fixture: [String: Any], chunks: [Data]) throws -> JournalRecord {
+    /// Each read returns at first_body_elapsed_ms and is written to the client, completing at ended_at;
+    /// the end signal arrives at end_signal_elapsed_ms (default ended_at).
+    private func replay(_ fixture: [String: Any], reads: [Data]) throws -> JournalRecord {
         let req = try XCTUnwrap(fixture["request"] as? [String: Any])
         let path = try XCTUnwrap(req["endpoint"] as? String)
         let headers = try XCTUnwrap(req["headers"] as? [String: String]).map { ($0.key, $0.value) }
-        let body = try XCTUnwrap(req["body"] as? [String: Any])
+        let body = try (req["body_raw"] as? String) ?? String(decoding: JSONSerialization.data(withJSONObject: XCTUnwrap(req["body"])), as: UTF8.self)
         let obs = try XCTUnwrap(fixture["observation"] as? [String: Any])
         let f = ISO8601DateFormatter()
         f.formatOptions = [.withInternetDateTime, .withFractionalSeconds]
         let start = try XCTUnwrap(f.date(from: XCTUnwrap(obs["started_at"] as? String)))
         let end = try XCTUnwrap(f.date(from: XCTUnwrap(obs["ended_at"] as? String)))
-        var instant = JournalInstant(wall: start, monotonic: 1_000_000_000)
+        let writeAt = Int((end.timeIntervalSince(start) * 1000).rounded())
+        let readAt = try XCTUnwrap(obs["first_body_elapsed_ms"] as? Int)
+        let signalAt = obs["end_signal_elapsed_ms"] as? Int ?? writeAt
+        let failsAt = obs["end_signal"] as? String == "client_write_failed" ? try XCTUnwrap(obs["client_write_fails_at"] as? Int) : nil
+        let clock = JournalTestClock(start: start)
         let seats = try XCTUnwrap(fixture["seat_snapshot"] as? [[String: Any]]).map {
             try JSONDecoder().decode(JournalSeat.self, from: JSONSerialization.data(withJSONObject: $0))
         }
-        var result: JournalRecord?
+        var results: [JournalRecord] = []
         let observation = ResponseObservation(
-            request: JournalRequest(endpoint: path, forwardedEndpoint: path, headers: headers, body: body),
-            clock: { instant },
+            request: journalRequest(path, headers: headers, body: body),
+            clock: { clock.now },
             bindSeat: { index in
                 guard let seat = seats.first(where: { $0.auth_index == index }) else { return nil }
                 return JournalSeatBinding(identity: seat, isValid: { true })
-            }, emit: { result = $0 })
-        instant = JournalInstant(wall: start, monotonic: 1_000_000_000 + UInt64(obs["first_body_elapsed_ms"] as? Int ?? 0) * 1_000_000)
-        chunks.forEach(observation.feed)
-        instant = JournalInstant(wall: end, monotonic: 1_100_000_000)
-        observation.finish(.eof)
+            }, emit: { results.append($0) })
+        var offset = 0
+        var failed = false
+        for read in reads where !read.isEmpty {
+            if let failsAt, failsAt >= offset, failsAt < offset + read.count {
+                let accepted = failsAt - offset
+                failWrite(observation, accepted: Data(read.prefix(accepted)), undelivered: Data(read.dropFirst(accepted)),
+                          clock: clock, readAt: readAt, writeAt: writeAt)
+                failed = true
+                break
+            }
+            deliver(observation, read, clock: clock, readAt: readAt, writeAt: writeAt)
+            offset += read.count
+        }
+        if !failed {
+            clock.now = clock.at(signalAt)
+            observation.finish(.eof)
+        }
         observation.finish(.upstreamError)
-        return try XCTUnwrap(result)
+        XCTAssertEqual(results.count, 1)
+        return try XCTUnwrap(results.first)
     }
 
     func testSessionPrecedenceAndStrictGrammar() {
-        let body: [String: Any] = ["prompt_cache_key": "body-session-0001", "metadata": ["user_id": "user_session_legacy-session-0001"]]
-        XCTAssertEqual(JournalRequest.session(headers: [("X-Session-ID", "bad id"), ("x-session-id", "\tHeader-Session:0001 ")], body: body), "Header-Session:0001")
-        XCTAssertEqual(JournalRequest.session(headers: [("X-Session-ID", "bad"), ("X-Claude-Code-Session-Id", "second-header-0001")], body: body), "second-header-0001")
-        XCTAssertEqual(JournalRequest.session(headers: [], body: body), "body-session-0001")
+        let body = #"{"prompt_cache_key":"body-session-0001","metadata":{"user_id":"user_session_legacy-session-0001"}}"#
+        XCTAssertEqual(journalSession([("X-Session-ID", "bad id"), ("x-session-id", "\tHeader-Session:0001 ")], body), "Header-Session:0001")
+        XCTAssertEqual(journalSession([("X-Session-ID", "bad"), ("X-Claude-Code-Session-Id", "second-header-0001")], body), "second-header-0001")
+        XCTAssertEqual(journalSession([], body), "body-session-0001")
         for value in ["", "short", " bad-session-0001", "bad-session-0001 ", "bad-session-0001\n", "å-session-0001", String(repeating: "a", count: 129)] {
             XCTAssertNil(JournalRequest.validSession(value))
         }
@@ -131,10 +163,11 @@ final class RequestJournalTests: XCTestCase {
             #"{"session_id":42}"#, #"{"parent_session_id":"parent-session-0001"}"#,
             #"{bad_session_legacy-session-0001"#, #"{"session_id":" bad-session-0001"}"#
         ] {
-            XCTAssertNil(JournalRequest.session(headers: [], body: ["metadata": ["user_id": user]]))
+            let body = String(decoding: try! JSONSerialization.data(withJSONObject: ["metadata": ["user_id": user]]), as: UTF8.self)
+            XCTAssertNil(journalSession([], body), user)
         }
-        XCTAssertEqual(JournalRequest.session(headers: [], body: ["metadata": ["user_id": "user_session_first-0001_session_last-session-0001"]]), "last-session-0001")
-        XCTAssertNil(JournalRequest.session(headers: [], body: ["request": ["metadata": ["user_id": #"{"session_id":"nested-session-0001"}"#]]]))
+        XCTAssertEqual(journalSession([], #"{"metadata":{"user_id":"user_session_first-0001_session_last-session-0001"}}"#), "last-session-0001")
+        XCTAssertNil(journalSession([], #"{"request":{"metadata":{"user_id":"{\"session_id\":\"nested-session-0001\"}"}}}"#))
     }
 
     func testAdmissionAndProviderTable() {
@@ -168,14 +201,14 @@ final class RequestJournalTests: XCTestCase {
         ] {
             XCTAssertEqual(JournalRequest.provider(model: model, path: path), provider)
         }
-        let native = JournalRequest(endpoint: "/v1beta/models/gemini-3:generateContent?x=1", forwardedEndpoint: "/v1beta/models/gemini-3:generateContent", headers: [], body: [:])
+        let native = journalRequest("/v1beta/models/gemini-3:generateContent?x=1", forwarded: "/v1beta/models/gemini-3:generateContent")
         XCTAssertEqual(native.model, "gemini-3")
-        XCTAssertNil(JournalRequest(endpoint: "/v1beta/interactions", forwardedEndpoint: "/v1beta/interactions", headers: [], body: ["agent": "agent-1"]).model)
+        XCTAssertNil(journalRequest("/v1beta/interactions", body: #"{"agent":"agent-1"}"#).model)
     }
 
     private func sampleRecord() throws -> JournalRecord {
         let fixture = try XCTUnwrap(cases().first)
-        return try replay(fixture, chunks: [Data((fixture["response"] as! String).utf8)])
+        return try replay(fixture, reads: [Data((fixture["response"] as! String).utf8)])
     }
 
     func testWriterModesMonthAndTornTail() throws {
@@ -303,14 +336,103 @@ final class RequestJournalTests: XCTestCase {
         let seats = JournalSeatIndex(directory: directory)
         let index = JournalSeatIndex.index(type: "claude", path: file.path)
         var record: JournalRecord?
-        let observation = ResponseObservation(
-            request: JournalRequest(endpoint: "/v1/messages", forwardedEndpoint: "/v1/messages", headers: [], body: [:]),
-            bindSeat: seats.bind, emit: { record = $0 })
-        observation.feed(Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n".utf8))
+        let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: { record = $0 })
+        deliver(observation, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n".utf8))
         try Data(#"{"type":"claude","email":"replacement@example.invalid"}"#.utf8).write(to: file, options: .atomic)
-        observation.feed(Data("{}".utf8))
-        observation.finish(.delivered)
+        deliver(observation, Data("{}".utf8))
         XCTAssertEqual(record?.seat, JournalSeat(auth_index: index, role: "served"))
+    }
+
+    func testSeatFileRulesBindOnlyOwnedRegularJSONFiles() throws {
+        let auth = directory.appendingPathComponent("auth")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        func write(_ name: String, _ email: String) throws -> String {
+            let url = auth.appendingPathComponent(name)
+            try Data(#"{"type":"claude","email":"\#(email)"}"#.utf8).write(to: url)
+            return JournalSeatIndex.index(type: "claude", path: url.path)
+        }
+        let regular = try write("regular.json", "seat@example.invalid")
+        let upper = try write("upper.JSON", "upper@example.invalid")
+        let backslash = try write(#"back\slash.json"#, "slash@example.invalid")
+        let target = directory.appendingPathComponent("target.json")
+        try Data(#"{"type":"claude","email":"link@example.invalid"}"#.utf8).write(to: target)
+        let link = auth.appendingPathComponent("link.json")
+        try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
+        XCTAssertEqual(mkfifo(auth.appendingPathComponent("fifo.json").path, 0o600), 0)
+        let seats = JournalSeatIndex(directory: auth)
+        seats.refresh()
+        XCTAssertEqual(seats.bind(regular)?.identity,
+                       JournalSeat(auth_index: regular, role: "served", file: "regular.json", email: "seat@example.invalid"))
+        XCTAssertNil(seats.bind(upper))
+        XCTAssertNil(seats.bind(JournalSeatIndex.index(type: "claude", path: link.path)))
+        let slash = try XCTUnwrap(seats.bind(backslash))
+        XCTAssertNil(slash.identity.file)
+        XCTAssertEqual(slash.identity.email, "slash@example.invalid")
+        var record = try sampleRecord()
+        record.seat = slash.identity
+        XCTAssertTrue(try JournalSchema.bundled().valid(object(record)))
+    }
+
+    func testIdentityReadsOnlyListedMembersWithClaudeOrgPrecedence() throws {
+        let auth = directory.appendingPathComponent("auth")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        let file = auth.appendingPathComponent("seat.json")
+        let cases: [(String, String?, String?, String?)] = [
+            (#"{"type":"claude","organization_uuid":"org-a","organization":{"uuid":"org-b"}}"#, "org-a", nil, nil),
+            (#"{"type":"claude","organization_uuid":"","organization":{"uuid":"org-b"}}"#, "org-b", nil, nil),
+            (#"{"type":"claude","organization_uuid":7,"organization":{"uuid":"org-b"}}"#, "org-b", nil, nil),
+            (#"{"type":"claude","organization":{"organization_uuid":"org-c"},"account_id":"acct"}"#, nil, nil, nil),
+            (#"{"type":"claude","email":"first@example.invalid","email":"last@example.invalid","organization":{"uuid":"org-b","uuid":"org-d"}}"#, "org-d", "last@example.invalid", nil),
+            (#"{"type":"claude","email":" padded@example.invalid ","access_token":{"nested":[1,2,{"x":"y"}]}}"#, nil, " padded@example.invalid ", nil),
+            (#"{"type":"codex","account_id":"acct-top","tokens":{"account_id":"acct-nested"},"organization_uuid":"org"}"#, nil, nil, "acct-top"),
+            (#"{"type":"codex","tokens":{"account_id":"acct-nested"}}"#, nil, nil, nil)
+        ]
+        for (json, org, email, account) in cases {
+            try Data(json.utf8).write(to: file, options: .atomic)
+            let type = json.contains(#""type":"codex""#) ? "codex" : "claude"
+            let identity = try XCTUnwrap(JournalSeatIndex(directory: auth).bind(JournalSeatIndex.index(type: type, path: file.path))?.identity, json)
+            XCTAssertEqual(identity.org, org, json)
+            XCTAssertEqual(identity.email, email, json)
+            XCTAssertEqual(identity.account_id, account, json)
+        }
+        try Data(#"{"type":"claude","email":"x@example.invalid",}"#.utf8).write(to: file, options: .atomic)
+        XCTAssertNil(JournalSeatIndex(directory: auth).bind(JournalSeatIndex.index(type: "claude", path: file.path)))
+    }
+
+    private func lockedJournal() throws -> (JournalWriter, JournalRecord, URL, Int32) {
+        let journal = directory.appendingPathComponent("journal")
+        let writer = JournalWriter(directory: journal)
+        let record = try sampleRecord()
+        try writer.append(record)
+        let file = journal.appendingPathComponent("requests-2026-11.jsonl")
+        let fd = open(file.path, O_RDWR)
+        XCTAssertGreaterThanOrEqual(fd, 0)
+        XCTAssertEqual(flock(fd, LOCK_EX), 0)
+        return (writer, record, file, fd)
+    }
+
+    func testLockWaitIsBoundedAndCountsTheRecordAsDropped() throws {
+        let (writer, record, file, fd) = try lockedJournal()
+        defer { flock(fd, LOCK_UN); close(fd) }
+        writer.enqueue(record)
+        let gaveUp = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in writer.counters.drops == 1 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [gaveUp], timeout: 5), .completed)
+        XCTAssertEqual(writer.counters.errors, 0)
+        XCTAssertEqual(try String(contentsOf: file).split(separator: "\n").count, 1)
+    }
+
+    func testShutdownFlushIsBoundedAndCountsWhatRemains() throws {
+        let (writer, record, file, fd) = try lockedJournal()
+        defer { flock(fd, LOCK_UN); close(fd) }
+        for _ in 0..<3 { writer.enqueue(record) }
+        let returned = DispatchSemaphore(value: 0)
+        let started = Date()
+        DispatchQueue.global().async { writer.flush(); returned.signal() }
+        XCTAssertEqual(returned.wait(timeout: .now() + 5), .success)
+        XCTAssertLessThan(Date().timeIntervalSince(started), 4)
+        let counted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in writer.counters.drops == 3 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [counted], timeout: 5), .completed)
+        XCTAssertEqual(try String(contentsOf: file).split(separator: "\n").count, 1)
     }
 }
 

@@ -469,6 +469,7 @@ class AppDelegate: NSObject, NSApplicationDelegate, NSWindowDelegate, UNUserNoti
         stopServersIfRunning()
         copilotGateway.stop()
         ControlDiscovery.remove()
+        if AppPreferences.requestJournal { RequestJournal.shared.flush() }
     }
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
