@@ -1,0 +1,1374 @@
+{
+  "v": 1,
+  "note": "Raw bytes are Latin-1 JSON strings; HTTP CRLF and SSE LF retained. Each expect is a full schema-valid record. Context times and seats are synthetic. Only execution_id is nondeterministic when declared. Replay every split point and bytewise.",
+  "redactions": {
+    "trace_id": "20261111100000-<auth_index>-019a7140-0000-7000-8000-000000000001",
+    "claude_auth_index": "0123456789abcdef",
+    "codex_auth_index": "fedcba9876543210",
+    "email": "seat@example.invalid",
+    "org": "org-redacted",
+    "account_id": "account-redacted",
+    "safety_identifier": "user-000000000000000000000000"
+  },
+  "real_requests": {
+    "count": 6,
+    "models": {
+      "claude-haiku-4-5-20251001": 2,
+      "gpt-6-luna": 4
+    },
+    "observed_input_tokens": 832,
+    "observed_output_tokens": 28
+  },
+  "cases": [
+    {
+      "name": "anthropic_sse",
+      "source": {
+        "kind": "capture",
+        "via": "127.0.0.1:8317 -> CLIProxyAPI",
+        "date": "2026-11-11",
+        "note": "Six tiny real requests total; redacted trace/account pseudonym only. Synthetic seat/clock context."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:26 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n23f\r\nevent: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22aMu3LajQhrNbumdu\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"container\":null,\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":null}    }\n\n\r\n81\r\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}            }\n\n\r\n24\r\nevent: ping\ndata: {\"type\": \"ping\"}\n\n\r\n82\r\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"OK\"}             }\n\n\r\n53\r\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0          }\n\n\r\n136\r\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"container\":null},\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"output_tokens\":4},\"context_management\":{\"applied_edits\":[]}               }\n\n\r\n37\r\nevent: message_stop\ndata: {\"type\":\"message_stop\"    }\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      }
+    },
+    {
+      "name": "responses_sse",
+      "source": {
+        "kind": "capture",
+        "via": "127.0.0.1:8317 -> CLIProxyAPI",
+        "date": "2026-11-11",
+        "note": "Six tiny real requests total; redacted trace/account pseudonym only. Synthetic seat/clock context."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/responses",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna",
+          "prompt_cache_key": "session-fixture-0001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:27 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n59f\r\nevent: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":0}\n\n\r\n5a7\r\nevent: response.in_progress\ndata: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":1}\n\n\r\n11a\r\nevent: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":0,\"sequence_number\":2}\n\n\r\n112\r\nevent: response.content_part.added\ndata: {\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"output_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"\"},\"sequence_number\":3}\n\n\r\n103\r\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"OK\",\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"logprobs\":[],\"obfuscation\":\"6oavZi6xnjw7UN\",\"output_index\":0,\"sequence_number\":4}\n\n\r\ne1\r\nevent: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":6,\"text\":\"OK\"}\n\n\r\n112\r\nevent: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"output_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"},\"sequence_number\":7}\n\n\r\n157\r\nevent: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"}],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":0,\"sequence_number\":8}\n\n\r\n972\r\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"completed\",\"access_programs\":null,\"background\":false,\"completed_at\":1794394527,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"}],\"phase\":\"final_answer\",\"role\":\"assistant\"}],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"default\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":{\"attribution\":{\"items\":{\"msg_0b77d401fdf36b74016af4499f3af487d28dfb8adc4c9be9ec\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":7,\"output_tokens\":0}],\"input_tokens\":7,\"output_tokens\":0},\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":2,\"output_tokens\":5}],\"input_tokens\":2,\"output_tokens\":5}},\"request_fields\":{\"tools\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":296,\"output_tokens\":0}}},\"input_tokens\":305,\"input_tokens_details\":{\"cache_write_tokens\":0,\"cached_tokens\":0},\"output_tokens\":5,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":310},\"user\":null,\"metadata\":{}},\"sequence_number\":9}\r\n2\r\n\n\n\r\n1\r\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/responses",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": "session-fixture-0001",
+        "tokens": {
+          "input_uncached": 305,
+          "cache_read": 0,
+          "cache_creation": null,
+          "output": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "name": "chat_sse_with_usage",
+      "source": {
+        "kind": "capture",
+        "via": "127.0.0.1:8317 -> CLIProxyAPI",
+        "date": "2026-11-11",
+        "note": "Six tiny real requests total; redacted trace/account pseudonym only. Synthetic seat/clock context."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/chat/completions",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:29 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n11e\r\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":null,\"native_finish_reason\":null}],\"service_tier\":\"auto\"}\n\n\r\n1d9\r\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\"}],\"service_tier\":\"default\",\"usage\":{\"completion_tokens\":5,\"total_tokens\":14,\"prompt_tokens\":9,\"prompt_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0,\"cached_creation_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\n\r\ne\r\ndata: [DONE]\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/chat/completions",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 9,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "name": "chat_sse_usage_despite_no_include_usage",
+      "source": {
+        "kind": "capture",
+        "via": "127.0.0.1:8317 -> CLIProxyAPI",
+        "date": "2026-11-11",
+        "note": "Six tiny real requests total; redacted trace/account pseudonym only. Synthetic seat/clock context."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/chat/completions",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:30 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n11e\r\ndata: {\"id\":\"resp_01c391a2335b9ba5016af449a193cc87d2bb7450e82d08e49c\",\"object\":\"chat.completion.chunk\",\"created\":1794394529,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":null,\"native_finish_reason\":null}],\"service_tier\":\"auto\"}\n\n\r\n1d9\r\ndata: {\"id\":\"resp_01c391a2335b9ba5016af449a193cc87d2bb7450e82d08e49c\",\"object\":\"chat.completion.chunk\",\"created\":1794394529,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\"}],\"service_tier\":\"default\",\"usage\":{\"completion_tokens\":5,\"total_tokens\":14,\"prompt_tokens\":9,\"prompt_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0,\"cached_creation_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\n\r\ne\r\ndata: [DONE]\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/chat/completions",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 9,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "name": "anthropic_json",
+      "source": {
+        "kind": "capture",
+        "via": "127.0.0.1:8317 -> CLIProxyAPI",
+        "date": "2026-11-11",
+        "note": "Six tiny real requests total; redacted trace/account pseudonym only. Synthetic seat/clock context."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nContent-Length: 556\r\nConnection: close\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22uMePLWsBduiY78D9\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":{\"applied_edits\":[]}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      }
+    },
+    {
+      "name": "responses_json",
+      "source": {
+        "kind": "capture",
+        "via": "127.0.0.1:8317 -> CLIProxyAPI",
+        "date": "2026-11-11",
+        "note": "Six tiny real requests total; redacted trace/account pseudonym only. Synthetic seat/clock context."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/responses",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:32 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n925\r\n{\"id\":\"resp_05a8fbb92bed5bdb016af449a3da2087d286e2c00d1d4af804\",\"object\":\"response\",\"created_at\":1794394531,\"status\":\"completed\",\"access_programs\":null,\"background\":false,\"completed_at\":1794394532,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[{\"id\":\"msg_05a8fbb92bed5bdb016af449a4769487d28bc39f28b3bbb9d5\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"}],\"phase\":\"final_answer\",\"role\":\"assistant\"}],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"b2aeab1a-0ac4-5e16-b4ab-b15c1b087286\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"default\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":{\"attribution\":{\"items\":{\"msg_05a8fbb92bed5bdb016af449a3efc487d292df5bccd76603c3\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":7,\"output_tokens\":0}],\"input_tokens\":7,\"output_tokens\":0},\"msg_05a8fbb92bed5bdb016af449a4769487d28bc39f28b3bbb9d5\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":2,\"output_tokens\":5}],\"input_tokens\":2,\"output_tokens\":5}},\"request_fields\":{\"tools\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":296,\"output_tokens\":0}}},\"input_tokens\":305,\"input_tokens_details\":{\"cache_write_tokens\":0,\"cached_tokens\":0},\"output_tokens\":5,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":310},\"user\":null,\"metadata\":{}}\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/responses",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 305,
+          "cache_read": 0,
+          "cache_creation": null,
+          "output": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "name": "chat_sse_without_usage",
+      "source": {
+        "kind": "derived",
+        "from": "chat_sse_with_usage",
+        "changes": "Remove usage only; recompute chunk framing."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/chat/completions",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:29 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n230\r\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":null,\"native_finish_reason\":null}],\"service_tier\":\"auto\"}\n\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\"}],\"service_tier\":\"default\"}\n\ndata: [DONE]\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/chat/completions",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
+    },
+    {
+      "name": "responses_sse_incomplete",
+      "source": {
+        "kind": "derived",
+        "from": "responses_sse",
+        "changes": "Replace terminal event/status with response.incomplete and max_output_tokens detail; usage unchanged."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/responses",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna",
+          "prompt_cache_key": "session-fixture-0001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:27 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n1b87\r\nevent: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":0}\n\nevent: response.in_progress\ndata: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":1}\n\nevent: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":0,\"sequence_number\":2}\n\nevent: response.content_part.added\ndata: {\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"output_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"\"},\"sequence_number\":3}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"OK\",\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"logprobs\":[],\"obfuscation\":\"6oavZi6xnjw7UN\",\"output_index\":0,\"sequence_number\":4}\n\nevent: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":6,\"text\":\"OK\"}\n\nevent: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"output_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"},\"sequence_number\":7}\n\nevent: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"incomplete\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"}],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":0,\"sequence_number\":8}\n\nevent: response.incomplete\ndata: {\"type\":\"response.incomplete\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"incomplete\",\"access_programs\":null,\"background\":false,\"completed_at\":1794394527,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":{\"reason\":\"max_output_tokens\"},\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"incomplete\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"}],\"phase\":\"final_answer\",\"role\":\"assistant\"}],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"default\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":{\"attribution\":{\"items\":{\"msg_0b77d401fdf36b74016af4499f3af487d28dfb8adc4c9be9ec\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":7,\"output_tokens\":0}],\"input_tokens\":7,\"output_tokens\":0},\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":2,\"output_tokens\":5}],\"input_tokens\":2,\"output_tokens\":5}},\"request_fields\":{\"tools\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":296,\"output_tokens\":0}}},\"input_tokens\":305,\"input_tokens_details\":{\"cache_write_tokens\":0,\"cached_tokens\":0},\"output_tokens\":5,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":310},\"user\":null,\"metadata\":{}},\"sequence_number\":9}\n\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/responses",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": "session-fixture-0001",
+        "tokens": {
+          "input_uncached": 305,
+          "cache_read": 0,
+          "cache_creation": null,
+          "output": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "name": "responses_sse_cached_input",
+      "source": {
+        "kind": "derived",
+        "from": "responses_sse",
+        "changes": "Terminal input_tokens 305 includes cached_tokens 256: uncached 49; reframe across SSE/JSON boundaries. Attribution extension is not an accounting input."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/responses",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna",
+          "prompt_cache_key": "session-fixture-0001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:27 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n11\r\nevent: response.c\r\n1\r\nr\r\n35\r\neated\ndata: {\"type\":\"response.created\",\"response\":{\"i\r\n1aef\r\nd\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":0}\n\nevent: response.in_progress\ndata: {\"type\":\"response.in_progress\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"in_progress\",\"access_programs\":null,\"background\":false,\"completed_at\":null,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"auto\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":null,\"user\":null,\"metadata\":{}},\"sequence_number\":1}\n\nevent: response.output_item.added\ndata: {\"type\":\"response.output_item.added\",\"item\":{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"in_progress\",\"content\":[],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":0,\"sequence_number\":2}\n\nevent: response.content_part.added\ndata: {\"type\":\"response.content_part.added\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"output_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"\"},\"sequence_number\":3}\n\nevent: response.output_text.delta\ndata: {\"type\":\"response.output_text.delta\",\"content_index\":0,\"delta\":\"OK\",\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"logprobs\":[],\"obfuscation\":\"6oavZi6xnjw7UN\",\"output_index\":0,\"sequence_number\":4}\n\nevent: response.output_text.done\ndata: {\"type\":\"response.output_text.done\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"logprobs\":[],\"output_index\":0,\"sequence_number\":6,\"text\":\"OK\"}\n\nevent: response.content_part.done\ndata: {\"type\":\"response.content_part.done\",\"content_index\":0,\"item_id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"output_index\":0,\"part\":{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"},\"sequence_number\":7}\n\nevent: response.output_item.done\ndata: {\"type\":\"response.output_item.done\",\"item\":{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"}],\"phase\":\"final_answer\",\"role\":\"assistant\"},\"output_index\":0,\"sequence_number\":8}\n\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_0b77d401fdf36b74016af4499f27f087d298f2c3b02c7235e6\",\"object\":\"response\",\"created_at\":1794394527,\"status\":\"completed\",\"access_programs\":null,\"background\":false,\"completed_at\":1794394527,\"error\":null,\"frequency_penalty\":0.0,\"image\":{\"context_compression\":\"disabled\"},\"incomplete_details\":null,\"instructions\":null,\"max_output_tokens\":32,\"max_tool_calls\":null,\"model\":\"gpt-6-luna\",\"moderation\":null,\"output\":[{\"id\":\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\",\"type\":\"message\",\"status\":\"completed\",\"content\":[{\"type\":\"output_text\",\"annotations\":[],\"logprobs\":[],\"text\":\"OK\"}],\"phase\":\"final_answer\",\"role\":\"assistant\"}],\"parallel_tool_calls\":true,\"presence_penalty\":0.0,\"previous_response_id\":null,\"prompt_cache_key\":\"session-fixture-0001\",\"prompt_cache_retention\":\"24h\",\"reasoning\":{\"context\":\"all_turns\",\"effort\":\"medium\",\"mode\":\"standard\",\"summary\":null},\"safety_identifier\":\"user-000000000000000000000000\",\"service_tier\":\"default\",\"store\":false,\"temperature\":1.0,\"text\":{\"format\":{\"type\":\"text\"},\"verbosity\":\"medium\"},\"tool_choice\":\"auto\",\"tool_usage\":{\"image_gen\":{\"input_tokens\":0,\"input_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"output_tokens\":0,\"output_tokens_details\":{\"image_tokens\":0,\"text_tokens\":0},\"total_tokens\":0},\"web_search\":{\"num_requests\":0}},\"tools\":[{\"type\":\"image_generation\",\"background\":\"auto\",\"model\":\"gpt-image-2-codex\",\"moderation\":\"auto\",\"n\":1,\"output_compression\":100,\"output_format\":\"png\",\"quality\":\"auto\",\"size\":\"auto\"}],\"top_logprobs\":0,\"top_p\":0.98,\"truncation\":\"disabled\",\"usage\":{\"attribution\":{\"items\":{\"msg_0b77d401fdf36b74016af4499f3af487d28dfb8adc4c9be9ec\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":7,\"output_tokens\":0}],\"input_tokens\":7,\"output_tokens\":0},\"msg_0b77d401fdf36b74016af4499faacc87d28e70c9c9536f1104\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"content\":[{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":2,\"output_tokens\":5}],\"input_tokens\":2,\"output_tokens\":5}},\"request_fields\":{\"tools\":{\"cache_write_tokens\":0,\"cached_tokens\":0,\"input_tokens\":296,\"output_tokens\":0}}},\"input_tokens\":305,\"input_tokens_details\":{\"cache_write_tokens\":0,\"cached_tokens\":256},\"output_tokens\":5,\"output_tokens_details\":{\"reasoning_tokens\":0},\"total_tokens\":310},\"user\":null,\"metadata\":{}},\"sequence_number\":9}\n\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/responses",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": "session-fixture-0001",
+        "tokens": {
+          "input_uncached": 49,
+          "cache_read": 256,
+          "cache_creation": null,
+          "output": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "name": "anthropic_sse_merge_usage",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_sse",
+        "changes": "Keep input/cache only at message_start and final output only at message_delta; correct tiny chunk boundaries."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:26 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n1\r\ne\r\n7\r\nvent: m\r\n53\r\nessage_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-haiku-4-5-202\r\n2\r\n51\r\n13\r\n001\",\"id\":\"msg_011C\r\n399\r\ngw22aMu3LajQhrNbumdu\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"container\":null,\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":1200,\"cache_read_input_tokens\":48000,\"cache_creation_input_tokens\":310,\"output_tokens\":1},\"diagnostics\":null,\"context_management\":null}}\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}}\n\nevent: ping\ndata: {\"type\":\"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"OK\"}}\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0}\n\nevent: message_delta\ndata: {\"type\":\"message_delta\",\"delta\":{\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"container\":null},\"usage\":{\"output_tokens\":850},\"context_management\":{\"applied_edits\":[]}}\n\nevent: message_stop\ndata: {\"type\":\"message_stop\"}\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 1200,
+          "cache_read": 48000,
+          "cache_creation": 310,
+          "output": 850,
+          "reasoning": null
+        }
+      }
+    },
+    {
+      "name": "anthropic_sse_truncated",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_sse",
+        "changes": "EOF before message_delta/message_stop and before zero chunk; retains start model but no terminal usage."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:26 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n3b9\r\nevent: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22aMu3LajQhrNbumdu\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[],\"container\":null,\"stop_reason\":null,\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":null}    }\n\nevent: content_block_start\ndata: {\"type\":\"content_block_start\",\"index\":0,\"content_block\":{\"type\":\"text\",\"text\":\"\"}            }\n\nevent: ping\ndata: {\"type\": \"ping\"}\n\nevent: content_block_delta\ndata: {\"type\":\"content_block_delta\",\"index\":0,\"delta\":{\"type\":\"text_delta\",\"text\":\"OK\"}             }\n\nevent: content_block_stop\ndata: {\"type\":\"content_block_stop\",\"index\":0          }\n\n\r\n",
+      "body_read_error": true,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "upstream_closed_early",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
+    },
+    {
+      "name": "rate_limited_last_tried",
+      "source": {
+        "kind": "derived",
+        "from": "none",
+        "changes": "Synthetic 429 JSON error response. Not a real capture."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "last_tried",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 429 Too Many Requests\r\nContent-Type: application/json\r\nX-CPA-TRACE-ID: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nConnection: close\r\nContent-Length: 74\r\n\r\n{\"type\":\"error\",\"error\":{\"type\":\"rate_limit_error\",\"message\":\"slow down\"}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": null,
+        "status": 429,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "last_tried",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
+    },
+    {
+      "name": "no_trace_header",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "Remove trace header; expected execution UUID is representative, not deterministic."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nConnection: close\r\nContent-Length: 556\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22uMePLWsBduiY78D9\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":{\"applied_edits\":[]}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "11111111-2222-4333-8444-555555555555",
+        "trace_id": null,
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": null,
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      },
+      "nondeterministic_fields": [
+        "execution_id"
+      ]
+    },
+    {
+      "name": "gzip_body_unknown_usage",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "Gzip-compressed captured JSON; the observer does not decode it, so usage stays null."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nConnection: close\r\nContent-Encoding: gzip\r\nContent-Length: 326\r\n\r\n\u001f\u008b\b\u0000\u0000\u0000\u0000\u0000\u0002\u00ffu\u0091\u00c1N\u00c30\f\u0086\u00df%\u00e7Uj\u00abU@\u008f\u00c0\r\u0010\u00dc\u0010\u009a\u00a6(4\u00a6\u008d\u0096:%q\u00c6P\u00d5w\u00c7)\u00146\u0010\u00a7V\u00ff\u00f7\u00c5\u0089\u00edQ\u00f4N\u0083\u0015\u00b5h\u00ac\u008a\u001a\u00b2N\u0099]\u00cc\u00d6Y\u0095\u0095yY\u0015y^\u0088\u00950\u009a\u0085>\u00b42/\u008a\u00ab\u00f6\u00ad,\u00e3\u001d<\u00dc>\u0086K\u001d\u00cd\u00d3\u00d9\u00f9\u00f5\u0005;\u00f4>@\u00b2 \u0004\u00d5\u0002\u0007\u00de\u00d9\u0014\u00a8\u0010L \u0085\u00c4Q\u00e3\u0090\u0080\u00ff\u00ea\u00cd\u00b8\u00f8\u0004\u0087D\u00e6O-\u00eeo\u00c4\u00b4\u00fd\u00f4\u0094A\u00f0\u00a2\u00c6h\u00edJ\u0004r\u0083\u00f4\u00a0\u0082C\u00b6\u0000\u00b5\u00a4\u00e8Q|\u0081\u0000\u00af\u0011\u00b0\u0081\u0013[\u0003\u0097\u00b0a\u00c9\u00e2\u00fc\u00aaz\u0014\u0006\u0087H\u0092\u00dc\u000e\u0090a\u0091\u0097|\u009dj:\u0090\r\u00d7'\u00e3P\u009e\u001a\u00f9\u00c2\u0019\u00eb\u00ff\u00d8r6]\u0000C\u0007=xee\u00d5\u00ff\u00f5\u007fh\u00d1\u00fd\u00a6\u00d3J\u00b8H\u00c7\u00d1\u009a\u009b\u0001\u00bf7\rH2i\u001c\"\u008dR+\u00af\u00d3V\u00f0\u0005|\u00ea[\u00b6\u00e0\u0018\u00a1#\u00a9\u00f6\u00dc\u00b4z\u00b6i\u0001a\u0000\u00d0\u00c7G\u00b8\u00be6\u00aaE\u0017\u00c84\u00df\u0093\u0099\u0097r \u00d9+\u00e4\u0011\u00f5\u00f3~F\u00a1\u0086\u00c1\u001a\u00d0\u0012\u00b4!V7\u00dbi\u00fa\u0000\u0098Vt\t,\u0002\u0000\u0000",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": null,
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
+    },
+    {
+      "name": "chat_sse_empty_choices_usage",
+      "source": {
+        "kind": "derived",
+        "from": "chat_sse_with_usage",
+        "changes": "Move final usage to its own empty-choices chunk before DONE."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/chat/completions",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:29 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n360\r\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":null,\"native_finish_reason\":null}],\"service_tier\":\"auto\"}\n\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\"}],\"service_tier\":\"default\"}\n\ndata: {\"id\":\"fixture\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-6-luna\",\"choices\":[],\"usage\":{\"completion_tokens\":5,\"total_tokens\":14,\"prompt_tokens\":9,\"prompt_tokens_details\":{\"cached_tokens\":0,\"cache_write_tokens\":0,\"cached_creation_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/chat/completions",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 9,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 5,
+          "reasoning": 0
+        }
+      }
+    },
+    {
+      "name": "session_metadata_json",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "Request metadata.user_id is a JSON-encoded string; its session_id is the only session candidate."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001",
+          "metadata": {
+            "user_id": "{\"session_id\":\"json-session-0001\"}"
+          }
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nContent-Length: 556\r\nConnection: close\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22uMePLWsBduiY78D9\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":{\"applied_edits\":[]}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": "json-session-0001",
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      }
+    },
+    {
+      "name": "session_metadata_json_loses_to_header",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "Same JSON metadata, plus an X-Session-ID header; the header has higher precedence."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {
+          "X-Session-ID": "header-session-0001"
+        },
+        "body": {
+          "model": "claude-haiku-4-5-20251001",
+          "metadata": {
+            "user_id": "{\"session_id\":\"json-session-0001\"}"
+          }
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nContent-Length: 556\r\nConnection: close\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22uMePLWsBduiY78D9\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":{\"applied_edits\":[]}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": "header-session-0001",
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      }
+    },
+    {
+      "name": "session_metadata_json_malformed",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "metadata.user_id starts with { but is not valid JSON (unterminated); no candidate, and it is not read as a legacy suffix."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001",
+          "metadata": {
+            "user_id": "{\"session_id\":\"json-session-0001\""
+          }
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nContent-Length: 556\r\nConnection: close\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22uMePLWsBduiY78D9\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":{\"applied_edits\":[]}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      }
+    },
+    {
+      "name": "session_metadata_json_bad_grammar",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "JSON metadata session_id contains spaces and fails the session grammar; no candidate."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001",
+          "metadata": {
+            "user_id": "{\"session_id\":\"bad session id\"}"
+          }
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nContent-Length: 556\r\nConnection: close\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22uMePLWsBduiY78D9\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":{\"applied_edits\":[]}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      }
+    },
+    {
+      "name": "chat_sse_cached_exceeds_prompt",
+      "source": {
+        "kind": "derived",
+        "from": "chat_sse_empty_choices_usage",
+        "changes": "Final usage reports prompt_tokens 3 with cached_tokens 9. OpenAI prompt totals include cached tokens, so cached > prompt is malformed and tokens is null."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/chat/completions",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nCache-Control: no-cache\r\nContent-Type: text/event-stream\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:29 GMT\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\n35f\r\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{\"role\":\"assistant\",\"content\":\"OK\"},\"finish_reason\":null,\"native_finish_reason\":null}],\"service_tier\":\"auto\"}\n\ndata: {\"id\":\"resp_024028c611c0b988016af449a05da087d2a2e8387df6d81b98\",\"object\":\"chat.completion.chunk\",\"created\":1794394528,\"model\":\"gpt-6-luna\",\"choices\":[{\"index\":0,\"delta\":{},\"finish_reason\":\"stop\",\"native_finish_reason\":\"stop\"}],\"service_tier\":\"default\"}\n\ndata: {\"id\":\"fixture\",\"object\":\"chat.completion.chunk\",\"model\":\"gpt-6-luna\",\"choices\":[],\"usage\":{\"completion_tokens\":5,\"total_tokens\":8,\"prompt_tokens\":3,\"prompt_tokens_details\":{\"cached_tokens\":9,\"cache_write_tokens\":0,\"cached_creation_tokens\":0},\"completion_tokens_details\":{\"reasoning_tokens\":0}}}\n\ndata: [DONE]\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/chat/completions",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
+    },
+    {
+      "name": "session_metadata_legacy_suffix",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "metadata.user_id is the legacy string form; the suffix after the final _session_ is the session candidate."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001",
+          "metadata": {
+            "user_id": "user_123_acc__session_01a06a06-e830-7da9-a866-98470a94389c"
+          }
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nAccess-Control-Allow-Headers: Authorization, Content-Type, X-Api-Key, X-Goog-Api-Key, Anthropic-Version, Anthropic-Beta\r\nAccess-Control-Allow-Methods: GET, POST, PUT, PATCH, DELETE, OPTIONS\r\nAccess-Control-Allow-Origin: *\r\nAccess-Control-Expose-Headers: X-CPA-TRACE-ID, X-CPA-VERSION, X-CPA-COMMIT, X-CPA-BUILD-DATE, X-CPA-SUPPORT-PLUGIN, X-CPA-HOME-VERSION, X-CPA-HOME-BUILD-DATE, X-SERVER-VERSION, X-SERVER-BUILD-DATE, Location, Retry-After, ETag, X-Request-Id, OpenAI-Request-Id\r\nContent-Type: application/json\r\nVary: Accept-Encoding\r\nX-Cpa-Trace-Id: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nDate: Wed, 11 Nov 2026 10:55:31 GMT\r\nContent-Length: 556\r\nConnection: close\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_011Cgw22uMePLWsBduiY78D9\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"container\":null,\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"stop_details\":null,\"usage\":{\"input_tokens\":102,\"cache_creation_input_tokens\":0,\"cache_read_input_tokens\":0,\"cache_creation\":{\"ephemeral_5m_input_tokens\":0,\"ephemeral_1h_input_tokens\":0},\"output_tokens\":4,\"service_tier\":\"standard\",\"inference_geo\":\"not_available\",\"speed\":\"standard\"},\"diagnostics\":null,\"context_management\":{\"applied_edits\":[]}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": "claude-haiku-4-5-20251001",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": "01a06a06-e830-7da9-a866-98470a94389c",
+        "tokens": {
+          "input_uncached": 102,
+          "cache_read": 0,
+          "cache_creation": 0,
+          "output": 4,
+          "reasoning": null
+        }
+      }
+    }
+  ]
+}
