@@ -3,7 +3,9 @@ import SwiftUI
 
 /// Ring gauges for the "OAuth Quota Usage" settings section, flowing together
 /// with no per-account boxes; a header only appears above a provider's rings
-/// when it has several accounts to tell apart.
+/// when it has several accounts to tell apart. Banked-reset actions sit in
+/// full-width rows below the rings, so an account with credits never changes
+/// the gauge flow's shape.
 struct OAuthUsageDashboard: View {
     let accounts: [OAuthAccountUsage]
     /// Called after a gauge copies its usage `curl`, so the host window can confirm it.
@@ -20,14 +22,22 @@ struct OAuthUsageDashboard: View {
                     .font(.caption)
                     .foregroundColor(.secondary)
             } else {
-                FlowRowLayout(horizontalSpacing: 12, verticalSpacing: 8) {
-                    ForEach(accounts) { account in
-                        OAuthUsageAccountGroup(
+                VStack(alignment: .leading, spacing: 10) {
+                    FlowRowLayout(horizontalSpacing: 12, verticalSpacing: 8) {
+                        ForEach(accounts) { account in
+                            OAuthUsageAccountGroup(
+                                account: account,
+                                showHeader: showHeader(for: account.provider),
+                                onCopiedCurl: { onCopiedCurl(account) }
+                            )
+                        }
+                    }
+                    ForEach(accountsWithBankedResets) { account in
+                        BankedResetRow(
                             account: account,
-                            showHeader: showHeader(for: account.provider),
-                            onCopiedCurl: { onCopiedCurl(account) },
-                            onRedeemReset: { onRedeemReset(account) },
-                            isRedeeming: redeemingAccountID == account.id
+                            showEmail: showHeader(for: account.provider),
+                            isRedeeming: redeemingAccountID == account.id,
+                            onRedeemReset: { onRedeemReset(account) }
                         )
                     }
                 }
@@ -40,6 +50,84 @@ struct OAuthUsageDashboard: View {
     /// accounts; a lone account is identified by its ring logos alone.
     private func showHeader(for provider: ServiceType) -> Bool {
         accounts.filter { $0.provider == provider }.count > 1
+    }
+
+    private var accountsWithBankedResets: [OAuthAccountUsage] {
+        accounts.filter {
+            ($0.bankedResets?.availableCount ?? 0) > 0 && !$0.isLoading && $0.error == nil
+        }
+    }
+}
+
+/// One account's banked-reset balance and spend action, full width below
+/// the rings. Spending is a deliberate two-step action: the button only
+/// opens a confirmation whose default is Cancel.
+struct BankedResetRow: View {
+    let account: OAuthAccountUsage
+    let showEmail: Bool
+    var isRedeeming = false
+    var onRedeemReset: () -> Void = {}
+
+    @State private var confirmingRedeem = false
+
+    /// A sample restored from the on-disk cache after a restart carries
+    /// the balance but not the never-persisted credit state; the balance
+    /// still shows, but spending waits for the next live read.
+    private var hasCreditState: Bool {
+        switch account.provider {
+        case .codex: return !account.codexResetCredits.isEmpty
+        case .claude: return account.claudeResetState != nil
+        default: return false
+        }
+    }
+
+    private var ownerLabel: String {
+        showEmail ? "\(account.provider.displayName) (\(account.email))" : account.provider.displayName
+    }
+
+    private var balanceLabel: String {
+        guard let resets = account.bankedResets else { return "" }
+        var label = resets.availableCount == 1 ? "1 banked reset" : "\(resets.availableCount) banked resets"
+        if let expires = resets.nextExpiresAt {
+            label += " · next expires \(expires.formatted(date: .abbreviated, time: .omitted))"
+        }
+        return label
+    }
+
+    var body: some View {
+        HStack(spacing: 6) {
+            Image(systemName: "arrow.counterclockwise.circle")
+                .font(.system(size: 10))
+                .foregroundColor(.secondary)
+            (Text(ownerLabel).fontWeight(.semibold) + Text(" · \(balanceLabel)"))
+                .font(.caption)
+                .foregroundColor(.secondary)
+                .lineLimit(1)
+                .truncationMode(.middle)
+            Spacer()
+            Button(isRedeeming ? "Redeeming…" : "Use reset") {
+                confirmingRedeem = true
+            }
+            .controlSize(.mini)
+            .disabled(isRedeeming || !hasCreditState)
+            .help(hasCreditState ? "Spend one banked reset" : "Reset details are still loading")
+        }
+        .padding(.top, 9)
+        .overlay(alignment: .top) {
+            Rectangle()
+                .fill(Color.white.opacity(0.09))
+                .frame(height: 1)
+        }
+        .confirmationDialog(
+            "Use one banked reset?",
+            isPresented: $confirmingRedeem,
+            titleVisibility: .visible
+        ) {
+            Button("Use Reset", role: .destructive) { onRedeemReset() }
+            Button("Cancel", role: .cancel) {}
+        } message: {
+            Text("This spends one banked reset on \(account.email) to reset its quota windows now. It cannot be undone.")
+        }
     }
 }
 
@@ -104,13 +192,10 @@ struct OAuthUsageAccountGroup: View {
     let account: OAuthAccountUsage
     let showHeader: Bool
     var onCopiedCurl: () -> Void = {}
-    var onRedeemReset: () -> Void = {}
-    var isRedeeming = false
 
     static let checkmarkDuration: TimeInterval = 1
 
     @State private var checkmark = TransientConfirmation<Bool>()
-    @State private var confirmingRedeem = false
 
     private var copied: Bool { checkmark.value != nil }
 
@@ -226,48 +311,7 @@ struct OAuthUsageAccountGroup: View {
                 EmptyView()
             }
 
-            if let resets = account.bankedResets, resets.availableCount > 0, !account.isLoading, account.error == nil {
-                bankedResetsRow(resets)
-            }
         }
-    }
-
-    /// Banked resets sit under the gauges they can refill. Spending one
-    /// is a deliberate two-step action: the button only opens a
-    /// confirmation whose default is Cancel.
-    private func bankedResetsRow(_ resets: BankedResetCredits) -> some View {
-        HStack(spacing: 6) {
-            Image(systemName: "arrow.counterclockwise.circle")
-                .font(.system(size: 10))
-                .foregroundColor(.secondary)
-            Text(bankedResetsLabel(resets))
-                .font(.caption)
-                .foregroundColor(.secondary)
-                .lineLimit(1)
-            Button(isRedeeming ? "Redeeming…" : "Use reset") {
-                confirmingRedeem = true
-            }
-            .controlSize(.mini)
-            .disabled(isRedeeming)
-        }
-        .confirmationDialog(
-            "Use one banked reset?",
-            isPresented: $confirmingRedeem,
-            titleVisibility: .visible
-        ) {
-            Button("Use Reset", role: .destructive) { onRedeemReset() }
-            Button("Cancel", role: .cancel) {}
-        } message: {
-            Text("This spends one banked reset on \(account.email) to reset its quota windows now. It cannot be undone.")
-        }
-    }
-
-    private func bankedResetsLabel(_ resets: BankedResetCredits) -> String {
-        var label = resets.availableCount == 1 ? "1 banked reset" : "\(resets.availableCount) banked resets"
-        if let expires = resets.nextExpiresAt {
-            label += " · next expires \(expires.formatted(date: .abbreviated, time: .omitted))"
-        }
-        return label
     }
 }
 
