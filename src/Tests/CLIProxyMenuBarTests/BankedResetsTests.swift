@@ -47,6 +47,10 @@ final class BankedResetsTests: XCTestCase {
 
         let negative = Data(#"{"cedar_ember":{"eligible":true,"next_grant_id":"g1","grants":[{"id":"g1","resets_left":-3,"ends_at":"2999-01-01T00:00:00Z","usable_now":true}]}}"#.utf8)
         XCTAssertNil(OAuthUsageTracker.parseClaudeResetCredits(negative, now: now))
+
+        // Two oversized grants must saturate the sum, not trap on overflow.
+        let twoHuge = Data(#"{"cedar_ember":{"eligible":true,"next_grant_id":"g1","grants":[{"id":"g1","resets_left":1e30,"ends_at":"2999-01-01T00:00:00Z","usable_now":true},{"id":"g2","resets_left":1e30,"ends_at":"2999-01-01T00:00:00Z","usable_now":true}]}}"#.utf8)
+        XCTAssertEqual(OAuthUsageTracker.parseClaudeResetCredits(twoHuge, now: now)?.display.availableCount, Int.max)
     }
 
     func testCreditIDsAreNeverPersistedInUsageCoding() throws {
@@ -71,6 +75,28 @@ final class BankedResetsTests: XCTestCase {
         XCTAssertEqual(OAuthUsageTracker.redeemRequestID("claude:org-1:g1:2"), "c28b4ead-7157-51c2-b7a6-f964def28499")
         XCTAssertEqual(OAuthUsageTracker.redeemRequestID("acct-1:c1"), OAuthUsageTracker.redeemRequestID("acct-1:c1"))
         XCTAssertNotEqual(OAuthUsageTracker.redeemRequestID("claude:org-1:g1:2"), OAuthUsageTracker.redeemRequestID("claude:org-1:g1:1"))
+    }
+
+    func testRedeemWithRestoredSampleReportsStillLoading() async throws {
+        // Simulate a restart: the cache holds a persisted sample whose
+        // balance survived coding but whose credit state did not.
+        for type in [ServiceType.codex, .claude] {
+            let cache = OAuthUsageCache(fileURL: nil, jitter: { 0 })
+            let account = try writeAccount(type: type, json: ["access_token": "tok", "organization_uuid": "org-1", "account_id": "acct-1"])
+            var restored = OAuthAccountUsage(id: account.id, provider: type, email: account.displayName, updatedAt: Date())
+            restored.bankedResets = BankedResetCredits(availableCount: 1, nextExpiresAt: nil)
+            let restoredValue = restored
+            _ = await cache.usage(for: account) { restoredValue }
+
+            let session = mockSession { _ in (500, "{}") }
+            let result = await OAuthUsageTracker.redeemReset(
+                for: account, session: session, cache: cache,
+                codexUsageURL: URL(string: "https://example.test/wham/usage")!,
+                claudeUsageURL: URL(string: "https://example.test/api/oauth/usage")!
+            )
+            XCTAssertFalse(result.ok)
+            XCTAssertEqual(result.message, "Reset details are still loading. Try again shortly.", "\(type)")
+        }
     }
 
     func testRedeemCodexResetConsumesSoonestCredit() async throws {

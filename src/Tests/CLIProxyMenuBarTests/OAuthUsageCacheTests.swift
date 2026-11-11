@@ -149,7 +149,9 @@ final class OAuthUsageCacheTests: XCTestCase {
 
     private actor Gate {
         private var continuation: CheckedContinuation<Void, Never>?
+        private(set) var entered = false
         func wait() async {
+            entered = true
             await withCheckedContinuation { continuation = $0 }
         }
         func open() {
@@ -173,9 +175,8 @@ final class OAuthUsageCacheTests: XCTestCase {
                 return stale
             }
         }
-        // Let the first fetch start and register as in-flight.
-        await Task.yield()
-        await Task.yield()
+        // Wait until the first fetch is inside the gate (and so in-flight).
+        while !(await gate.entered) { await Task.yield() }
         await cache.invalidate(for: account)
 
         // A post-invalidation reader must not join the pre-reset fetch.

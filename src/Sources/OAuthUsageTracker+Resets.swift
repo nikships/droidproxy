@@ -94,7 +94,8 @@ extension OAuthUsageTracker {
             // a malformed payload runs on every Claude usage read.
             let rawLeft = numberValue(grant["resets_left"]) ?? 0
             let left = rawLeft.isFinite && rawLeft > 0 ? (Int(exactly: rawLeft.rounded(.down)) ?? Int.max) : 0
-            count += left
+            let (sum, overflow) = count.addingReportingOverflow(left)
+            count = overflow ? Int.max : sum
             if id == nextID {
                 next = ClaudeResetState(
                     display: BankedResetCredits(availableCount: 0, nextExpiresAt: endsAt),
@@ -226,6 +227,12 @@ extension OAuthUsageTracker {
             return ("Could not read banked resets for this account.", false)
         }
         guard let credit = usage.codexResetCredits.first else {
+            // A sample restored from the on-disk cache after a restart
+            // carries the balance but not the (never-persisted) credit
+            // state; that is "still loading", not "none available".
+            if usage.bankedResets != nil {
+                return ("Reset details are still loading. Try again shortly.", false)
+            }
             return ("No banked reset is available for this account.", false)
         }
         let creditsURL = codexCreditsURL(fromUsage: usageURL)
@@ -312,6 +319,9 @@ extension OAuthUsageTracker {
             return ("Could not read banked resets for this account.", false)
         }
         guard let credits = usage.claudeResetState else {
+            if usage.bankedResets != nil {
+                return ("Reset details are still loading. Try again shortly.", false)
+            }
             return ("No banked reset is available for this account.", false)
         }
         guard let token = await claudeToken(for: account, session: session) else {

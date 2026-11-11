@@ -248,7 +248,8 @@ struct OAuthUsageAccountGroup: View {
                 confirmingRedeem = true
             }
             .controlSize(.mini)
-            .disabled(isRedeeming)
+            .disabled(isRedeeming || !hasCreditState)
+            .help(hasCreditState ? "Spend one banked reset" : "Reset details are still loading")
         }
         .confirmationDialog(
             "Use one banked reset?",
@@ -259,6 +260,17 @@ struct OAuthUsageAccountGroup: View {
             Button("Cancel", role: .cancel) {}
         } message: {
             Text("This spends one banked reset on \(account.email) to reset its quota windows now. It cannot be undone.")
+        }
+    }
+
+    /// A sample restored from the on-disk cache after a restart carries
+    /// the balance but not the never-persisted credit state; the balance
+    /// still shows, but spending waits for the next live read.
+    private var hasCreditState: Bool {
+        switch account.provider {
+        case .codex: return !account.codexResetCredits.isEmpty
+        case .claude: return account.claudeResetState != nil
+        default: return false
         }
     }
 
