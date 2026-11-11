@@ -2,7 +2,7 @@ import AppKit
 import SwiftUI
 
 /// Ring gauges for the "OAuth Quota Usage" settings section, flowing together
-/// with no per-account boxes; a header only appears above a provider's rings
+/// with no per-account boxes; a caption only appears under a provider's rings
 /// when it has several accounts to tell apart. Banked-reset actions sit in
 /// full-width rows below the rings, so an account with credits never changes
 /// the gauge flow's shape.
@@ -46,7 +46,7 @@ struct OAuthUsageDashboard: View {
         .padding(.top, 2)
     }
 
-    /// The email header only disambiguates when a provider has several
+    /// The email caption only disambiguates when a provider has several
     /// accounts; a lone account is identified by its ring logos alone.
     private func showHeader(for provider: ServiceType) -> Bool {
         accounts.filter { $0.provider == provider }.count > 1
@@ -170,15 +170,15 @@ struct FlowRowLayout: Layout {
         }
         rows.append(start..<subviews.count)
 
-        // Bottom-align within each row so ring rows line up even when a
-        // headerless group shares the row with headed ones.
+        // Top-align within each row so every ring shares the row's top
+        // line; a caption under one ring must not drag the others down.
         var y = bounds.minY
         for row in rows {
             let rowHeight = row.map { sizes[$0].height }.max() ?? 0
             var rx = bounds.minX
             for i in row {
                 subviews[i].place(
-                    at: CGPoint(x: rx, y: y + rowHeight - sizes[i].height),
+                    at: CGPoint(x: rx, y: y),
                     proposal: ProposedViewSize(sizes[i])
                 )
                 rx += sizes[i].width + horizontalSpacing
@@ -223,29 +223,7 @@ struct OAuthUsageAccountGroup: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 5) {
-            if showHeader {
-                HStack(spacing: 4) {
-                    if let iconName = usageIconName(for: account.provider),
-                       let nsImage = IconCatalog.shared.image(
-                        named: iconName,
-                        resizedTo: NSSize(width: 11, height: 11),
-                        template: true
-                       ) {
-                        Image(nsImage: nsImage)
-                            .resizable()
-                            .renderingMode(.template)
-                            .frame(width: 11, height: 11)
-                            .foregroundColor(.secondary)
-                    }
-                    Text(account.email)
-                        .font(.system(size: 9))
-                        .foregroundColor(.secondary)
-                        .lineLimit(1)
-                        .truncationMode(.middle)
-                }
-                .help("\(account.provider.displayName) · \(account.email)")
-            }
+        VStack(alignment: .center, spacing: 4) {
 
             if account.isLoading {
                 ProgressView()
@@ -311,6 +289,18 @@ struct OAuthUsageAccountGroup: View {
                 EmptyView()
             }
 
+            if showHeader {
+                // The account label is a caption under its own ring, so a
+                // long email truncates inside a fixed column instead of
+                // stretching the group and breaking the ring grid.
+                Text(account.email)
+                    .font(.system(size: 8.5))
+                    .foregroundColor(.secondary)
+                    .lineLimit(1)
+                    .truncationMode(.middle)
+                    .frame(width: 74)
+                    .help("\(account.provider.displayName) · \(account.email)")
+            }
         }
     }
 }
