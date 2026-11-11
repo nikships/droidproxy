@@ -199,6 +199,12 @@ struct OAuthUsageAccountGroup: View {
 
     private var copied: Bool { checkmark.value != nil }
 
+    /// Whether the group renders an actual ring (whose logo names the
+    /// provider), as opposed to a spinner, an error, or nothing.
+    private var hasRing: Bool {
+        !account.isLoading && account.error == nil && !account.windows.isEmpty
+    }
+
     /// Shown under the hover text; clicking any gauge copies a `curl` that
     /// returns this account's live usage from ThinkingProxy.
     private var copyFootnote: String {
@@ -292,14 +298,30 @@ struct OAuthUsageAccountGroup: View {
             if showHeader {
                 // The account label is a caption under its own ring, so a
                 // long email truncates inside a fixed column instead of
-                // stretching the group and breaking the ring grid.
-                Text(account.email)
-                    .font(.system(size: 8.5))
-                    .foregroundColor(.secondary)
-                    .lineLimit(1)
-                    .truncationMode(.middle)
-                    .frame(width: 74)
-                    .help("\(account.provider.displayName) · \(account.email)")
+                // stretching the group and breaking the ring grid. States
+                // with no ring (loading, error, no windows) have no logo
+                // to name the provider, so the caption carries its icon.
+                HStack(spacing: 3) {
+                    if !hasRing, let iconName = usageIconName(for: account.provider),
+                       let nsImage = IconCatalog.shared.image(
+                        named: iconName,
+                        resizedTo: NSSize(width: 9, height: 9),
+                        template: true
+                       ) {
+                        Image(nsImage: nsImage)
+                            .resizable()
+                            .renderingMode(.template)
+                            .frame(width: 9, height: 9)
+                            .foregroundColor(.secondary)
+                    }
+                    Text(account.email)
+                        .font(.system(size: 8.5))
+                        .foregroundColor(.secondary)
+                        .lineLimit(1)
+                        .truncationMode(.middle)
+                }
+                .frame(width: 74)
+                .help("\(account.provider.displayName) · \(account.email)")
             }
         }
     }
