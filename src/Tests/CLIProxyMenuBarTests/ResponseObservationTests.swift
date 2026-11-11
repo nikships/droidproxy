@@ -557,4 +557,65 @@ final class ResponseObservationTests: XCTestCase {
         XCTAssertEqual(largeSSE.outcome, "complete")
         XCTAssertNil(largeSSE.tokens)
     }
+
+    func testLargeUnreadMembersStillYieldUsageAndModel() throws {
+        func pieces(_ raw: String) -> [Data] {
+            let bytes = Data(raw.utf8)
+            return stride(from: 0, to: bytes.count, by: 32 * 1024).map { Data(bytes[$0..<min($0 + 32 * 1024, bytes.count)]) }
+        }
+        let item = #"{"type":"message","role":"assistant","content":[{"type":"output_text","annotations":[],"text":"words \"quoted\" caf\u00e9 \u2603 Ω"}]}"#
+        let usage = #""usage":{"input_tokens":9,"input_tokens_details":{"cached_tokens":4},"output_tokens":3,"output_tokens_details":{"reasoning_tokens":1}}"#
+        let lines = [#"{"type":"response.completed","response":{"id":"r","model":"gpt-large","output":["#]
+            + Array(repeating: item + ",", count: 8_000) + [item + "]," + usage + "}}"]
+        let done = #"data: {"type":"response.output_item.done","output_index":0,"item":"# + item + "}\n\n"
+        let stream = sseHead + done + lines.map { "data: " + $0 }.joined(separator: "\n") + "\n\n"
+        XCTAssertGreaterThan(stream.utf8.count, 1024 * 1024)
+        let responses = JournalTokens(input_uncached: 5, cache_read: 4, cache_creation: nil, output: 3, reasoning: 1)
+        for reads in [[Data(stream.utf8)], pieces(stream)] {
+            let r = try observe(reads: reads, path: "/v1/responses", forwarded: nil)
+            XCTAssertEqual(r.outcome, "complete")
+            XCTAssertEqual(r.tokens, responses)
+            XCTAssertEqual(r.response_model, "gpt-large")
+        }
+
+        let block = #"{"type":"text","text":"Reply text with \"quotes\", a tab\t and caf\u00e9."},"#
+        let message = #"{"id":"m","type":"message","role":"assistant","model":"claude-large","content":["#
+            + String(repeating: block, count: 20_000) + #"{"type":"text","text":""}],"usage":{"input_tokens":12,"output_tokens":34,"cache_read_input_tokens":5}}"#
+        let response = #"{"id":"r","object":"response","model":"gpt-large","output":["#
+            + String(repeating: item + ",", count: 12_000) + item + "]," + usage + "}"
+        for (path, body, tokens, model) in [
+            ("/v1/messages", message, JournalTokens(input_uncached: 12, cache_read: 5, cache_creation: 0, output: 34, reasoning: nil), "claude-large"),
+            ("/v1/responses", response, responses, "gpt-large")
+        ] {
+            XCTAssertGreaterThan(body.utf8.count, 1024 * 1024, path)
+            XCTAssertLessThan(body.utf8.count, 2 * 1024 * 1024, path)
+            let r = try observe(reads: pieces(sized("", body)), path: path, forwarded: nil)
+            XCTAssertEqual(r.outcome, "complete", path)
+            XCTAssertEqual(r.tokens, tokens, path)
+            XCTAssertEqual(r.response_model, model, path)
+        }
+    }
+
+    func testUnreadMembersRejectInvalidUTF8LikeReadMembers() throws {
+        let readOne = JournalJSON.Selection(members: ["read": .all])
+        let sequences: [[UInt8]] = [
+            [0x61], [0xC3, 0xA9], [0xE2, 0x82, 0xAC], [0xF0, 0x9F, 0x98, 0x80], [0xEF, 0xBF, 0xBF], [0xF4, 0x8F, 0xBF, 0xBF],
+            [0xED, 0x9F, 0xBF], [0xEE, 0x80, 0x80], [0xFF], [0x80], [0xC0, 0xAF], [0xC1, 0xBF], [0xC3], [0xC3, 0x28],
+            [0xE0, 0x80, 0xAF], [0xE2, 0x82], [0xED, 0xA0, 0x80], [0xF0, 0x80, 0x80, 0xAF], [0xF4, 0x90, 0x80, 0x80], [0xF5, 0x80, 0x80, 0x80]
+        ]
+        for bytes in sequences {
+            let value = Data(#"{"unread":"a"#.utf8) + Data(bytes) + Data(#"b","read":1}"#.utf8)
+            XCTAssertEqual(JournalJSON.parse(value, select: readOne) == nil, JournalJSON.parse(value) == nil, "\(bytes)")
+        }
+        let invalid = Data([0xFF])
+        let stream = Data((sseHead + #"data: {"type":"message_stop","pad":""#).utf8) + invalid + Data("\"}\n\n".utf8)
+        XCTAssertEqual(try observe(stream).outcome, "upstream_closed_early")
+        let prefix = Data(#"{"type":"message","model":"m","content":[{"text":""#.utf8)
+        let suffix = Data(#""}],"usage":{"input_tokens":1,"output_tokens":2}}"#.utf8)
+        let body = prefix + invalid + suffix
+        let r = try observe(Data("HTTP/1.1 200 OK\r\nContent-Length: \(body.count)\r\n\r\n".utf8) + body)
+        XCTAssertEqual(r.outcome, "complete")
+        XCTAssertNil(r.tokens)
+        XCTAssertNil(r.response_model)
+    }
 }

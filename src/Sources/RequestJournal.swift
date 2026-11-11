@@ -497,7 +497,9 @@ final class JournalWriter {
             repaired = end
         }
         try check(ftruncate(fd, repaired) == 0)
-        var data = try JSONEncoder().encode(record)
+        let encoder = JSONEncoder()
+        encoder.outputFormatting = .withoutEscapingSlashes
+        var data = try encoder.encode(record)
         data.append(10)
         try data.withUnsafeBytes { raw in
             var offset = 0
@@ -517,6 +519,7 @@ final class RequestJournal {
     static let shared = RequestJournal()
     private let seats: JournalSeatIndex
     private let writer: JournalWriter
+    private let refreshes = DispatchQueue(label: "io.automaze.droidproxy.journal-seat-refresh", qos: .utility)
     private var watcher: NSObjectProtocol?
 
     init(directory: URL = FileManager.default.homeDirectoryForCurrentUser.appendingPathComponent(".droidproxy/journal"),
@@ -524,7 +527,7 @@ final class RequestJournal {
         seats = JournalSeatIndex(directory: authDirectory)
         writer = JournalWriter(directory: directory)
         watcher = NotificationCenter.default.addObserver(forName: .authDirectoryChanged, object: nil, queue: nil) { [weak self] _ in
-            self?.seats.refresh()
+            self?.refreshes.async { self?.seats.refresh() }
         }
     }
 

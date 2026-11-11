@@ -31,7 +31,6 @@ enum AppPreferences {
     static let defaultBackgroundOpacity = 0.55
     static let defaultBetaFlag = false
     static let defaultVerboseLogging = false
-    static let defaultRequestJournal = false
     /// Opt-in. Off preserves the historical round-robin routing and globally
     /// disabled cooldowns, so existing single-account users see no change.
     static let defaultSequentialAccountFailover = false

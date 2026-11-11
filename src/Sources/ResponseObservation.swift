@@ -47,6 +47,16 @@ final class ResponseObservation {
     private static let eventDataCap = 2 * 1024 * 1024
     private static let bodyCap = 2 * 1024 * 1024
     private static let chunkLineCap = 64 * 1024
+    private static let eventMembers = JournalJSON.Selection(members: [
+        "type": .all, "model": .all, "error": .all, "usage": .all, "choices": .all,
+        "message": JournalJSON.Selection(members: ["model": .all, "usage": .all]),
+        "response": JournalJSON.Selection(members: ["model": .all, "usage": .all])
+    ])
+    private static let bodyMembers = JournalJSON.Selection(members: [
+        "type": .all, "object": .all, "model": .all, "usage": .all,
+        "message": JournalJSON.Selection(members: ["model": .all]),
+        "response": JournalJSON.Selection(members: ["model": .all])
+    ])
     private static let parsing = DispatchQueue(label: "io.automaze.droidproxy.journal-request-parse", qos: .utility, attributes: .concurrent)
     private static let seatWork = DispatchQueue(label: "io.automaze.droidproxy.journal-seats", qos: .utility)
 
@@ -422,7 +432,7 @@ final class ResponseObservation {
             discardEvent = false
         }
         guard !discardEvent, eventHasData else { return }
-        let payload = JournalJSON.parse(eventData)?.object
+        let payload = JournalJSON.parse(eventData, select: Self.eventMembers)?.object
         if let payload { reportModel(payload) }
         if eventName == "error" {
             protocolError = true
@@ -492,7 +502,7 @@ final class ResponseObservation {
         completed = true
         phase = .ignored
         defer { body = Data() }
-        guard !sse, !opaque, !bodyOverflow, let object = JournalJSON.parse(body)?.object else { return }
+        guard !sse, !opaque, !bodyOverflow, let object = JournalJSON.parse(body, select: Self.bodyMembers)?.object else { return }
         reportModel(object)
         let format: UsageFormat
         switch forwardedEndpoint ?? endpoint {

@@ -185,7 +185,25 @@ private struct JournalJSONParser {
         return value
     }
 
-    /// Without `keep`, escapes and control characters are checked but no text is built.
+    /// Length of the well-formed UTF-8 sequence at `index`, or nil.
+    private func utf8Length() -> Int? {
+        let count: Int, second: ClosedRange<UInt8>
+        switch bytes[index] {
+        case 0xC2...0xDF: (count, second) = (2, 0x80...0xBF)
+        case 0xE0: (count, second) = (3, 0xA0...0xBF)
+        case 0xE1...0xEC, 0xEE...0xEF: (count, second) = (3, 0x80...0xBF)
+        case 0xED: (count, second) = (3, 0x80...0x9F)
+        case 0xF0: (count, second) = (4, 0x90...0xBF)
+        case 0xF1...0xF3: (count, second) = (4, 0x80...0xBF)
+        case 0xF4: (count, second) = (4, 0x80...0x8F)
+        default: return nil
+        }
+        guard bytes.count - index >= count, second.contains(bytes[index + 1]) else { return nil }
+        for offset in 2..<count where !(0x80...0xBF).contains(bytes[index + offset]) { return nil }
+        return count
+    }
+
+    /// Without `keep`, escapes, control characters and UTF-8 are checked but no text is built.
     private mutating func string(keep: Bool) -> String? {
         index += 1
         var out: [UInt8] = []
@@ -198,6 +216,11 @@ private struct JournalJSONParser {
                 return keep ? String(bytes: out, encoding: .utf8) : ""
             }
             if byte < 0x20 { return nil }
+            if byte >= 0x80 {
+                guard let length = utf8Length() else { return nil }
+                index += length
+                continue
+            }
             guard byte == UInt8(ascii: "\\") else {
                 index += 1
                 continue

@@ -222,6 +222,9 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: journal.path)[.posixPermissions] as? Int, 0o700)
         XCTAssertEqual(try FileManager.default.attributesOfItem(atPath: file.path)[.posixPermissions] as? Int, 0o600)
         let initial = try Data(contentsOf: file)
+        let line = String(decoding: initial, as: UTF8.self)
+        XCTAssertTrue(line.contains(#""endpoint":"\#(record.endpoint)""#), line)
+        XCTAssertFalse(line.contains(#"\/"#), line)
         let handle = try FileHandle(forWritingTo: file)
         try handle.seekToEnd()
         try handle.write(contentsOf: Data("{torn".utf8))
@@ -586,6 +589,19 @@ final class RequestJournalTests: XCTestCase {
         let seats = JournalSeatIndex(directory: auth)
         XCTAssertEqual(seats.bind(atLimit)?.identity.email, "big@example.invalid")
         XCTAssertNil(seats.bind(over))
+    }
+
+    func testAuthDirectoryChangeRefreshesSeatsOffThePostingThread() throws {
+        let auth = directory.appendingPathComponent("auth")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        let payload = Data((#"{"type":"claude","data":["# + String(repeating: "1,", count: 500_000) + "1]}").utf8)
+        for i in 0..<8 { try payload.write(to: auth.appendingPathComponent("bulk\(i).json")) }
+        let journal = RequestJournal(directory: directory.appendingPathComponent("journal"), authDirectory: auth)
+        let start = DispatchTime.now().uptimeNanoseconds
+        NotificationCenter.default.post(name: .authDirectoryChanged, object: nil)
+        let posted = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
+        XCTAssertLessThan(posted, 5, "posting waited \(posted) ms for the seat refresh")
+        journal.flush()
     }
 
     func testCachedHitRechecksBindability() throws {

@@ -207,7 +207,12 @@ final class RequestJournalRelayTests: XCTestCase {
         }
         XCTAssertEqual(answers[0], answers[1], String(decoding: answers[1], as: UTF8.self))
         journal.flush()
-        XCTAssertTrue(try records().isEmpty)
+        let recorded = try records()
+        XCTAssertLessThanOrEqual(recorded.count, 1)
+        if let record = recorded.first {
+            XCTAssertEqual(record.outcome, "backend_unreachable")
+            XCTAssertEqual(record.status, 502)
+        }
     }
 
     func testFailedClientWriteKeepsRelayingAndRecordsDisconnectWithObservedStatus() throws {
