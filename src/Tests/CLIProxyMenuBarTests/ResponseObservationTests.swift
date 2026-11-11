@@ -480,6 +480,7 @@ final class ResponseObservationTests: XCTestCase {
             XCTAssertEqual(try observe(prefix + trailer(40_000) + trailer(40_000) + "\r\n", path: "/v1/chat/completions", bytewise: bytewise).outcome, "complete")
         }
     }
+
     func testChunkSizeLineCapIncludesCRLFAndOnlyOverflowLimitsTheSize() throws {
         let head = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
         let line = String(repeating: "0", count: 65_534) + "\r\n"
@@ -533,6 +534,7 @@ final class ResponseObservationTests: XCTestCase {
         XCTAssertEqual(record.outcome, "complete")
         XCTAssertEqual(record.seat?.email, "seat@example.invalid")
     }
+
     func testJSONNestingLimitCountsOnlyArraysAndObjects() {
         func nested(_ depth: Int, _ inner: String) -> Data {
             Data((String(repeating: "[", count: depth) + inner + String(repeating: "]", count: depth)).utf8)

@@ -547,7 +547,7 @@ final class RequestJournalTests: XCTestCase {
         return Int(info.resident_size)
     }
 
-    /// 255 queued 5 MB requests behind a stalled writer; before request parsing moved to begin they held about 1.3 GB.
+    /// 255 queued 5 MB requests behind a stalled writer would hold about 1.3 GB if records kept their request bodies.
     func testQueuedRecordsDoNotHoldRequestBodies() throws {
         let writer = JournalWriter(directory: directory.appendingPathComponent("journal"), log: { _ in })
         let record = try sampleRecord()
@@ -569,6 +569,7 @@ final class RequestJournalTests: XCTestCase {
         writer.flush(timeout: 10)
         XCTAssertLessThan(peak - baseline, 61 << 20, "peak grew \((peak - baseline) >> 20) MiB")
     }
+
     func testCredentialFilesOverOneMiBAreNotReadForIdentity() throws {
         let auth = directory.appendingPathComponent("auth")
         try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
