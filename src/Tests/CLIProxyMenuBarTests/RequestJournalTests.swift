@@ -31,7 +31,7 @@ final class RequestJournalTests: XCTestCase {
     func testContractDigests() throws {
         let manifest = try XCTUnwrap(String(data: resource("CONTRACT_SOURCE"), encoding: .utf8))
         XCTAssertTrue(manifest.contains("nikships/droidproxy-omarchy"))
-        XCTAssertTrue(manifest.contains("9aeb1428975398671146253653a2cb5ad8f1c1ff"))
+        XCTAssertTrue(manifest.contains("e5e76a9d4343e1f89845f47f2e9fa792f757b07f"))
         let lines = manifest.split(separator: "\n").filter { $0.contains("  request-journal-") }
         XCTAssertEqual(lines.count, 4)
         for line in lines {
@@ -410,6 +410,34 @@ final class RequestJournalTests: XCTestCase {
         }
         try Data(#"{"type":"claude","email":"x@example.invalid",}"#.utf8).write(to: file, options: .atomic)
         XCTAssertNil(JournalSeatIndex(directory: auth).bind(JournalSeatIndex.index(type: "claude", path: file.path)))
+    }
+
+    func testSeatFileWithInvalidUTF8InAnUnreadMemberIsNotIndexed() throws {
+        let auth = directory.appendingPathComponent("auth")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        let cases: [(name: String, bytes: [UInt8], strict: Bool)] = [
+            ("valid two-byte sequence", [0xc3, 0xa9], true),
+            ("0xff", [0xff], false),
+            ("overlong", [0xc0, 0xaf], false),
+            ("surrogate", [0xed, 0xa0, 0x80], false)
+        ]
+        for (i, c) in cases.enumerated() {
+            let json = Data(#"{"type":"claude","email":"seat@example.invalid","organization_uuid":"org-1","access_token":"a"#.utf8)
+                + c.bytes + Data(#"b"}"#.utf8)
+            try json.write(to: auth.appendingPathComponent("claude-\(i).json"))
+        }
+        let seats = JournalSeatIndex(directory: auth)
+        for (i, c) in cases.enumerated() {
+            let name = "claude-\(i).json"
+            let index = JournalSeatIndex.index(type: "claude", path: auth.appendingPathComponent(name).path)
+            var builder: (() -> JournalRecord)?
+            let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: { builder = $0 })
+            deliver(observation, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n{}".utf8))
+            let expected = c.strict
+                ? JournalSeat(auth_index: index, role: "served", file: name, email: "seat@example.invalid", org: "org-1")
+                : JournalSeat(auth_index: index, role: "served")
+            XCTAssertEqual(try XCTUnwrap(builder?(), c.name).seat, expected, c.name)
+        }
     }
 
     private func lockedJournal(log: @escaping (String) -> Void = { _ in }) throws -> (JournalWriter, JournalRecord, URL, Int32) {

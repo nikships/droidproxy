@@ -253,6 +253,27 @@ final class RequestJournalRelayTests: XCTestCase {
         XCTAssertNil(record.tokens)
     }
 
+    func testInvalidUTF8RequestBodyIsAnswered400WithoutForwardingOrJournaling() throws {
+        let upstream = try LoopbackSocket()
+        defer { upstream.close() }
+        let forwarded = expectation(description: "invalid body forwarded")
+        forwarded.isInverted = true
+        upstream.serve { _, _ in forwarded.fulfill() }
+        let journal = journal()
+        let proxy = try startProxy(targetPort: upstream.port, journal: journal)
+        defer { proxy.stop() }
+        let fd = try LoopbackSocket.connect(port: proxy.proxyPort)
+        defer { Darwin.close(fd) }
+        let body = Data(#"{"model":"claude-journal-fixture","prompt_cache_key":"relay-session-0001","input":"O"#.utf8) + [0xff] + Data(#"K"}"#.utf8)
+        let head = "POST /v1/messages HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: \(body.count)\r\n\r\n"
+        LoopbackSocket.sendAll(Data(head.utf8) + body, fd: fd)
+        let answer = String(decoding: LoopbackSocket.readToEOF(fd), as: UTF8.self)
+        XCTAssertTrue(answer.hasPrefix("HTTP/1.1 400 "), answer)
+        wait(for: [forwarded], timeout: 0.5)
+        journal.flush()
+        XCTAssertTrue(try records().isEmpty)
+    }
+
     func testCountTokensIsNotObservedEvenWithJournalEnabled() throws {
         let upstream = try LoopbackSocket()
         defer { upstream.close() }

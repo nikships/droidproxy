@@ -4669,6 +4669,183 @@
         "client_session": null,
         "tokens": null
       }
+    },
+    {
+      "name": "anthropic_json_invalid_utf8_unread",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "Message envelope whose content text contains the byte 0xFF, which is never valid UTF-8, in a member the journal does not read; not strict JSON, so it yields no usage and no model."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-CPA-TRACE-ID: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nConnection: close\r\nContent-Length: 226\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\",\"id\":\"msg_fixture\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"O\u00ffK\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":102,\"output_tokens\":4}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": null,
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
+    },
+    {
+      "name": "responses_sse_invalid_utf8_unread",
+      "source": {
+        "kind": "derived",
+        "from": "responses_sse",
+        "changes": "Minimal Responses stream whose response.completed output text contains 0xED 0xA0 0x80, a UTF-8-encoded surrogate, in a member the journal does not read. That payload is not strict JSON, so it supplies no usage and no completion; the model comes from response.created and the chunked terminator completes the response."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/responses",
+        "headers": {},
+        "body": {
+          "model": "gpt-6-luna"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nX-CPA-TRACE-ID: 20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001\r\nConnection: close\r\nTransfer-Encoding: chunked\r\n\r\nc9\r\nevent: response.created\ndata: {\"type\":\"response.created\",\"response\":{\"id\":\"resp_fixture\",\"object\":\"response\",\"status\":\"in_progress\",\"model\":\"gpt-6-luna\",\"output\":[],\"usage\":null},\"sequence_number\":0}\n\n\r\n19e\r\nevent: response.completed\ndata: {\"type\":\"response.completed\",\"response\":{\"id\":\"resp_fixture\",\"object\":\"response\",\"status\":\"completed\",\"model\":\"gpt-6-luna\",\"output\":[{\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"output_text\",\"text\":\"O\u00ed\u00a0\u0080K\"}]}],\"usage\":{\"input_tokens\":305,\"input_tokens_details\":{\"cached_tokens\":0},\"output_tokens\":5,\"output_tokens_details\":{\"reasoning_tokens\":0}}},\"sequence_number\":1}\n\n\r\n0\r\n\r\n",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/responses",
+        "forwarded_endpoint": null,
+        "provider": "codex",
+        "requested_model": "gpt-6-luna",
+        "response_model": "gpt-6-luna",
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "fedcba9876543210",
+          "role": "served",
+          "file": "codex-account-redacted-seat@example.invalid.json",
+          "email": "seat@example.invalid",
+          "account_id": "account-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
+    },
+    {
+      "name": "anthropic_json_invalid_utf8_model",
+      "source": {
+        "kind": "derived",
+        "from": "anthropic_json",
+        "changes": "Message envelope whose model string ends in the overlong UTF-8 encoding 0xC0 0xAF; not strict JSON, so it yields no model and no usage."
+      },
+      "request": {
+        "method": "POST",
+        "endpoint": "/v1/messages",
+        "headers": {},
+        "body": {
+          "model": "claude-haiku-4-5-20251001"
+        }
+      },
+      "observation": {
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "first_body_elapsed_ms": 20,
+        "end_signal": "eof"
+      },
+      "seat_snapshot": [
+        {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        }
+      ],
+      "response": "HTTP/1.1 200 OK\r\nContent-Type: application/json\r\nX-CPA-TRACE-ID: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nConnection: close\r\nContent-Length: 227\r\n\r\n{\"model\":\"claude-haiku-4-5-20251001\u00c0\u00af\",\"id\":\"msg_fixture\",\"type\":\"message\",\"role\":\"assistant\",\"content\":[{\"type\":\"text\",\"text\":\"OK\"}],\"stop_reason\":\"end_turn\",\"stop_sequence\":null,\"usage\":{\"input_tokens\":102,\"output_tokens\":4}}",
+      "body_read_error": false,
+      "expect": {
+        "v": 1,
+        "execution_id": "019a7140-0000-7000-8000-000000000001",
+        "trace_id": "20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001",
+        "started_at": "2026-11-11T10:00:00.000Z",
+        "ended_at": "2026-11-11T10:00:00.100Z",
+        "latency_ms": 100,
+        "ttft_ms": 20,
+        "origin": "client",
+        "endpoint": "/v1/messages",
+        "forwarded_endpoint": null,
+        "provider": "claude",
+        "requested_model": "claude-haiku-4-5-20251001",
+        "response_model": null,
+        "status": 200,
+        "outcome": "complete",
+        "seat": {
+          "auth_index": "0123456789abcdef",
+          "role": "served",
+          "file": "claude-seat@example.invalid-org-redacted.json",
+          "email": "seat@example.invalid",
+          "org": "org-redacted"
+        },
+        "client_session": null,
+        "tokens": null
+      }
     }
   ]
 }

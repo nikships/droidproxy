@@ -49,10 +49,12 @@ the forwarded path differs. For example, `/v1/responses?x=1` with
 native Gemini URL use its model identifier. Do not invent a model for an
 agent-only interactions request or an unparsed multipart body.
 
-Request bodies are parsed as strict RFC 8259 JSON: no trailing commas,
-comments, `NaN`, or other extensions. A body that is not strict JSON gives
-requested_model null and no body-based session candidates; the request is still
-observed and forwarded unchanged.
+Request bodies are parsed as strict RFC 8259 JSON, as defined under JSON below:
+valid UTF-8, with no trailing commas, comments, `NaN`, or other extensions. A
+body that is not strict JSON, including one whose only fault is invalid UTF-8
+in a member the journal does not read, gives requested_model null and no
+body-based session candidates; the request is still observed and forwarded
+unchanged.
 
 ### Provider derivation
 
@@ -187,14 +189,19 @@ is complete only if protocol completion was delivered first, otherwise
 ### JSON
 
 Request and response JSON is parsed as strict RFC 8259 JSON: no trailing commas,
-comments, `NaN`, or other extensions. A response body or SSE payload that is not
-strict JSON contributes no usage, no response model, and no payload-based
-protocol error; for a non-stream body this means `tokens` is null. Requests are
-covered under Admission and paths. For repeated member names in any JSON
-object, only the last occurrence counts. A value nested more than 512 arrays and
-objects deep is not strict JSON and has the same effect as a parse failure; the
-outermost array or object is depth 1, and depth 512 is accepted. Forwarded bytes
-are never changed.
+comments, `NaN`, or other extensions. Strict JSON is also valid UTF-8 (RFC 8259
+section 8.1). A byte sequence that is not valid UTF-8, including an overlong
+encoding or an encoded surrogate (U+D800 through U+DFFF), anywhere in a request
+body, response body, SSE payload, or seat credential file makes that whole text
+not strict JSON, whether or not the bytes are in a member the journal reads.
+Invalid bytes are not replaced with U+FFFD. A response body or SSE payload that
+is not strict JSON contributes no usage, no response model, and no
+payload-based protocol error; for a non-stream body this means `tokens` is
+null. Requests are covered under Admission and paths. For repeated member names
+in any JSON object, only the last occurrence counts. A value nested more than
+512 arrays and objects deep is not strict JSON and has the same effect as a
+parse failure; the outermost array or object is depth 1, and depth 512 is
+accepted. Forwarded bytes are never changed.
 
 ### SSE
 
@@ -389,12 +396,14 @@ end in `.json` (case-sensitive). Each indexed entry's index is
 symlinks are indexed; a symlink's `type` is read through the link. Other
 non-regular entries (FIFOs, sockets, devices) are not indexed. A credential file
 larger than 1 MiB (1,048,576 bytes) is not read, so it supplies no `type` and is
-not indexed. Only regular files owned by the running user can be bound to a
-request. Symlinks and files not owned by the running user are indexed, so a
-trace that names them still finds its entry, but they are never bound. A valid
-trace whose index has no bindable entry, including one with no entry at all,
-yields a seat of `{auth_index, role}` only. A basename that fails the schema's
-`file` pattern is omitted from the seat.
+not indexed. A credential file that is not strict JSON (see JSON), including one
+with invalid UTF-8 only in a member the journal does not read, also supplies no
+`type` and is not indexed. Only regular files owned by the running user can be
+bound to a request. Symlinks and files not owned by the running user are
+indexed, so a trace that names them still finds its entry, but they are never
+bound. A valid trace whose index has no bindable entry, including one with no
+entry at all, yields a seat of `{auth_index, role}` only. A basename that fails
+the schema's `file` pattern is omitted from the seat.
 
 Refresh on auth-dir watcher events and on a miss at most once per second.
 On every hit stat and compare size, mtime, and inode where available; re-read
@@ -507,12 +516,14 @@ at and one byte over the line limit, chunk sizes at and one over the int64
 maximum, repeated trace headers, JSON nested at and one over the depth limit,
 the head cap (including a head that reaches the cap without its terminator and
 then ends), protocol errors, null optional and extreme or fractional counters,
-unrecognized envelopes, non-strict request and response JSON, repeated request
-members, response-model location order, out-of-range status codes,
-close-delimited SSE, event names without a completion payload, the chat
-cache-creation fallback and null finish reasons, bytes after `[DONE]`, failed
-client writes, and SSE usage of a family other than the forwarded path's,
-including a forwarded path that differs from the original.
+unrecognized envelopes, non-strict request and response JSON, invalid UTF-8 in
+an unread member of a non-stream body and of an SSE completion payload and in a
+response model string, repeated request members, response-model location
+order, out-of-range status codes, close-delimited SSE, event names without a
+completion payload, the chat cache-creation fallback and null finish reasons,
+bytes after `[DONE]`, failed client writes, and SSE usage of a family other
+than the forwarded path's, including a forwarded path that differs from the
+original.
 Their provenance is recorded per case; they are not claimed as real captures.
 
 Each implementation tests these rules itself rather than through transcripts:
@@ -521,9 +532,14 @@ Each implementation tests these rules itself rather than through transcripts:
   revalidation, because they need real directory entries, symlinks, file
   ownership, and file changes between binding and finalization. The transcript
   seat identity carries one `org` value, so precedence between
-  `organization_uuid` and `organization.uuid` is tested the same way.
+  `organization_uuid` and `organization.uuid` is tested the same way. The
+  snapshot carries identity values, not credential file bytes, so a credential
+  file with invalid UTF-8 is tested the same way too.
 - Persistence limits (lock wait, shutdown flush, aggregated diagnostics),
   because they need lock contention and process shutdown.
+- Invalid UTF-8 in a request body, because a transcript request body is sent
+  as UTF-8 text and cannot carry invalid bytes, and an implementation that
+  rejects such a request before forwarding never journals it.
 - Learning the status line or trace header from undelivered bytes, because
   the result depends on where a read boundary falls relative to the failing
   write, so no single expected record holds at every split point.
