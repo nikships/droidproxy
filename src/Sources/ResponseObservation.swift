@@ -32,7 +32,7 @@ final class ResponseObservation {
     private let clock: () -> JournalInstant
     private let started: JournalInstant
     private let bindSeat: (String) -> JournalSeatBinding?
-    private let emit: (JournalRecord) -> Void
+    private let emit: (@escaping () -> JournalRecord) -> Void
     private let lock = NSLock()
 
     private var phase = Phase.head
@@ -47,6 +47,8 @@ final class ResponseObservation {
     private var headOverflow = false
     private var sse = false
     private var opaque = false
+    /// Set while scanning undelivered bytes: they may teach the status and trace but never fail the framing.
+    private var learning = false
 
     private var body = Data()
     private var bodyOverflow = false
@@ -59,6 +61,7 @@ final class ResponseObservation {
     private var discardEvent = false
 
     private var status: Int?
+    private var sawTrace = false
     private var trace: String?
     private var execution = UUID().uuidString.lowercased()
     private var index: String?
@@ -73,9 +76,10 @@ final class ResponseObservation {
     private var protocolError = false
     private var finalized = false
 
+    /// `emit` receives a builder for the record; calling it parses the request body, so call it off the relay.
     init(request: JournalRequest, clock: @escaping () -> JournalInstant = JournalInstant.now,
          bindSeat: @escaping (String) -> JournalSeatBinding? = { _ in nil },
-         emit: @escaping (JournalRecord) -> Void) {
+         emit: @escaping (@escaping () -> JournalRecord) -> Void) {
         self.request = request
         self.clock = clock
         self.started = clock()
@@ -89,7 +93,7 @@ final class ResponseObservation {
         lock.lock()
         defer { lock.unlock() }
         guard !finalized else { return }
-        consume(data, readAt: readAt, delivered: true)
+        consume(data, readAt: readAt)
         if protocolError { finalize("upstream_error") } else if completed { finalize("complete") }
     }
 
@@ -98,8 +102,11 @@ final class ResponseObservation {
         lock.lock()
         defer { lock.unlock() }
         guard !finalized else { return }
-        consume(accepted, readAt: readAt, delivered: true)
-        if phase == .head { consume(undelivered, readAt: readAt, delivered: false) }
+        consume(accepted, readAt: readAt)
+        if phase == .head {
+            learning = true
+            consume(undelivered, readAt: readAt)
+        }
         finalize(outcome(.clientDisconnected))
     }
 
@@ -113,12 +120,12 @@ final class ResponseObservation {
 
     private var stopped: Bool { phase == .ignored || completed || protocolError }
 
-    private func consume(_ data: Data, readAt: JournalInstant, delivered: Bool) {
+    private func consume(_ data: Data, readAt: JournalInstant) {
         var i = data.startIndex
         while i < data.endIndex, !stopped {
             switch phase {
             case .head:
-                headByte(data[i], delivered: delivered)
+                headByte(data[i])
                 i += 1
             case .fixed, .chunkData:
                 let n = min(remaining, data.endIndex - i)
@@ -152,7 +159,7 @@ final class ResponseObservation {
     }
 
     private func violation() {
-        malformed = true
+        if !learning { malformed = true }
         phase = .ignored
         line = Data()
     }
@@ -171,14 +178,14 @@ final class ResponseObservation {
         return true
     }
 
-    private func headByte(_ byte: UInt8, delivered: Bool) {
+    private func headByte(_ byte: UInt8) {
         headBytes += 1
         if lineByte(byte) {
-            headLine(delivered: delivered)
+            headLine()
             line.removeAll(keepingCapacity: true)
         }
         if phase == .head, headBytes >= Self.headCap {
-            headOverflow = true
+            if !learning { headOverflow = true }
             phase = .ignored
             line = Data()
         }
@@ -203,7 +210,7 @@ final class ResponseObservation {
         return code
     }
 
-    private func headLine(delivered: Bool) {
+    private func headLine() {
         if !sawStatusLine {
             sawStatusLine = true
             guard let code = Self.statusCode(line) else { return violation() }
@@ -216,10 +223,10 @@ final class ResponseObservation {
                 sawStatusLine = false
                 interim = false
                 headBytes = 0
-            } else if delivered {
-                beginBody()
-            } else {
+            } else if learning {
                 phase = .ignored
+            } else {
+                beginBody()
             }
             return
         }
@@ -228,8 +235,11 @@ final class ResponseObservation {
         guard !interim else { return }
         let name = String(decoding: line[..<colon], as: UTF8.self).lowercased()
         let value = String(decoding: line[(colon + 1)...], as: UTF8.self).trimmingCharacters(in: CharacterSet(charactersIn: " \t"))
-        if name == "x-cpa-trace-id" { learnTrace(value) }
-        guard delivered else { return }
+        if name == "x-cpa-trace-id", !sawTrace {
+            sawTrace = true
+            learnTrace(value)
+        }
+        guard !learning else { return }
         switch name {
         case "transfer-encoding", "content-encoding":
             headers[name] = headers[name].map { "\($0),\(value)" } ?? value
@@ -243,8 +253,6 @@ final class ResponseObservation {
 
     private func learnTrace(_ value: String) {
         trace = value.isEmpty ? nil : value
-        index = nil
-        boundSeat = nil
         let pieces = value.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
         guard pieces.count == 3, Self.matches(pieces[2], "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$") else { return }
         execution = pieces[2]
@@ -286,7 +294,7 @@ final class ResponseObservation {
             return
         }
         let size = line.prefix { $0 != UInt8(ascii: ";") }
-        guard !size.isEmpty, size.count <= 15, size.allSatisfy(Self.isHex),
+        guard !size.isEmpty, size.allSatisfy(Self.isHex), size.drop(while: { $0 == 0x30 }).count <= 15,
               let count = Int(String(decoding: size, as: UTF8.self), radix: 16) else { return violation() }
         line.removeAll(keepingCapacity: true)
         remaining = count
@@ -422,8 +430,8 @@ final class ResponseObservation {
 
     private func mergeAnthropic(_ usage: JournalJSON?, delta: Bool) {
         guard let usage = usage?.object else { return }
-        for (key, value) in usage where value != .null { anthropicUsage[key] = value }
-        if delta, usage["output_tokens"].map({ $0 != .null }) == true { anthropicTerminal = true }
+        anthropicUsage.merge(usage) { $1 }
+        if delta, usage["output_tokens"] != nil { anthropicTerminal = true }
         if anthropicTerminal { tokens = Self.normalize(.object(anthropicUsage), format: .anthropic) }
     }
 
@@ -523,14 +531,21 @@ final class ResponseObservation {
             seat?.role = status.map { (200..<300).contains($0) } == true ? "served" : "last_tried"
         }
         let unusable = malformed || headOverflow
-        emit(JournalRecord(
-            execution_id: execution, trace_id: trace,
-            started_at: Self.timestamp(started.wall), ended_at: Self.timestamp(ended.wall),
-            latency_ms: latency, ttft_ms: firstBody.map { min(latency, Self.milliseconds(started.monotonic, $0)) },
-            origin: request.origin, endpoint: request.endpoint, forwarded_endpoint: request.forwardedEndpoint,
-            provider: request.provider, requested_model: request.model, response_model: headOverflow ? nil : model,
-            status: status, outcome: outcome, seat: seat, client_session: request.session, tokens: unusable ? nil : tokens
-        ))
+        let (request, execution, trace, status) = (request, execution, trace, status)
+        let ttft = firstBody.map { min(latency, Self.milliseconds(started.monotonic, $0)) }
+        let model = headOverflow ? nil : model
+        let tokens = unusable ? nil : tokens
+        let (startedAt, endedAt) = (Self.timestamp(started.wall), Self.timestamp(ended.wall))
+        emit {
+            let fields = request.fields
+            return JournalRecord(
+                execution_id: execution, trace_id: trace, started_at: startedAt, ended_at: endedAt,
+                latency_ms: latency, ttft_ms: ttft,
+                origin: request.origin, endpoint: request.endpoint, forwarded_endpoint: request.forwardedEndpoint,
+                provider: fields.provider, requested_model: fields.model, response_model: model,
+                status: status, outcome: outcome, seat: seat, client_session: fields.session, tokens: tokens
+            )
+        }
     }
 
     private static func milliseconds(_ start: UInt64, _ end: UInt64) -> Int {

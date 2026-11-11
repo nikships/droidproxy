@@ -17,12 +17,19 @@ indirect enum JournalJSON: Equatable {
     }
 
     static func parse(_ data: Data, select: Selection = .all) -> JournalJSON? {
-        data.withUnsafeBytes { raw -> JournalJSON? in
-            var parser = JournalJSONParser(bytes: raw.bindMemory(to: UInt8.self))
-            guard let value = parser.value(depth: 0, select: select) else { return nil }
-            parser.skipWhitespace()
-            return parser.index == parser.bytes.count ? value : nil
-        }
+        data.withUnsafeBytes { parse($0.bindMemory(to: UInt8.self), select: select) }
+    }
+
+    static func parse(_ text: String, select: Selection = .all) -> JournalJSON? {
+        var text = text
+        return text.withUTF8 { parse($0, select: select) }
+    }
+
+    private static func parse(_ bytes: UnsafeBufferPointer<UInt8>, select: Selection) -> JournalJSON? {
+        var parser = JournalJSONParser(bytes: bytes)
+        guard let value = parser.value(depth: 0, select: select) else { return nil }
+        parser.skipWhitespace()
+        return parser.index == parser.bytes.count ? value : nil
     }
 
     subscript(key: String) -> JournalJSON? {
@@ -65,12 +72,13 @@ private struct JournalJSONParser {
     }
 
     /// A nil `select` validates the value without building it and returns `.null`.
+    /// `depth` counts the arrays and objects enclosing this value, so a container here is at depth + 1.
     mutating func value(depth: Int, select: JournalJSON.Selection?) -> JournalJSON? {
         skipWhitespace()
-        guard let byte = peek, depth < Self.maxDepth else { return nil }
+        guard let byte = peek else { return nil }
         switch byte {
-        case UInt8(ascii: "{"): return object(depth: depth, select: select)
-        case UInt8(ascii: "["): return array(depth: depth, select: select)
+        case UInt8(ascii: "{"): return depth < Self.maxDepth ? object(depth: depth, select: select) : nil
+        case UInt8(ascii: "["): return depth < Self.maxDepth ? array(depth: depth, select: select) : nil
         case UInt8(ascii: "\""): return string(keep: select != nil).map { select == nil ? .null : .string($0) }
         case UInt8(ascii: "t"): return literal("true") ? .bool(true) : nil
         case UInt8(ascii: "f"): return literal("false") ? .bool(false) : nil

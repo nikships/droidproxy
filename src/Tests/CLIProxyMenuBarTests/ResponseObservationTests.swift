@@ -15,7 +15,7 @@ final class ResponseObservationTests: XCTestCase {
     private func observe(_ bytes: Data, path: String = "/v1/messages", forwarded: String? = nil,
                          bytewise: Bool = false, end: JournalEnd = .eof) throws -> JournalRecord {
         var records: [JournalRecord] = []
-        let observation = ResponseObservation(request: journalRequest(path, forwarded: forwarded), emit: { records.append($0) })
+        let observation = ResponseObservation(request: journalRequest(path, forwarded: forwarded), emit: { records.append($0()) })
         for chunk in bytewise ? bytes.map({ Data([$0]) }) : [bytes] { deliver(observation, chunk) }
         observation.finish(end)
         observation.finish(.upstreamError)
@@ -44,7 +44,7 @@ final class ResponseObservationTests: XCTestCase {
 
     private func failed(_ response: Data, deliveredFirst: Int = 0, accepted: Int) throws -> JournalRecord {
         var records: [JournalRecord] = []
-        let observation = ResponseObservation(request: journalRequest("/v1/messages"), emit: { records.append($0) })
+        let observation = ResponseObservation(request: journalRequest("/v1/messages"), emit: { records.append($0()) })
         if deliveredFirst > 0 { deliver(observation, response.prefix(deliveredFirst)) }
         let rest = response.dropFirst(deliveredFirst)
         failWrite(observation, accepted: Data(rest.prefix(accepted)), undelivered: Data(rest.dropFirst(accepted)))
@@ -327,12 +327,12 @@ final class ResponseObservationTests: XCTestCase {
         }
         XCTAssertEqual(try observe(sseHead + "data: {\"type\":\"message_stop\",}\n\n").outcome, "upstream_closed_early")
         let duplicateModel = journalRequest("/v1/chat/completions", body: #"{"model":"claude-x","model":"gpt-y"}"#)
-        XCTAssertEqual(duplicateModel.model, "gpt-y")
-        XCTAssertEqual(duplicateModel.provider, "codex")
+        XCTAssertEqual(duplicateModel.fields.model, "gpt-y")
+        XCTAssertEqual(duplicateModel.fields.provider, "codex")
         for body in [#"{"model":"gpt-y",}"#, #"{"model":"gpt-y"} // c"#, #"{"model":"gpt-y","prompt_cache_key":"body-session-0001",]"#] {
             let request = journalRequest("/v1/chat/completions", body: body)
-            XCTAssertNil(request.model, body)
-            XCTAssertNil(request.session, body)
+            XCTAssertNil(request.fields.model, body)
+            XCTAssertNil(request.fields.session, body)
         }
         XCTAssertNil(journalSession([], #"{"metadata":{"user_id":"{\"session_id\":\"json-session-0001\",}"}}"#))
         XCTAssertEqual(journalSession([], #"{"metadata":{"user_id":"{\"session_id\":\"json-session-0001\"}"}}"#), "json-session-0001")
@@ -358,7 +358,7 @@ final class ResponseObservationTests: XCTestCase {
         var record: JournalRecord?
         let observation = ResponseObservation(
             request: journalRequest("/v1/responses?q=1", forwarded: "/v1/chat/completions", headers: [("X-DroidProxy-Origin", "window-primer")], body: #"{"model":"gemini-original"}"#),
-            clock: { clock.now }, emit: { record = $0 })
+            clock: { clock.now }, emit: { record = $0() })
         deliver(observation, Data("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n2\r\n".utf8), clock: clock, readAt: 10, writeAt: 11)
         deliver(observation, Data("{}\r\n0\r\n\r\n".utf8), clock: clock, readAt: 21, writeAt: 35)
         let r = try XCTUnwrap(record)
@@ -369,6 +369,73 @@ final class ResponseObservationTests: XCTestCase {
         XCTAssertEqual(r.endpoint, "/v1/responses")
         XCTAssertEqual(r.forwarded_endpoint, "/v1/chat/completions")
         XCTAssertEqual(r.requested_model, "gemini-original")
+    }
+
+    func testAnthropicMergeLetsLaterNullReplaceEarlierValues() throws {
+        func stream(_ deltas: [String]) -> String {
+            let start = "data: {\"type\":\"message_start\",\"message\":{\"usage\":{\"input_tokens\":3,\"output_tokens\":1,\"cache_read_input_tokens\":4}}}\n\n"
+            return sseHead + start + deltas.map { "data: {\"type\":\"message_delta\",\"usage\":\($0)}\n\n" }.joined()
+                + "data: {\"type\":\"message_stop\"}\n\n"
+        }
+        XCTAssertEqual(try observeAnySplit(stream([#"{"output_tokens":5}"#])).tokens,
+                       JournalTokens(input_uncached: 3, cache_read: 4, cache_creation: 0, output: 5, reasoning: nil))
+        XCTAssertNil(try observeAnySplit(stream([#"{"output_tokens":5}"#, #"{"output_tokens":null}"#])).tokens)
+        XCTAssertNil(try observeAnySplit(stream([#"{"output_tokens":5,"input_tokens":null}"#])).tokens)
+        XCTAssertEqual(try observeAnySplit(stream([#"{"output_tokens":5,"cache_read_input_tokens":null}"#])).tokens,
+                       JournalTokens(input_uncached: 3, cache_read: 0, cache_creation: 0, output: 5, reasoning: nil))
+        XCTAssertEqual(try observeAnySplit(stream([#"{"output_tokens":null}"#, #"{"output_tokens":7}"#])).tokens?.output, 7)
+    }
+
+    func testUndeliveredHeadBytesNeverMakeFramingMalformed() throws {
+        let status = "HTTP/1.1 200 OK\r\n"
+        let traceLine = "X-CPA-TRACE-ID: \(trace)\r\n"
+        for rest in [
+            traceLine + "No Colon\r\nContent-Length: 0\r\n\r\n",
+            traceLine + "X-Bare: lf\nContent-Length: 0\r\n\r\n",
+            traceLine + "X-Pad: " + String(repeating: "a", count: 70 * 1024)
+        ] {
+            for accepted in [0, status.utf8.count] {
+                let r = try failed(Data((status + rest).utf8), accepted: accepted)
+                XCTAssertEqual(r.outcome, "client_disconnected", "\(accepted) \(rest.prefix(30))")
+                XCTAssertEqual(r.status, 200, "\(accepted)")
+                XCTAssertEqual(r.trace_id, trace, "\(accepted)")
+            }
+        }
+        let badStatus = try failed(Data("HTTP/1.1 200 OK\nContent-Length: 0\r\n\r\n".utf8), accepted: 0)
+        XCTAssertEqual(badStatus.outcome, "client_disconnected")
+        XCTAssertNil(badStatus.status)
+    }
+
+    func testOnlyTheFirstTraceHeaderCountsEvenWhenLaterOnesAreUndelivered() throws {
+        let other = "20261111100000-fedcba9876543210-019a7140-0000-7000-8000-000000000002"
+        let response = Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: \(trace)\r\nX-CPA-TRACE-ID: \(other)\r\n".utf8)
+        let firstLineEnd = "HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: \(trace)\r\n".utf8.count
+        for accepted in [0, firstLineEnd] {
+            let r = try failed(response, accepted: accepted)
+            XCTAssertEqual(r.trace_id, trace, "\(accepted)")
+            XCTAssertEqual(r.execution_id, "019a7140-0000-7000-8000-000000000001", "\(accepted)")
+            XCTAssertEqual(r.seat?.auth_index, "0123456789abcdef", "\(accepted)")
+        }
+    }
+
+    func testChunkSizeAcceptsLeadingZerosBeyondFifteenDigits() throws {
+        let json = #"{"type":"message","model":"m","usage":{"input_tokens":3,"output_tokens":5}}"#
+        let size = String(repeating: "0", count: 20) + String(json.utf8.count, radix: 16)
+        let r = try observeAnySplit("HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n\(size)\r\n\(json)\r\n0000\r\n\r\n")
+        XCTAssertEqual(r.outcome, "complete")
+        XCTAssertEqual(r.tokens?.output, 5)
+    }
+
+    func testJSONNestingLimitCountsOnlyArraysAndObjects() {
+        func nested(_ depth: Int, _ inner: String) -> Data {
+            Data((String(repeating: "[", count: depth) + inner + String(repeating: "]", count: depth)).utf8)
+        }
+        XCTAssertNotNil(JournalJSON.parse(nested(512, "1")))
+        XCTAssertNotNil(JournalJSON.parse(nested(512, "")))
+        XCTAssertNotNil(JournalJSON.parse(nested(511, "{\"a\":\"b\"}")))
+        XCTAssertNil(JournalJSON.parse(nested(513, "")))
+        XCTAssertNil(JournalJSON.parse(nested(512, "{}")))
+        XCTAssertNil(JournalJSON.parse(nested(512, "{\"a\":1}")))
     }
 
     func testObservationCapsDoNotInventUsage() throws {

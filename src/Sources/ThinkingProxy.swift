@@ -424,7 +424,7 @@ class ThinkingProxy {
                 return (String(line[..<colon]).trimmingCharacters(in: httpWhitespace),
                         String(line[line.index(after: colon)...]).trimmingCharacters(in: httpWhitespace))
             }
-            observation = journal.begin(JournalRequest(endpoint: path, forwardedEndpoint: rewrittenPath, headers: originalHeaders, body: Data(bodyString.utf8)))
+            observation = journal.begin(JournalRequest(endpoint: path, forwardedEndpoint: rewrittenPath, headers: originalHeaders, body: bodyString))
         }
         forwardRequest(method: method, path: rewrittenPath, version: httpVersion, headers: forwardHeaders, body: modifiedBody, originalConnection: connection, observation: observation)
     }

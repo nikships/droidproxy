@@ -31,7 +31,7 @@ final class RequestJournalTests: XCTestCase {
     func testContractDigests() throws {
         let manifest = try XCTUnwrap(String(data: resource("CONTRACT_SOURCE"), encoding: .utf8))
         XCTAssertTrue(manifest.contains("nikships/droidproxy-omarchy"))
-        XCTAssertTrue(manifest.contains("03ebb83f222871d78ca35d1f865a6d14aaf11df7"))
+        XCTAssertTrue(manifest.contains("97fa1ecf94a86be5592c2202e9fa9240a7db671a"))
         let lines = manifest.split(separator: "\n").filter { $0.contains("  request-journal-") }
         XCTAssertEqual(lines.count, 4)
         for line in lines {
@@ -128,7 +128,7 @@ final class RequestJournalTests: XCTestCase {
             bindSeat: { index in
                 guard let seat = seats.first(where: { $0.auth_index == index }) else { return nil }
                 return JournalSeatBinding(identity: seat, isValid: { true })
-            }, emit: { results.append($0) })
+            }, emit: { results.append($0()) })
         var offset = 0
         var failed = false
         for read in reads where !read.isEmpty {
@@ -202,8 +202,8 @@ final class RequestJournalTests: XCTestCase {
             XCTAssertEqual(JournalRequest.provider(model: model, path: path), provider)
         }
         let native = journalRequest("/v1beta/models/gemini-3:generateContent?x=1", forwarded: "/v1beta/models/gemini-3:generateContent")
-        XCTAssertEqual(native.model, "gemini-3")
-        XCTAssertNil(journalRequest("/v1beta/interactions", body: #"{"agent":"agent-1"}"#).model)
+        XCTAssertEqual(native.fields.model, "gemini-3")
+        XCTAssertNil(journalRequest("/v1beta/interactions", body: #"{"agent":"agent-1"}"#).fields.model)
     }
 
     private func sampleRecord() throws -> JournalRecord {
@@ -286,8 +286,8 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertGreaterThanOrEqual(fd, 0)
         defer { close(fd) }
         XCTAssertEqual(flock(fd, LOCK_EX), 0)
-        writer.enqueue(record)
-        writer.enqueue(record)
+        writer.enqueue { record }
+        writer.enqueue { record }
         XCTAssertEqual(writer.counters.drops, 1)
         XCTAssertEqual(flock(fd, LOCK_UN), 0)
         writer.flush()
@@ -295,7 +295,7 @@ final class RequestJournalTests: XCTestCase {
         let denied = directory.appendingPathComponent("denied")
         try Data().write(to: denied)
         let badWriter = JournalWriter(directory: denied.appendingPathComponent("journal"))
-        badWriter.enqueue(record)
+        badWriter.enqueue { record }
         badWriter.flush()
         XCTAssertEqual(badWriter.counters.errors, 1)
     }
@@ -336,7 +336,7 @@ final class RequestJournalTests: XCTestCase {
         let seats = JournalSeatIndex(directory: directory)
         let index = JournalSeatIndex.index(type: "claude", path: file.path)
         var record: JournalRecord?
-        let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: { record = $0 })
+        let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: { record = $0() })
         deliver(observation, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n".utf8))
         try Data(#"{"type":"claude","email":"replacement@example.invalid"}"#.utf8).write(to: file, options: .atomic)
         deliver(observation, Data("{}".utf8))
@@ -359,6 +359,10 @@ final class RequestJournalTests: XCTestCase {
         let link = auth.appendingPathComponent("link.json")
         try FileManager.default.createSymbolicLink(at: link, withDestinationURL: target)
         XCTAssertEqual(mkfifo(auth.appendingPathComponent("fifo.json").path, 0o600), 0)
+        let fifoTarget = directory.appendingPathComponent("fifo-target")
+        XCTAssertEqual(mkfifo(fifoTarget.path, 0o600), 0)
+        try FileManager.default.createSymbolicLink(at: auth.appendingPathComponent("fifo-link.json"), withDestinationURL: fifoTarget)
+        try FileManager.default.createSymbolicLink(at: auth.appendingPathComponent("device-link.json"), withDestinationURL: URL(fileURLWithPath: "/dev/null"))
         let seats = JournalSeatIndex(directory: auth)
         seats.refresh()
         XCTAssertEqual(seats.bind(regular)?.identity,
@@ -399,9 +403,9 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertNil(JournalSeatIndex(directory: auth).bind(JournalSeatIndex.index(type: "claude", path: file.path)))
     }
 
-    private func lockedJournal() throws -> (JournalWriter, JournalRecord, URL, Int32) {
+    private func lockedJournal(log: @escaping (String) -> Void = { _ in }) throws -> (JournalWriter, JournalRecord, URL, Int32) {
         let journal = directory.appendingPathComponent("journal")
-        let writer = JournalWriter(directory: journal)
+        let writer = JournalWriter(directory: journal, log: log)
         let record = try sampleRecord()
         try writer.append(record)
         let file = journal.appendingPathComponent("requests-2026-11.jsonl")
@@ -414,7 +418,7 @@ final class RequestJournalTests: XCTestCase {
     func testLockWaitIsBoundedAndCountsTheRecordAsDropped() throws {
         let (writer, record, file, fd) = try lockedJournal()
         defer { flock(fd, LOCK_UN); close(fd) }
-        writer.enqueue(record)
+        writer.enqueue { record }
         let gaveUp = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in writer.counters.drops == 1 }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [gaveUp], timeout: 5), .completed)
         XCTAssertEqual(writer.counters.errors, 0)
@@ -424,7 +428,7 @@ final class RequestJournalTests: XCTestCase {
     func testShutdownFlushIsBoundedAndCountsWhatRemains() throws {
         let (writer, record, file, fd) = try lockedJournal()
         defer { flock(fd, LOCK_UN); close(fd) }
-        for _ in 0..<3 { writer.enqueue(record) }
+        for _ in 0..<3 { writer.enqueue { record } }
         let returned = DispatchSemaphore(value: 0)
         let started = Date()
         DispatchQueue.global().async { writer.flush(); returned.signal() }
@@ -433,6 +437,57 @@ final class RequestJournalTests: XCTestCase {
         let counted = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in writer.counters.drops == 3 }, object: nil)
         XCTAssertEqual(XCTWaiter.wait(for: [counted], timeout: 5), .completed)
         XCTAssertEqual(try String(contentsOf: file).split(separator: "\n").count, 1)
+    }
+
+    func testFlushReturnsWithinItsBoundWhileTheLogSinkIsStalled() throws {
+        let stalled = DispatchSemaphore(value: 0)
+        let (writer, record, _, fd) = try lockedJournal(log: { _ in stalled.wait() })
+        defer {
+            for _ in 0..<8 { stalled.signal() }
+            flock(fd, LOCK_UN)
+            close(fd)
+        }
+        for _ in 0..<2 { writer.enqueue { record } }
+        let returned = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async { writer.flush(timeout: 0.2); returned.signal() }
+        XCTAssertEqual(returned.wait(timeout: .now() + 2), .success)
+    }
+
+    func testCredentialFilesOverOneMiBAreNotReadForIdentity() throws {
+        let auth = directory.appendingPathComponent("auth")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        func write(_ name: String, size: Int) throws -> String {
+            let prefix = #"{"type":"claude","email":"big@example.invalid","pad":""#
+            let json = prefix + String(repeating: "a", count: size - prefix.utf8.count - 2) + #""}"#
+            XCTAssertEqual(json.utf8.count, size)
+            let url = auth.appendingPathComponent(name)
+            try Data(json.utf8).write(to: url)
+            return JournalSeatIndex.index(type: "claude", path: url.path)
+        }
+        let atLimit = try write("limit.json", size: 1_048_576)
+        let over = try write("over.json", size: 1_048_577)
+        let seats = JournalSeatIndex(directory: auth)
+        XCTAssertEqual(seats.bind(atLimit)?.identity.email, "big@example.invalid")
+        XCTAssertNil(seats.bind(over))
+    }
+
+    func testCachedHitRechecksBindability() throws {
+        let auth = directory.appendingPathComponent("auth")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        let json = Data(#"{"type":"claude","email":"seat@example.invalid"}"#.utf8)
+        let target = directory.appendingPathComponent("target.json")
+        try json.write(to: target)
+        let file = auth.appendingPathComponent("seat.json")
+        try FileManager.default.createSymbolicLink(at: file, withDestinationURL: target)
+        let index = JournalSeatIndex.index(type: "claude", path: file.path)
+        let seats = JournalSeatIndex(directory: auth)
+        XCTAssertNil(seats.bind(index))
+        try FileManager.default.removeItem(at: file)
+        try json.write(to: file)
+        XCTAssertEqual(seats.bind(index)?.identity.email, "seat@example.invalid")
+        try FileManager.default.removeItem(at: file)
+        try FileManager.default.createSymbolicLink(at: file, withDestinationURL: target)
+        XCTAssertNil(seats.bind(index))
     }
 }
 

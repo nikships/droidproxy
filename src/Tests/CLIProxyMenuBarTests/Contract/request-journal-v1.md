@@ -137,10 +137,14 @@ The observer accepts only this framing:
   space, any reason text (possibly empty), and CRLF. `HTTP/1.1 200`,
   `HTTP/1.1 200 ` and `HTTP/1.1 200 OK` are valid; `HTTP/1.1 20`,
   `HTTP/2 200 OK`, `HTTP/1.1 200OK`, and `HTTP/1.1 999 Custom` are malformed.
-- Every header line contains a colon, and the header name before it is a
-  nonempty token.
-- Every chunk-size line, and the line ending after each chunk's data, ends in
-  CRLF. A bare LF there is a violation.
+- Every header line and every trailer line ends in CRLF, contains a colon, and
+  has a nonempty token as the name before the colon.
+- A bare LF anywhere in the head or the trailers, including at the end of the
+  status line, is a violation.
+- A chunk-size line is one or more hex digits, optionally followed by `;` and a
+  chunk extension, then CRLF. Any other byte before the extension or the CRLF,
+  including a space or tab, is a violation, and so is a bare LF ending the line.
+- The line ending after each chunk's data is CRLF.
 
 Any violation is malformed framing. The record's outcome is `upstream_error`
 whichever exit finalizes it, `status` is the final status as observed, and
@@ -151,11 +155,14 @@ CRLF) and valid, even if the rest of the head never arrives. A malformed status
 line, including one whose code is outside 100 through 599, retains no status, so
 `status` is null.
 
-The final head's terminator must occur within the first 64 KiB of that head,
-counted from its first byte, however the bytes were split across reads. If it
-does not, observation of that response stops: the outcome is `upstream_error`,
-`status` comes from the status line if one was observed, `tokens`,
-`response_model`, and `ttft_ms` are null, and no framing completion is inferred.
+The final head, including the blank line that terminates it, must fit within
+its first 65,536 bytes (64 KiB), counted from its first byte, however the bytes
+were split across reads. Once 65,536 bytes of the final head have been observed
+without its terminator, the head is over the cap at that moment, including when
+the response ends there. Observation of that response then stops: the outcome
+is `upstream_error`, `status` comes from the status line if one was observed,
+`tokens`, `response_model`, and `ttft_ms` are null, and no framing completion
+is inferred.
 The relay keeps relaying the response.
 
 `Transfer-Encoding` is a comma-separated list of codings. Chunk framing applies
@@ -177,7 +184,10 @@ comments, `NaN`, or other extensions. A response body or SSE payload that is not
 strict JSON contributes no usage, no response model, and no payload-based
 protocol error; for a non-stream body this means `tokens` is null. Requests are
 covered under Admission and paths. For repeated member names in any JSON
-object, only the last occurrence counts. Forwarded bytes are never changed.
+object, only the last occurrence counts. A value nested more than 512 arrays and
+objects deep is not strict JSON and has the same effect as a parse failure; the
+outermost array or object is depth 1, and depth 512 is accepted. Forwarded bytes
+are never changed.
 
 ### SSE
 
@@ -332,9 +342,17 @@ latency by subtracting serialized timestamps.
 
 Split `X-CPA-TRACE-ID` with at most three parts:
 `YYYYMMDDHHMMSS-<16 lowercase hex auth_index>-<request UUID>`.
-Preserve the raw header as trace_id. execution_id is the third segment whenever
-that segment alone is a valid UUID (per the schema's `uuid` definition; normally
-UUIDv7), whatever the other segments contain; otherwise mint a UUIDv4. The seat
+Only the first `X-CPA-TRACE-ID` header line in the final head counts, whatever
+its value; later ones are ignored. trace_id, execution_id, and seat come from
+that header alone; later headers cannot repair or replace any of them. An empty
+first header gives a minted execution_id and a null seat. A nonempty first
+header with an invalid timestamp or auth_index still supplies execution_id when
+its third segment alone is a valid UUID, but gives a null seat. A first header
+whose value is empty after removing surrounding SP/HTAB still counts as the
+first header but gives trace_id null. Otherwise preserve the raw header as
+trace_id. execution_id is the third segment whenever that segment alone is a
+valid UUID (per the schema's `uuid` definition; normally UUIDv7), whatever the
+other segments contain; otherwise mint a UUIDv4. The seat
 needs the whole trace to be valid: a 14-digit timestamp, a 16-character
 lowercase hex index, and a valid UUID. Without a valid trace, seat is null; never
 recover a seat from the model or current account selection. The UUID and index
@@ -347,13 +365,17 @@ with if/then/else, including rejecting served + 429. Neither a 2xx nor role serv
 alone proves spend. Do not use last_tried for spend.
 
 The seat index covers only entries directly in `~/.cli-proxy-api` whose names
-end in `.json` (case-sensitive). Each entry's index is
-`hex(sha256(lower(type) + ":" + clean_absolute_path)[:8])`. Only regular files
-owned by the running user can be bound to a request. Symlinks, other
-non-regular files, and files not owned by the running user are indexed, so a
-trace that names them still resolves, but they are never bound: the seat is
-`{auth_index, role}` only. A basename that fails the schema's `file` pattern is
-omitted from the seat.
+end in `.json` (case-sensitive). Each indexed entry's index is
+`hex(sha256(lower(type) + ":" + clean_absolute_path)[:8])`. Regular files and
+symlinks are indexed; a symlink's `type` is read through the link. Other
+non-regular entries (FIFOs, sockets, devices) are not indexed. A credential file
+larger than 1 MiB (1,048,576 bytes) is not read, so it supplies no `type` and is
+not indexed. Only regular files owned by the running user can be bound to a
+request. Symlinks and files not owned by the running user are indexed, so a
+trace that names them still finds its entry, but they are never bound. A valid
+trace whose index has no bindable entry, including one with no entry at all,
+yields a seat of `{auth_index, role}` only. A basename that fails the schema's
+`file` pattern is omitted from the seat.
 
 Refresh on auth-dir watcher events and on a miss at most once per second.
 On every hit stat and compare size, mtime, and inode where available; re-read
@@ -388,7 +410,8 @@ bounded flush deadline; records remaining after it are counted as dropped. A
 bounded process-local queue never blocks the relay. Lock acquisition gives up
 after a short bounded wait and counts the record as dropped. Drop and write-error
 diagnostics are aggregated and emitted without blocking the relay, and never
-fail it.
+fail it. Emitting them, including at shutdown, never holds a flush or close past
+its deadline.
 
 Golden lines wrap `{name, valid, reason?, record}`. Invalid cases isolate schema
 violations, not unprovable provenance: a schema cannot distinguish invented
@@ -453,13 +476,16 @@ even without include_usage; the actually usage-free case is explicitly derived.
 Derived fixtures also cover incomplete Responses, cache subtraction, Anthropic
 merge-only and later cache-only usage, a message_delta model, 429, missing and
 malformed traces, truncation, gzip content and transfer codings, chunk
-boundaries, framing violations, the head and SSE caps, protocol errors, null
-optional and extreme or fractional counters, unrecognized envelopes, non-strict
-request and response JSON, repeated request members, response-model location
-order, out-of-range status codes, close-delimited SSE, event names without a
-completion payload, SSE lines at and one byte over the line cap, the chat
-cache-creation fallback and null finish reasons, bytes after `[DONE]`, and
-failed client writes.
+boundaries, framing violations (bare LF in status, header, and trailer lines,
+trailer lines without a colon, and padded chunk-size lines), repeated trace
+headers, JSON nested at and one over the depth limit, the head and SSE caps
+(including a head that reaches the cap without its terminator and then ends),
+protocol errors, null optional and extreme or fractional counters, unrecognized
+envelopes, non-strict request and response JSON, repeated request members,
+response-model location order, out-of-range status codes, close-delimited SSE,
+event names without a completion payload, SSE lines at and one byte over the
+line cap, the chat cache-creation fallback and null finish reasons, bytes after
+`[DONE]`, and failed client writes.
 Their provenance is recorded per case; they are not claimed as real captures.
 
 Each implementation tests these rules itself rather than through transcripts:

@@ -82,12 +82,17 @@ struct JournalRecord: Codable, Equatable {
 }
 
 struct JournalRequest {
+    struct Fields {
+        let model: String?
+        let provider: String
+        let session: String?
+    }
+
     let endpoint: String
     let forwardedEndpoint: String?
-    let model: String?
-    let provider: String
-    let session: String?
     let origin: String
+    private let headers: [(String, String)]
+    private let body: String
 
     static func path(_ raw: String) -> String { String(raw.prefix { $0 != "?" }) }
 
@@ -145,22 +150,28 @@ struct JournalRequest {
         if let id = validSession(body["prompt_cache_key"]?.string) { return id }
         guard let user = body["metadata"]?["user_id"]?.string else { return nil }
         if user.hasPrefix("{") {
-            return validSession(JournalJSON.parse(Data(user.utf8))?["session_id"]?.string)
+            return validSession(JournalJSON.parse(user)?["session_id"]?.string)
         }
         guard let range = user.range(of: "_session_", options: .backwards) else { return nil }
         return validSession(String(user[range.upperBound...]))
     }
 
-    init(endpoint: String, forwardedEndpoint: String, headers: [(String, String)], body: Data) {
+    /// Stores the body unparsed so the forwarding path never pays for JSON parsing.
+    init(endpoint: String, forwardedEndpoint: String, headers: [(String, String)], body: String) {
         self.endpoint = Self.path(endpoint)
         let forwarded = Self.path(forwardedEndpoint)
         self.forwardedEndpoint = forwarded == self.endpoint ? nil : forwarded
-        let json = JournalJSON.parse(body)
-        let model = Self.nativeModel(self.endpoint) ?? json?["model"]?.string
-        self.model = model?.isEmpty == false ? model : nil
-        self.provider = Self.provider(model: self.model, path: self.endpoint)
-        self.session = Self.session(headers: headers, body: json)
+        self.headers = headers
+        self.body = body
         self.origin = headers.contains { $0.0.lowercased() == "x-droidproxy-origin" && $0.1 == "window-primer" } ? "primer" : "client"
+    }
+
+    /// Parses the body on every call; the journal calls it once, on its own queue.
+    var fields: Fields {
+        let json = JournalJSON.parse(body)
+        let named = Self.nativeModel(endpoint) ?? json?["model"]?.string
+        let model = named?.isEmpty == false ? named : nil
+        return Fields(model: model, provider: Self.provider(model: model, path: endpoint), session: Self.session(headers: headers, body: json))
     }
 }
 
@@ -198,6 +209,24 @@ final class JournalSeatIndex {
             .prefix(8).map { String(format: "%02x", $0) }.joined()
     }
 
+    private static let identityLimit = 1 << 20
+
+    private static func fingerprint(_ s: stat) -> Fingerprint {
+        Fingerprint(size: s.st_size, seconds: s.st_mtimespec.tv_sec, nanos: s.st_mtimespec.tv_nsec, inode: s.st_ino)
+    }
+
+    /// True for an owned regular file, false for a symlink to a regular file or a file owned by someone else,
+    /// nil for anything else (those are never opened).
+    private static func bindability(_ url: URL) -> Bool? {
+        var s = stat()
+        guard lstat(url.path, &s) == 0 else { return nil }
+        switch s.st_mode & S_IFMT {
+        case S_IFREG: return s.st_uid == getuid()
+        case S_IFLNK: return stat(url.path, &s) == 0 && s.st_mode & S_IFMT == S_IFREG ? false : nil
+        default: return nil
+        }
+    }
+
     /// Fingerprint of an owned regular file at `url`, opened without following a symlink; nil if unreadable.
     private func fingerprint(_ url: URL) -> Fingerprint? {
         let fd = open(url.path, O_RDONLY | O_NOFOLLOW | O_NONBLOCK | O_CLOEXEC)
@@ -209,7 +238,15 @@ final class JournalSeatIndex {
     private func fingerprint(_ fd: Int32, owned: Bool) -> Fingerprint? {
         var s = stat()
         guard fstat(fd, &s) == 0, s.st_mode & S_IFMT == S_IFREG, !owned || s.st_uid == getuid() else { return nil }
-        return Fingerprint(size: s.st_size, seconds: s.st_mtimespec.tv_sec, nanos: s.st_mtimespec.tv_nsec, inode: s.st_ino)
+        return Self.fingerprint(s)
+    }
+
+    /// Whether the path still holds what `entry` was built from: the same bindability and fingerprint.
+    private func unchanged(_ entry: Entry) -> Bool {
+        guard let bindable = Self.bindability(entry.url), bindable == (entry.identity != nil) else { return false }
+        if bindable { return fingerprint(entry.url) == entry.fingerprint }
+        var s = stat()
+        return stat(entry.url.path, &s) == 0 && Self.fingerprint(s) == entry.fingerprint
     }
 
     private func identityData(_ url: URL, bindable: Bool) -> (Fingerprint, JournalJSON)? {
@@ -217,7 +254,8 @@ final class JournalSeatIndex {
         guard fd >= 0 else { return nil }
         let handle = FileHandle(fileDescriptor: fd, closeOnDealloc: true)
         defer { try? handle.close() }
-        guard let before = fingerprint(fd, owned: bindable), let data = try? handle.readToEnd(),
+        guard let before = fingerprint(fd, owned: bindable), before.size <= Self.identityLimit,
+              let data = try? handle.read(upToCount: Self.identityLimit + 1), data.count <= Self.identityLimit,
               let json = JournalJSON.parse(data, select: Self.identityMembers),
               fingerprint(fd, owned: bindable) == before, !bindable || fingerprint(url) == before else { return nil }
         return (before, json)
@@ -234,10 +272,8 @@ final class JournalSeatIndex {
         var next: [String: [Entry]] = [:]
         for name in (try? FileManager.default.contentsOfDirectory(atPath: directory.path)) ?? [] where name.hasSuffix(".json") {
             let url = directory.appendingPathComponent(name)
-            var s = stat()
-            guard lstat(url.path, &s) == 0 else { continue }
-            let bindable = s.st_mode & S_IFMT == S_IFREG && s.st_uid == getuid()
-            guard let (before, json) = identityData(url, bindable: bindable), let type = Self.nonempty(json["type"]) else { continue }
+            guard let bindable = Self.bindability(url), let (before, json) = identityData(url, bindable: bindable),
+                  let type = Self.nonempty(json["type"]) else { continue }
             let index = Self.index(type: type, path: url.standardizedFileURL.path)
             let kind = type.lowercased()
             let identity = !bindable ? nil : JournalSeat(
@@ -256,7 +292,7 @@ final class JournalSeatIndex {
     func bind(_ index: String) -> JournalSeatBinding? {
         lock.lock()
         defer { lock.unlock() }
-        if let old = entries[index], old.contains(where: { $0.identity != nil && fingerprint($0.url) != $0.fingerprint }) {
+        if let old = entries[index], !old.allSatisfy(unchanged) {
             refresh()
         } else if entries[index] == nil && ProcessInfo.processInfo.systemUptime - refreshed >= 1 {
             refresh()
@@ -268,7 +304,7 @@ final class JournalSeatIndex {
             defer { self.lock.unlock() }
             guard let current = self.entries[index], current.count == 1,
                   current[0].url == entry.url, current[0].fingerprint == entry.fingerprint else { return false }
-            return self.fingerprint(entry.url) == entry.fingerprint
+            return self.unchanged(entry)
         })
     }
 }
@@ -286,10 +322,12 @@ final class JournalWriter {
     private var reportScheduled = false
     private var pending = 0
     private var closed = false
+    private let log: (String) -> Void
 
-    init(directory: URL, capacity: Int = 256) {
+    init(directory: URL, capacity: Int = 256, log: @escaping (String) -> Void = { NSLog("%@", $0) }) {
         self.directory = directory
         self.slots = DispatchSemaphore(value: capacity)
+        self.log = log
     }
 
     var counters: (drops: Int, errors: Int) {
@@ -299,7 +337,8 @@ final class JournalWriter {
     }
 
     /// Never blocks the caller: a full queue or a closed writer counts the record as dropped.
-    func enqueue(_ record: JournalRecord) {
+    /// `build` runs on the writer queue, so work it does stays off the caller's thread.
+    func enqueue(_ build: @escaping () -> JournalRecord) {
         guard slots.wait(timeout: .now()) == .success else { return note(drops: 1) }
         lock.lock()
         let accepted = !closed
@@ -316,13 +355,14 @@ final class JournalWriter {
             if !skip { self.pending -= 1 }
             self.lock.unlock()
             guard !skip else { return }
-            do { try self.append(record) }
+            do { try self.append(build()) }
             catch is LockTimeout { self.note(drops: 1) }
             catch { self.note(errors: 1, error: error.localizedDescription) }
         }
     }
 
-    /// Waits at most `timeout` for queued records. Records still queued then are counted as dropped and never written.
+    /// Waits at most `timeout` for queued records. Records still queued then are counted as dropped and never written;
+    /// the report is logged on the diagnostics queue so a stalled log sink cannot hold the caller.
     func flush(timeout: TimeInterval = 2) {
         let done = DispatchSemaphore(value: 0)
         queue.async { done.signal() }
@@ -332,7 +372,7 @@ final class JournalWriter {
         counts.drops += pending
         pending = 0
         lock.unlock()
-        report()
+        Self.diagnostics.async { self.report() }
     }
 
     /// Counts are updated at once; the log line is emitted later on another queue, at most once per interval.
@@ -352,7 +392,7 @@ final class JournalWriter {
         let (current, error) = (counts, lastError)
         reportScheduled = false
         lock.unlock()
-        NSLog("[RequestJournal] %d records dropped, %d write errors%@", current.drops, current.errors, error.map { "; last error: \($0)" } ?? "")
+        log("[RequestJournal] \(current.drops) records dropped, \(current.errors) write errors" + (error.map { "; last error: \($0)" } ?? ""))
     }
 
     private func lockExclusive(_ fd: Int32) throws {

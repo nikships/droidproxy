@@ -28,9 +28,9 @@ func failWrite(_ observation: ResponseObservation, accepted: Data, undelivered: 
 }
 
 func journalRequest(_ endpoint: String, forwarded: String? = nil, headers: [(String, String)] = [], body: String = "{}") -> JournalRequest {
-    JournalRequest(endpoint: endpoint, forwardedEndpoint: forwarded ?? endpoint, headers: headers, body: Data(body.utf8))
+    JournalRequest(endpoint: endpoint, forwardedEndpoint: forwarded ?? endpoint, headers: headers, body: body)
 }
 
 func journalSession(_ headers: [(String, String)], _ body: String) -> String? {
-    JournalRequest.session(headers: headers, body: JournalJSON.parse(Data(body.utf8)))
+    JournalRequest.session(headers: headers, body: JournalJSON.parse(body))
 }
