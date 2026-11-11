@@ -14,9 +14,13 @@ final class ResponseObservationTests: XCTestCase {
 
     private func observe(_ bytes: Data, path: String = "/v1/messages", forwarded: String? = nil,
                          bytewise: Bool = false, end: JournalEnd = .eof) throws -> JournalRecord {
+        try observe(reads: bytewise ? bytes.map { Data([$0]) } : [bytes], path: path, forwarded: forwarded, end: end)
+    }
+
+    private func observe(reads: [Data], path: String, forwarded: String?, end: JournalEnd = .eof) throws -> JournalRecord {
         var records: [JournalRecord] = []
         let observation = ResponseObservation(request: journalRequest(path, forwarded: forwarded), emit: { records.append($0()) })
-        for chunk in bytewise ? bytes.map({ Data([$0]) }) : [bytes] { deliver(observation, chunk) }
+        for chunk in reads { deliver(observation, chunk) }
         observation.finish(end)
         observation.finish(.upstreamError)
         return try single(records)
@@ -24,14 +28,24 @@ final class ResponseObservationTests: XCTestCase {
 
     /// Whole and bytewise replay must produce the same record.
     private func observeAnySplit(_ raw: String, path: String = "/v1/messages") throws -> JournalRecord {
-        let whole = try observe(raw, path: path)
-        var bytewise = try observe(raw, path: path, bytewise: true)
-        bytewise.execution_id = whole.execution_id
-        bytewise.started_at = whole.started_at
-        bytewise.ended_at = whole.ended_at
-        bytewise.latency_ms = whole.latency_ms
-        bytewise.ttft_ms = whole.ttft_ms
-        XCTAssertEqual(whole, bytewise, String(raw.prefix(60)))
+        try observeEverySplit(raw, path: path, splits: [])
+    }
+
+    /// Whole, bytewise and two-read replays split at `splits` (default every offset) must produce the same record.
+    private func observeEverySplit(_ raw: String, path: String = "/v1/messages", forwarded: String? = nil, splits: [Int]? = nil) throws -> JournalRecord {
+        let bytes = Data(raw.utf8)
+        let whole = try observe(bytes, path: path, forwarded: forwarded)
+        var replays = [("bytewise", bytes.map { Data([$0]) })]
+        replays += (splits ?? Array(0...bytes.count)).map { ("split \($0)", [Data(bytes.prefix($0)), Data(bytes.dropFirst($0))]) }
+        for (label, reads) in replays {
+            var record = try observe(reads: reads, path: path, forwarded: forwarded)
+            record.execution_id = whole.execution_id
+            record.started_at = whole.started_at
+            record.ended_at = whole.ended_at
+            record.latency_ms = whole.latency_ms
+            record.ttft_ms = whole.ttft_ms
+            XCTAssertEqual(whole, record, "\(label) \(raw.prefix(60))")
+        }
         return whole
     }
 
@@ -426,6 +440,99 @@ final class ResponseObservationTests: XCTestCase {
         XCTAssertEqual(r.tokens?.output, 5)
     }
 
+    func testSSEUsageFollowsForwardedPathFamily() throws {
+        let anthropic = sseHead
+            + #"data: {"type":"message_start","message":{"model":"m","usage":{"input_tokens":10,"output_tokens":1}}}"# + "\n\n"
+            + #"data: {"type":"message_delta","usage":{"output_tokens":4}}"# + "\n\n"
+            + #"data: {"type":"message_stop"}"# + "\n\n"
+        let responses = sseHead + #"data: {"type":"response.completed","response":{"model":"m","usage":{"input_tokens":7,"output_tokens":1}}}"# + "\n\n"
+        let chat = sseHead
+            + #"data: {"object":"chat.completion.chunk","model":"m","choices":[{"index":0,"delta":{},"finish_reason":"stop"}],"usage":{"prompt_tokens":9,"completion_tokens":5}}"# + "\n\n"
+            + "data: [DONE]\n\n"
+        let streams: [(name: String, wire: String, tokens: JournalTokens)] = [
+            ("anthropic", anthropic, JournalTokens(input_uncached: 10, cache_read: 0, cache_creation: 0, output: 4, reasoning: nil)),
+            ("responses", responses, JournalTokens(input_uncached: 7, cache_read: 0, cache_creation: nil, output: 1, reasoning: nil)),
+            ("chat", chat, JournalTokens(input_uncached: 9, cache_read: 0, cache_creation: nil, output: 5, reasoning: nil))
+        ]
+        let accepted: [(String, String?)] = [
+            ("/v1/messages", "anthropic"), ("/v1/chat/completions", "chat"), ("/v1/chat/completions?x=1", "chat"),
+            ("/v1/completions", "chat"), ("/v1/responses", "responses"), ("/backend-api/codex/responses", "responses"),
+            ("/v1/responses/compact", "responses"), ("/backend-api/codex/responses/compact", "responses"),
+            ("/v1beta/models/gemini-x:streamGenerateContent", nil), ("/v1beta/interactions", nil),
+            ("/v1/alpha/search", nil), ("/v1/images/generations", nil), ("/v1/realtime", nil)
+        ]
+        for (forwarded, family) in accepted {
+            for stream in streams {
+                let r = try observeEverySplit(stream.wire, path: "/v1/responses", forwarded: forwarded)
+                XCTAssertEqual(r.tokens, stream.name == family ? stream.tokens : nil, "\(forwarded) \(stream.name)")
+                XCTAssertEqual(r.outcome, "complete", "\(forwarded) \(stream.name)")
+                XCTAssertEqual(r.response_model, "m", "\(forwarded) \(stream.name)")
+            }
+        }
+    }
+
+    func testTrailerLineCapIsPerLineAndIncludesCRLF() throws {
+        let prefix = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n5\r\nhello\r\n0\r\n"
+        func trailer(_ bytes: Int) -> String { "X-T: " + String(repeating: "a", count: bytes - 7) + "\r\n" }
+        for bytewise in [false, true] {
+            XCTAssertEqual(try observe(prefix + trailer(65_536) + "\r\n", path: "/v1/chat/completions", bytewise: bytewise).outcome, "complete")
+            XCTAssertEqual(try observe(prefix + trailer(65_537) + "\r\n", path: "/v1/chat/completions", bytewise: bytewise).outcome, "upstream_error")
+            XCTAssertEqual(try observe(prefix + trailer(40_000) + trailer(40_000) + "\r\n", path: "/v1/chat/completions", bytewise: bytewise).outcome, "complete")
+        }
+    }
+    func testChunkSizeLineCapIncludesCRLFAndOnlyOverflowLimitsTheSize() throws {
+        let head = "HTTP/1.1 200 OK\r\nTransfer-Encoding: chunked\r\n\r\n"
+        let line = String(repeating: "0", count: 65_534) + "\r\n"
+        XCTAssertEqual(line.utf8.count, 65_536)
+        func splits(_ raw: String) -> [Int] {
+            let count = raw.utf8.count
+            return Array(stride(from: 0, to: count, by: 509)) + Array((head.utf8.count - 2)...(head.utf8.count + 2))
+                + Array((count - 8)...count)
+        }
+        let exact = head + line + "\r\n"
+        XCTAssertEqual(try observeEverySplit(exact, splits: splits(exact)).outcome, "complete")
+        let over = head + "0" + line + "\r\n"
+        XCTAssertEqual(try observeEverySplit(over, splits: splits(over)).outcome, "upstream_error")
+        for (size, outcome) in [
+            ("1000000000000000", "upstream_closed_early"),
+            ("7fffffffffffffff", "upstream_closed_early"),
+            ("0000007fffffffffffffff;ext=1", "upstream_closed_early"),
+            ("8000000000000000", "upstream_error"),
+            ("10000000000000000", "upstream_error")
+        ] {
+            let r = try observeEverySplit(head + size + "\r\n")
+            XCTAssertEqual(r.outcome, outcome, size)
+            XCTAssertEqual(r.status, 200, size)
+        }
+    }
+
+    func testSeatWorkRunsNeitherOnTheRelayNorAtFinalization() throws {
+        let release = DispatchSemaphore(value: 0)
+        let validated = DispatchSemaphore(value: 0)
+        var builder: (() -> JournalRecord)?
+        let observation = ResponseObservation(
+            request: journalRequest("/v1/messages"),
+            bindSeat: { index in
+                _ = release.wait(timeout: .now() + 2)
+                return JournalSeatBinding(identity: JournalSeat(auth_index: index, role: "served", email: "seat@example.invalid"),
+                                          isValid: { validated.signal(); return true })
+            },
+            emit: { builder = $0 })
+        let head = Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: \(trace)\r\nContent-Length: 2\r\n\r\n".utf8)
+        var start = DispatchTime.now().uptimeNanoseconds
+        deliver(observation, head)
+        let traced = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
+        start = DispatchTime.now().uptimeNanoseconds
+        deliver(observation, Data("{}".utf8))
+        let finalized = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
+        XCTAssertLessThan(traced, 1, "learning the trace waited \(traced) ms")
+        XCTAssertLessThan(finalized, 1, "finalization waited \(finalized) ms")
+        XCTAssertEqual(validated.wait(timeout: .now()), .timedOut, "revalidated before the record was built")
+        release.signal()
+        let record = try XCTUnwrap(builder?())
+        XCTAssertEqual(record.outcome, "complete")
+        XCTAssertEqual(record.seat?.email, "seat@example.invalid")
+    }
     func testJSONNestingLimitCountsOnlyArraysAndObjects() {
         func nested(_ depth: Int, _ inner: String) -> Data {
             Data((String(repeating: "[", count: depth) + inner + String(repeating: "]", count: depth)).utf8)

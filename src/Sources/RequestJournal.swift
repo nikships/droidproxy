@@ -166,9 +166,13 @@ struct JournalRequest {
         self.origin = headers.contains { $0.0.lowercased() == "x-droidproxy-origin" && $0.1 == "window-primer" } ? "primer" : "client"
     }
 
-    /// Parses the body on every call; the journal calls it once, on its own queue.
+    private static let bodyMembers = JournalJSON.Selection(members: [
+        "model": .all, "prompt_cache_key": .all, "metadata": JournalJSON.Selection(members: ["user_id": .all])
+    ])
+
+    /// Parses the body on every call; an observation calls it once, on a background queue, when the request begins.
     var fields: Fields {
-        let json = JournalJSON.parse(body)
+        let json = JournalJSON.parse(body, select: Self.bodyMembers)
         let named = Self.nativeModel(endpoint) ?? json?["model"]?.string
         let model = named?.isEmpty == false ? named : nil
         return Fields(model: model, provider: Self.provider(model: model, path: endpoint), session: Self.session(headers: headers, body: json))
@@ -311,6 +315,7 @@ final class JournalSeatIndex {
 
 final class JournalWriter {
     private struct LockTimeout: Error {}
+    private struct Abandoned: Error {}
     private static let diagnostics = DispatchQueue(label: "io.automaze.droidproxy.journal-diagnostics")
     private static let lockWait: TimeInterval = 1
     private let directory: URL
@@ -320,7 +325,8 @@ final class JournalWriter {
     private var counts = (drops: 0, errors: 0)
     private var lastError: String?
     private var reportScheduled = false
-    private var pending = 0
+    /// Accepted records not yet claimed for writing, whether queued or in flight.
+    private var unsettled = 0
     private var closed = false
     private let log: (String) -> Void
 
@@ -337,12 +343,12 @@ final class JournalWriter {
     }
 
     /// Never blocks the caller: a full queue or a closed writer counts the record as dropped.
-    /// `build` runs on the writer queue, so work it does stays off the caller's thread.
+    /// `build` runs on the writer queue, so work it does or waits for stays off the caller's thread.
     func enqueue(_ build: @escaping () -> JournalRecord) {
         guard slots.wait(timeout: .now()) == .success else { return note(drops: 1) }
         lock.lock()
         let accepted = !closed
-        if accepted { pending += 1 }
+        if accepted { unsettled += 1 }
         lock.unlock()
         guard accepted else {
             slots.signal()
@@ -350,29 +356,59 @@ final class JournalWriter {
         }
         queue.async {
             defer { self.slots.signal() }
-            self.lock.lock()
-            let skip = self.closed
-            if !skip { self.pending -= 1 }
-            self.lock.unlock()
-            guard !skip else { return }
-            do { try self.append(build()) }
-            catch is LockTimeout { self.note(drops: 1) }
-            catch { self.note(errors: 1, error: error.localizedDescription) }
+            var claimed = false
+            do {
+                guard !self.isClosed else { throw Abandoned() }
+                let record = build()
+                guard !self.isClosed else { throw Abandoned() }
+                try self.append(record) {
+                    claimed = self.claim()
+                    return claimed
+                }
+            } catch {
+                self.failed(error, claimed: claimed)
+            }
         }
     }
 
-    /// Waits at most `timeout` for queued records. Records still queued then are counted as dropped and never written;
-    /// the report is logged on the diagnostics queue so a stalled log sink cannot hold the caller.
+    /// Waits at most `timeout` for accepted records. Every record not yet claimed for writing then, queued or in flight,
+    /// is counted as dropped and never written; the report is logged on the diagnostics queue so a stalled log sink
+    /// cannot hold the caller.
     func flush(timeout: TimeInterval = 2) {
         let done = DispatchSemaphore(value: 0)
         queue.async { done.signal() }
         guard done.wait(timeout: .now() + timeout) == .timedOut else { return }
         lock.lock()
         closed = true
-        counts.drops += pending
-        pending = 0
+        counts.drops += unsettled
+        unsettled = 0
         lock.unlock()
         Self.diagnostics.async { self.report() }
+    }
+
+    private var isClosed: Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        return closed
+    }
+
+    /// Takes the record out of the shutdown count just before its bytes are written; false once flush has counted it.
+    private func claim() -> Bool {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !closed else { return false }
+        unsettled -= 1
+        return true
+    }
+
+    /// An unclaimed record after the flush deadline was already counted as dropped there.
+    private func failed(_ error: Error, claimed: Bool) {
+        lock.lock()
+        let counted = !claimed && closed
+        if !claimed && !closed { unsettled -= 1 }
+        lock.unlock()
+        guard !counted else { return }
+        if error is LockTimeout { note(drops: 1) } else { note(errors: 1, error: error.localizedDescription) }
     }
 
     /// Counts are updated at once; the log line is emitted later on another queue, at most once per interval.
@@ -399,6 +435,7 @@ final class JournalWriter {
         let deadline = Date().addingTimeInterval(Self.lockWait)
         while flock(fd, LOCK_EX | LOCK_NB) != 0 {
             guard errno == EWOULDBLOCK || errno == EINTR else { return try check(false) }
+            guard !isClosed else { throw Abandoned() }
             guard Date() < deadline else { throw LockTimeout() }
             usleep(10_000)
         }
@@ -415,7 +452,8 @@ final class JournalWriter {
         try check(fchmod(fd, mode) == 0)
     }
 
-    func append(_ record: JournalRecord) throws {
+    /// `claim` is asked once the file lock is held; when it returns false nothing is written.
+    func append(_ record: JournalRecord, claim: () -> Bool = { true }) throws {
         // Open the private parent separately so a journal-directory symlink cannot redirect writes.
         let parent = directory.deletingLastPathComponent()
         if mkdir(parent.path, 0o700) != 0 && errno != EEXIST { try check(false) }
@@ -440,6 +478,7 @@ final class JournalWriter {
         try verify(fd, kind: mode_t(S_IFREG), mode: 0o600)
         try lockExclusive(fd)
         defer { flock(fd, LOCK_UN) }
+        guard claim() else { throw Abandoned() }
         var end = lseek(fd, 0, SEEK_END)
         try check(end >= 0)
         var buffer = [UInt8](repeating: 0, count: 4096)

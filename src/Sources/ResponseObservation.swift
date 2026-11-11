@@ -13,6 +13,25 @@ enum JournalEnd {
     case eof, upstreamError, clientDisconnected, backendUnreachable
 }
 
+/// A value computed once on `queue`; `wait()` blocks until it is ready.
+final class JournalPending<Value> {
+    private let group = DispatchGroup()
+    private var value: Value?
+
+    init(on queue: DispatchQueue, _ work: @escaping () -> Value) {
+        group.enter()
+        queue.async {
+            self.value = work()
+            self.group.leave()
+        }
+    }
+
+    func wait() -> Value {
+        group.wait()
+        return value!
+    }
+}
+
 /// Relay callbacks arrive on concurrent queues, so every entry point is serialized by `lock`.
 final class ResponseObservation {
     private enum Phase {
@@ -27,8 +46,15 @@ final class ResponseObservation {
     private static let sseLineCap = 256 * 1024
     private static let eventDataCap = 2 * 1024 * 1024
     private static let bodyCap = 2 * 1024 * 1024
+    private static let chunkLineCap = 64 * 1024
+    private static let parsing = DispatchQueue(label: "io.automaze.droidproxy.journal-request-parse", qos: .utility, attributes: .concurrent)
+    private static let seatWork = DispatchQueue(label: "io.automaze.droidproxy.journal-seats", qos: .utility)
 
-    private let request: JournalRequest
+    private let endpoint: String
+    private let forwardedEndpoint: String?
+    private let origin: String
+    private let fields: JournalPending<JournalRequest.Fields>
+    private let sseFamily: UsageFormat?
     private let clock: () -> JournalInstant
     private let started: JournalInstant
     private let bindSeat: (String) -> JournalSeatBinding?
@@ -42,7 +68,6 @@ final class ResponseObservation {
     private var interim = false
     private var headers: [String: String] = [:]
     private var remaining = 0
-    private var trailerBytes = 0
     private var malformed = false
     private var headOverflow = false
     private var sse = false
@@ -65,7 +90,7 @@ final class ResponseObservation {
     private var trace: String?
     private var execution = UUID().uuidString.lowercased()
     private var index: String?
-    private var boundSeat: JournalSeatBinding?
+    private var binding: JournalPending<JournalSeatBinding?>?
     private var firstBody: UInt64?
     private var model: String?
     private var tokens: JournalTokens?
@@ -76,11 +101,17 @@ final class ResponseObservation {
     private var protocolError = false
     private var finalized = false
 
-    /// `emit` receives a builder for the record; calling it parses the request body, so call it off the relay.
+    /// The request body is parsed on a background queue from here on, and `bindSeat` runs on the journal's seat queue
+    /// once the trace is known. `emit` receives a builder for the record; calling it waits for both and revalidates
+    /// the seat, so call it off the relay.
     init(request: JournalRequest, clock: @escaping () -> JournalInstant = JournalInstant.now,
          bindSeat: @escaping (String) -> JournalSeatBinding? = { _ in nil },
          emit: @escaping (@escaping () -> JournalRecord) -> Void) {
-        self.request = request
+        endpoint = request.endpoint
+        forwardedEndpoint = request.forwardedEndpoint
+        origin = request.origin
+        fields = JournalPending(on: Self.parsing) { request.fields }
+        sseFamily = Self.sseFamily(request.forwardedEndpoint ?? request.endpoint)
         self.clock = clock
         self.started = clock()
         self.bindSeat = bindSeat
@@ -257,8 +288,9 @@ final class ResponseObservation {
         guard pieces.count == 3, Self.matches(pieces[2], "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$") else { return }
         execution = pieces[2]
         if Self.matches(pieces[0], "^[0-9]{14}$"), Self.matches(pieces[1], "^[0-9a-f]{16}$") {
-            index = pieces[1]
-            boundSeat = bindSeat(pieces[1])
+            let (index, bind) = (pieces[1], bindSeat)
+            self.index = index
+            binding = JournalPending(on: Self.seatWork) { bind(index) }
         }
     }
 
@@ -290,11 +322,12 @@ final class ResponseObservation {
 
     private func chunkSizeByte(_ byte: UInt8) {
         guard lineByte(byte) else {
-            if phase == .chunkSize, line.count > Self.headCap { violation() }
+            // The cap counts the CRLF, so a line already at the cap before its LF is over it.
+            if phase == .chunkSize, line.count >= Self.chunkLineCap { violation() }
             return
         }
         let size = line.prefix { $0 != UInt8(ascii: ";") }
-        guard !size.isEmpty, size.allSatisfy(Self.isHex), size.drop(while: { $0 == 0x30 }).count <= 15,
+        guard !size.isEmpty, size.allSatisfy(Self.isHex),
               let count = Int(String(decoding: size, as: UTF8.self), radix: 16) else { return violation() }
         line.removeAll(keepingCapacity: true)
         remaining = count
@@ -302,9 +335,11 @@ final class ResponseObservation {
     }
 
     private func trailerByte(_ byte: UInt8) {
-        trailerBytes += 1
-        if trailerBytes > Self.headCap { return violation() }
-        guard lineByte(byte) else { return }
+        guard lineByte(byte) else {
+            // Each trailer line has the chunk-size line's cap, CRLF included.
+            if phase == .trailers, line.count >= Self.chunkLineCap { violation() }
+            return
+        }
         if line.isEmpty { return endBody() }
         guard let colon = line.firstIndex(of: 58), colon > line.startIndex,
               line[..<colon].allSatisfy(Self.isToken) else { return violation() }
@@ -415,10 +450,10 @@ final class ResponseObservation {
         case "message_stop":
             completed = true
         case "response.completed", "response.incomplete":
-            tokens = Self.normalize(object["response"]?["usage"], format: .responses)
+            if sseFamily == .responses { tokens = Self.normalize(object["response"]?["usage"], format: .responses) }
             completed = true
         default:
-            guard let usage = object["usage"], usage != .null else { return }
+            guard sseFamily == .chat, let usage = object["usage"], usage != .null else { return }
             let choices = object["choices"]?.array
             let qualifies = choices?.isEmpty == true || choices?.contains { $0["finish_reason"]?.string != nil } == true
             if qualifies || chatPublished {
@@ -428,8 +463,20 @@ final class ResponseObservation {
         }
     }
 
+    /// The family whose terminal SSE usage counts on the forwarded path. Compact paths stream Responses events
+    /// although their non-stream bodies have no recognized envelope.
+    private static func sseFamily(_ path: String) -> UsageFormat? {
+        switch path {
+        case "/v1/messages": return .anthropic
+        case "/v1/chat/completions", "/v1/completions": return .chat
+        case "/v1/responses", "/backend-api/codex/responses", "/v1/responses/compact", "/backend-api/codex/responses/compact":
+            return .responses
+        default: return nil
+        }
+    }
+
     private func mergeAnthropic(_ usage: JournalJSON?, delta: Bool) {
-        guard let usage = usage?.object else { return }
+        guard sseFamily == .anthropic, let usage = usage?.object else { return }
         anthropicUsage.merge(usage) { $1 }
         if delta, usage["output_tokens"] != nil { anthropicTerminal = true }
         if anthropicTerminal { tokens = Self.normalize(.object(anthropicUsage), format: .anthropic) }
@@ -448,7 +495,7 @@ final class ResponseObservation {
         guard !sse, !opaque, !bodyOverflow, let object = JournalJSON.parse(body)?.object else { return }
         reportModel(object)
         let format: UsageFormat
-        switch request.forwardedEndpoint ?? request.endpoint {
+        switch forwardedEndpoint ?? endpoint {
         case "/v1/messages" where object["type"]?.string == "message": format = .anthropic
         case "/v1/responses", "/backend-api/codex/responses":
             guard object["object"]?.string == "response" else { return }
@@ -525,23 +572,25 @@ final class ResponseObservation {
         if outcome == "backend_unreachable" { status = 502 }
         let ended = clock()
         let latency = Self.milliseconds(started.monotonic, ended.monotonic)
-        var seat: JournalSeat?
-        if let index {
-            seat = boundSeat.flatMap { $0.isValid() ? $0.identity : nil } ?? JournalSeat(auth_index: index, role: "last_tried")
-            seat?.role = status.map { (200..<300).contains($0) } == true ? "served" : "last_tried"
-        }
+        let role = status.map { (200..<300).contains($0) } == true ? "served" : "last_tried"
         let unusable = malformed || headOverflow
-        let (request, execution, trace, status) = (request, execution, trace, status)
+        let (endpoint, forwarded, origin, fields, index, binding) = (endpoint, forwardedEndpoint, origin, fields, index, binding)
+        let (execution, trace, status) = (execution, trace, status)
         let ttft = firstBody.map { min(latency, Self.milliseconds(started.monotonic, $0)) }
         let model = headOverflow ? nil : model
         let tokens = unusable ? nil : tokens
         let (startedAt, endedAt) = (Self.timestamp(started.wall), Self.timestamp(ended.wall))
         emit {
-            let fields = request.fields
+            var seat: JournalSeat?
+            if let index {
+                seat = binding?.wait().flatMap { $0.isValid() ? $0.identity : nil } ?? JournalSeat(auth_index: index, role: role)
+                seat?.role = role
+            }
+            let fields = fields.wait()
             return JournalRecord(
                 execution_id: execution, trace_id: trace, started_at: startedAt, ended_at: endedAt,
                 latency_ms: latency, ttft_ms: ttft,
-                origin: request.origin, endpoint: request.endpoint, forwarded_endpoint: request.forwardedEndpoint,
+                origin: origin, endpoint: endpoint, forwarded_endpoint: forwarded,
                 provider: fields.provider, requested_model: fields.model, response_model: model,
                 status: status, outcome: outcome, seat: seat, client_session: fields.session, tokens: tokens
             )

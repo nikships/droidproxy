@@ -31,7 +31,7 @@ final class RequestJournalTests: XCTestCase {
     func testContractDigests() throws {
         let manifest = try XCTUnwrap(String(data: resource("CONTRACT_SOURCE"), encoding: .utf8))
         XCTAssertTrue(manifest.contains("nikships/droidproxy-omarchy"))
-        XCTAssertTrue(manifest.contains("97fa1ecf94a86be5592c2202e9fa9240a7db671a"))
+        XCTAssertTrue(manifest.contains("bfdc5c396c1d69ea372395193ad0a28b951c30b6"))
         let lines = manifest.split(separator: "\n").filter { $0.contains("  request-journal-") }
         XCTAssertEqual(lines.count, 4)
         for line in lines {
@@ -106,6 +106,7 @@ final class RequestJournalTests: XCTestCase {
     private func replay(_ fixture: [String: Any], reads: [Data]) throws -> JournalRecord {
         let req = try XCTUnwrap(fixture["request"] as? [String: Any])
         let path = try XCTUnwrap(req["endpoint"] as? String)
+        let forwarded = (fixture["expect"] as? [String: Any])?["forwarded_endpoint"] as? String
         let headers = try XCTUnwrap(req["headers"] as? [String: String]).map { ($0.key, $0.value) }
         let body = try (req["body_raw"] as? String) ?? String(decoding: JSONSerialization.data(withJSONObject: XCTUnwrap(req["body"])), as: UTF8.self)
         let obs = try XCTUnwrap(fixture["observation"] as? [String: Any])
@@ -123,7 +124,7 @@ final class RequestJournalTests: XCTestCase {
         }
         var results: [JournalRecord] = []
         let observation = ResponseObservation(
-            request: journalRequest(path, headers: headers, body: body),
+            request: journalRequest(path, forwarded: forwarded, headers: headers, body: body),
             clock: { clock.now },
             bindSeat: { index in
                 guard let seat = seats.first(where: { $0.auth_index == index }) else { return nil }
@@ -336,8 +337,13 @@ final class RequestJournalTests: XCTestCase {
         let seats = JournalSeatIndex(directory: directory)
         let index = JournalSeatIndex.index(type: "claude", path: file.path)
         var record: JournalRecord?
-        let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: { record = $0() })
+        let bound = DispatchSemaphore(value: 0)
+        let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: { index in
+            defer { bound.signal() }
+            return seats.bind(index)
+        }, emit: { record = $0() })
         deliver(observation, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n".utf8))
+        XCTAssertEqual(bound.wait(timeout: .now() + 3), .success)
         try Data(#"{"type":"claude","email":"replacement@example.invalid"}"#.utf8).write(to: file, options: .atomic)
         deliver(observation, Data("{}".utf8))
         XCTAssertEqual(record?.seat, JournalSeat(auth_index: index, role: "served"))
@@ -453,6 +459,116 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertEqual(returned.wait(timeout: .now() + 2), .success)
     }
 
+    func testSeatRefreshContentionDoesNotHoldTheRelayOrFinalization() throws {
+        let auth = directory.appendingPathComponent("auth")
+        try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
+        let file = auth.appendingPathComponent("seat.json")
+        try Data(#"{"type":"claude","email":"seat@example.invalid"}"#.utf8).write(to: file)
+        let payload = Data((#"{"type":"claude","data":["# + String(repeating: "1,", count: 500_000) + "1]}").utf8)
+        for i in 0..<40 { try payload.write(to: auth.appendingPathComponent("bulk\(i).json")) }
+        let index = JournalSeatIndex.index(type: "claude", path: file.path)
+        let seats = JournalSeatIndex(directory: auth)
+        XCTAssertNotNil(seats.bind(index))
+        var builder: (() -> JournalRecord)?
+        let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: { builder = $0 })
+        let entered = DispatchSemaphore(value: 0), refreshed = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async { entered.signal(); seats.refresh(); refreshed.signal() }
+        entered.wait()
+        usleep(10_000)
+        var start = DispatchTime.now().uptimeNanoseconds
+        deliver(observation, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n".utf8))
+        let traced = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
+        start = DispatchTime.now().uptimeNanoseconds
+        deliver(observation, Data("{}".utf8))
+        let finalized = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
+        XCTAssertEqual(refreshed.wait(timeout: .now() + 10), .success)
+        XCTAssertLessThan(traced, 1, "learning the trace waited \(traced) ms for the seat index")
+        XCTAssertLessThan(finalized, 1, "finalization waited \(finalized) ms for the seat index")
+        let record = try XCTUnwrap(builder?())
+        XCTAssertEqual(record.outcome, "complete")
+        XCTAssertEqual(record.seat?.email, "seat@example.invalid")
+    }
+
+    private func journalLines(_ journal: URL) throws -> Int {
+        let file = journal.appendingPathComponent("requests-2026-11.jsonl")
+        guard FileManager.default.fileExists(atPath: file.path) else { return 0 }
+        return try String(contentsOf: file).split(separator: "\n").count
+    }
+
+    func testFlushDeadlineCountsQueuedAndInFlightRecordsOnceAndNeverWritesThem() throws {
+        let logged = NSLock()
+        var lines: [String] = []
+        let (writer, record, _, fd) = try lockedJournal(log: { line in logged.lock(); lines.append(line); logged.unlock() })
+        var locked = true
+        defer { if locked { flock(fd, LOCK_UN) }; close(fd) }
+        for _ in 0..<8 { writer.enqueue { record } }
+        usleep(100_000)
+        writer.flush(timeout: 0.2)
+        XCTAssertEqual(writer.counters.drops, 8)
+        flock(fd, LOCK_UN)
+        locked = false
+        writer.flush(timeout: 5)
+        XCTAssertEqual(writer.counters.drops, 8)
+        XCTAssertEqual(try journalLines(directory.appendingPathComponent("journal")), 1)
+        let reported = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in logged.lock(); defer { logged.unlock() }; return !lines.isEmpty }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [reported], timeout: 3), .completed)
+        logged.lock()
+        XCTAssertEqual(lines.first, "[RequestJournal] 8 records dropped, 0 write errors")
+        logged.unlock()
+    }
+
+    func testFlushDeadlineDropsRecordsWaitingForTheirParseOrSeatWork() throws {
+        let journal = directory.appendingPathComponent("journal")
+        let writer = JournalWriter(directory: journal, log: { _ in })
+        let body = #"{"model":"claude-fixture","values":["# + String(repeating: "1,", count: 4_000_000) + "1]}"
+        ResponseObservation(request: journalRequest("/v1/messages", body: body), emit: writer.enqueue).finish(.backendUnreachable)
+        let release = DispatchSemaphore(value: 0)
+        let seated = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: { _ in
+            _ = release.wait(timeout: .now() + 3)
+            return nil
+        }, emit: writer.enqueue)
+        deliver(seated, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-0123456789abcdef-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 0\r\n\r\n".utf8))
+        writer.flush(timeout: 0.05)
+        XCTAssertEqual(writer.counters.drops, 2)
+        release.signal()
+        writer.flush(timeout: 30)
+        XCTAssertEqual(writer.counters.drops, 2)
+        XCTAssertEqual(writer.counters.errors, 0)
+        XCTAssertEqual(try journalLines(journal), 0)
+    }
+
+    private func residentBytes() -> Int {
+        var info = mach_task_basic_info()
+        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
+        let result = withUnsafeMutablePointer(to: &info) {
+            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count) }
+        }
+        XCTAssertEqual(result, KERN_SUCCESS)
+        return Int(info.resident_size)
+    }
+
+    /// 255 queued 5 MB requests behind a stalled writer; before request parsing moved to begin they held about 1.3 GB.
+    func testQueuedRecordsDoNotHoldRequestBodies() throws {
+        let writer = JournalWriter(directory: directory.appendingPathComponent("journal"), log: { _ in })
+        let record = try sampleRecord()
+        let active = DispatchSemaphore(value: 0), gate = DispatchSemaphore(value: 0)
+        writer.enqueue { active.signal(); gate.wait(); return record }
+        XCTAssertEqual(active.wait(timeout: .now() + 3), .success)
+        let baseline = residentBytes()
+        var peak = baseline
+        for i in 0..<255 {
+            autoreleasepool {
+                let body = #"{"model":"claude-fixture","prompt_cache_key":"session-fixture-0001","messages":[{"role":"user","content":""#
+                    + String(repeating: "x", count: 5_000_000) + #""}],"id":"\#(i)"}"#
+                ResponseObservation(request: journalRequest("/v1/messages", body: body), emit: writer.enqueue).finish(.backendUnreachable)
+            }
+            peak = max(peak, residentBytes())
+        }
+        writer.flush(timeout: 0)
+        gate.signal()
+        writer.flush(timeout: 10)
+        XCTAssertLessThan(peak - baseline, 61 << 20, "peak grew \((peak - baseline) >> 20) MiB")
+    }
     func testCredentialFilesOverOneMiBAreNotReadForIdentity() throws {
         let auth = directory.appendingPathComponent("auth")
         try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
