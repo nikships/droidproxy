@@ -159,6 +159,8 @@ struct JournalRequest {
         return validSession(String(user[range.upperBound...]))
     }
 
+    var bodyBytes: Int { body.utf8.count }
+
     /// Stores the body unparsed so the forwarding path never pays for JSON parsing.
     init(endpoint: String, forwardedEndpoint: String, headers: [(String, String)], body: String) {
         self.endpoint = Self.path(endpoint)
@@ -328,6 +330,8 @@ final class JournalWriter {
         var queued = 0
         /// Accepted records not yet claimed for writing, whether queued or in flight.
         var unsettled = 0
+        /// Bytes of admitted request bodies still waiting for their parse.
+        var parsing = 0
         var closed = false
 
         /// True when the caller must schedule the next report.
@@ -347,12 +351,14 @@ final class JournalWriter {
     /// Counts drops that found the writer state busy. It never runs the log sink, so `flush` can wait for it.
     private let busyDrops = DispatchQueue(label: "io.automaze.droidproxy.journal-busy-drops")
     private let capacity: Int
+    private let parseBacklog: Int
     private let state = OSAllocatedUnfairLock(initialState: State())
     private let log: (String) -> Void
 
-    init(directory: URL, capacity: Int = 256, log: @escaping (String) -> Void = { NSLog("%@", $0) }) {
+    init(directory: URL, capacity: Int = 256, parseBacklog: Int = 64 << 20, log: @escaping (String) -> Void = { NSLog("%@", $0) }) {
         self.directory = directory
         self.capacity = capacity
+        self.parseBacklog = parseBacklog
         self.log = log
     }
 
@@ -360,24 +366,47 @@ final class JournalWriter {
         state.withLock { (drops: $0.drops, errors: $0.errors) }
     }
 
+    /// Runs `admit` on the writer state without waiting. A refusal, or writer state another thread holds at that
+    /// instant, counts one dropped record.
+    private func admit(_ admit: @Sendable (inout State) -> Bool) -> Bool {
+        let admission = state.withLockIfAvailable { s -> (accepted: Bool, report: Bool) in
+            admit(&s) ? (true, false) : (false, s.count(drops: 1))
+        }
+        guard let admission else {
+            // DispatchQueue.async only enqueues the block, so the caller never waits to count this drop.
+            busyDrops.async { self.note(drops: 1) }
+            return false
+        }
+        if admission.report { scheduleReport() }
+        return admission.accepted
+    }
+
+    /// Reserves room for a request body until `parseEnded`, since the body stays alive until its background parse
+    /// runs. Never waits; past `parseBacklog` bytes the request is dropped and counted. A body larger than the whole
+    /// backlog is admitted only when no other body is waiting.
+    func admitParse(bytes: Int) -> Bool {
+        let backlog = parseBacklog
+        return admit { s in
+            guard s.parsing == 0 || s.parsing + bytes <= backlog else { return false }
+            s.parsing += bytes
+            return true
+        }
+    }
+
+    func parseEnded(bytes: Int) {
+        state.withLock { $0.parsing -= bytes }
+    }
+
     /// Never waits: a full queue, a closed writer, or writer state another thread holds at that instant drops the
     /// record and counts it. `build` runs on the writer queue, so work it does or waits for stays off the caller's thread.
     func enqueue(_ build: @escaping () -> JournalRecord) {
         let capacity = capacity
-        let admission = state.withLockIfAvailable { s -> (accepted: Bool, report: Bool) in
-            guard !s.closed, s.queued < capacity else { return (false, s.count(drops: 1)) }
+        guard admit({ s in
+            guard !s.closed, s.queued < capacity else { return false }
             s.queued += 1
             s.unsettled += 1
-            return (true, false)
-        }
-        guard let admission else {
-            // DispatchQueue.async only enqueues the block, so the caller never waits to count this drop.
-            return busyDrops.async { self.note(drops: 1) }
-        }
-        guard admission.accepted else {
-            if admission.report { scheduleReport() }
-            return
-        }
+            return true
+        }) else { return }
         queue.async {
             defer { self.state.withLock { $0.queued -= 1 } }
             var claimed = false
@@ -559,7 +588,12 @@ final class RequestJournal {
 
     func flush(timeout: TimeInterval = 2) { writer.flush(timeout: timeout) }
 
-    func begin(_ request: JournalRequest) -> ResponseObservation {
-        ResponseObservation(request: request, bindSeat: seats.bind, emit: writer.enqueue)
+    var counters: (drops: Int, errors: Int) { writer.counters }
+
+    /// Nil when the request bodies already waiting for their parse fill the backlog; the record is counted as dropped.
+    func begin(_ request: JournalRequest) -> ResponseObservation? {
+        let (writer, bytes) = (writer, request.bodyBytes)
+        guard writer.admitParse(bytes: bytes) else { return nil }
+        return ResponseObservation(request: request, bindSeat: seats.bind, parsed: { writer.parseEnded(bytes: bytes) }, emit: writer.enqueue)
     }
 }

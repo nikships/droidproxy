@@ -59,7 +59,7 @@ final class ResponseObservation {
         "message": JournalJSON.Selection(members: ["model": .all]),
         "response": JournalJSON.Selection(members: ["model": .all])
     ])
-    private static let parsing = DispatchQueue(label: "io.automaze.droidproxy.journal-request-parse", qos: .utility, attributes: .concurrent)
+    static let parsing = DispatchQueue(label: "io.automaze.droidproxy.journal-request-parse", qos: .utility, attributes: .concurrent)
     private static let seatWork = DispatchQueue(label: "io.automaze.droidproxy.journal-seats", qos: .utility)
 
     private let endpoint: String
@@ -112,16 +112,20 @@ final class ResponseObservation {
     private var protocolError = false
     private var finalized = false
 
-    /// The request body is parsed on a background queue from here on, and `bindSeat` runs on the journal's seat queue
-    /// once the trace is known. `emit` receives a builder for the record; calling it waits for both and revalidates
-    /// the seat, so call it off the relay.
+    /// The request body is parsed on a background queue from here on, then `parsed` runs there; `bindSeat` runs on the
+    /// journal's seat queue once the trace is known. `emit` receives a builder for the record; calling it waits for both
+    /// and revalidates the seat, so call it off the relay.
     init(request: JournalRequest, clock: @escaping () -> JournalInstant = JournalInstant.now,
          bindSeat: @escaping (String) -> JournalSeatBinding? = { _ in nil },
+         parsed: @escaping () -> Void = {},
          emit: @escaping (@escaping () -> JournalRecord) -> Void) {
         endpoint = request.endpoint
         forwardedEndpoint = request.forwardedEndpoint
         origin = request.origin
-        fields = JournalPending(on: Self.parsing) { request.fields }
+        fields = JournalPending(on: Self.parsing) {
+            defer { parsed() }
+            return request.fields
+        }
         sseFamily = Self.sseFamily(request.forwardedEndpoint ?? request.endpoint)
         self.clock = clock
         self.started = clock()

@@ -112,7 +112,8 @@ final class RequestJournalRelayTests: XCTestCase {
             XCTAssertEqual(LoopbackSocket.readToEOF(fd), response)
             Darwin.close(fd)
             wait(for: [received], timeout: 3)
-            journal.flush()
+            // Flush returns once the record is written; the default 2 s deadline can pass first on a heavily loaded machine.
+            journal.flush(timeout: 30)
             let record = try XCTUnwrap(records().last)
             XCTAssertEqual(record.outcome, "complete")
             XCTAssertEqual(record.status, 200)

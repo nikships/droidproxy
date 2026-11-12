@@ -616,6 +616,45 @@ final class ResponseObservationTests: XCTestCase {
         XCTAssertNil(JournalJSON.parse(nested(512, "{\"a\":1}")))
     }
 
+    /// The request parse queue and the relay queue run on GCD worker threads, whose stacks are 512 KiB.
+    func testJSONAtTheDepthLimitParsesOnTheJournalQueues() throws {
+        func nested(_ depth: Int, objects: Bool) -> String {
+            objects ? String(repeating: #"{"a":"#, count: depth) + "0" + String(repeating: "}", count: depth)
+                : String(repeating: "[", count: depth) + "0" + String(repeating: "]", count: depth)
+        }
+        let relay = DispatchQueue(label: "io.automaze.droidproxy.relay", qos: .userInitiated)
+        for objects in [false, true] {
+            for depth in [512, 513] {
+                let strict = depth == 512
+                let label = "\(objects ? "objects" : "arrays") \(depth) deep"
+                // The enclosing object is depth 1.
+                let pad = nested(depth - 1, objects: objects)
+                for body in [#"{"model":"claude-fixture","prompt_cache_key":"session-fixture-0001","pad":"# + pad + "}",
+                             #"{"prompt_cache_key":"session-fixture-0001","model":"# + pad + "}"] {
+                    var builder: (() -> JournalRecord)?
+                    ResponseObservation(request: journalRequest("/v1/messages", body: body), emit: { builder = $0 }).finish(.backendUnreachable)
+                    let record = try XCTUnwrap(builder?())
+                    XCTAssertEqual(record.client_session, strict ? "session-fixture-0001" : nil, "request \(label)")
+                    XCTAssertEqual(record.requested_model, strict && body.hasPrefix(#"{"model""#) ? "claude-fixture" : nil, "request \(label)")
+                }
+                let json = #"{"type":"message","model":"m","usage":{"input_tokens":3,"output_tokens":5},"pad":"# + pad + "}"
+                let event = #"data: {"model":"m","error":"# + pad + "}\n\n"
+                var records: [JournalRecord] = []
+                let done = DispatchSemaphore(value: 0)
+                relay.async {
+                    for (head, body) in [("Content-Type: application/json\r\n", json), ("Content-Type: text/event-stream\r\n", event)] {
+                        let observation = ResponseObservation(request: journalRequest("/v1/messages"), emit: { records.append($0()) })
+                        deliver(observation, Data(self.sized(head, body).utf8))
+                    }
+                    done.signal()
+                }
+                XCTAssertEqual(done.wait(timeout: .now() + 30), .success)
+                XCTAssertEqual(records.count, 2)
+                XCTAssertEqual(records.first?.tokens, strict ? JournalTokens(input_uncached: 3, cache_read: 0, cache_creation: 0, output: 5, reasoning: nil) : nil, "body \(label)")
+                XCTAssertEqual(records.last?.outcome, strict ? "upstream_error" : "complete", "event \(label)")
+            }
+        }
+    }
     func testObservationCapsDoNotInventUsage() throws {
         let body = String(repeating: " ", count: 2 * 1024 * 1024 + 1)
         let largeJSON = try observe("HTTP/1.1 200 OK\r\nContent-Length: \(body.count)\r\n\r\n\(body)")

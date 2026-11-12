@@ -696,6 +696,45 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertEqual(result, .completed, "live heap still \(grown) MiB above baseline with the records queued")
     }
 
+    /// Every admitted request body stays alive until its background parse runs, so the bytes waiting for one are bounded.
+    func testParseBacklogIsBoundedAndDropsAreCounted() throws {
+        let journal = RequestJournal(directory: directory.appendingPathComponent("journal"), authDirectory: directory.appendingPathComponent("auth"))
+        func body(_ i: Int) -> String {
+            #"{"model":"claude-fixture","messages":[{"role":"user","content":""#
+                + String(repeating: "x", count: 5_000_000) + #""}],"id":"\#(i)"}"#
+        }
+        let stalled = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0)
+        ResponseObservation.parsing.async(flags: .barrier) {
+            stalled.signal()
+            release.wait()
+        }
+        XCTAssertEqual(stalled.wait(timeout: .now() + 3), .success)
+        // A body's heap footprint depends on the allocator: string growth can leave up to twice its length.
+        var start = liveHeapBytes()
+        let sample = body(0)
+        let footprint = liveHeapBytes() - start
+        withExtendedLifetime(sample) {}
+        start = liveHeapBytes()
+        var admitted = 0
+        for i in 0..<40 {
+            autoreleasepool {
+                let observation: ResponseObservation? = journal.begin(journalRequest("/v1/messages", body: body(i)))
+                if let observation {
+                    admitted += 1
+                    observation.finish(.backendUnreachable)
+                }
+            }
+        }
+        let grown = liveHeapBytes() - start
+        release.signal()
+        journal.flush(timeout: 30)
+        XCTAssertGreaterThan(admitted, 0)
+        XCTAssertLessThanOrEqual(admitted * sample.utf8.count, 64 << 20)
+        XCTAssertLessThan(grown, admitted * footprint + 8 << 20, "live heap grew \(grown >> 20) MiB for \(admitted) admitted bodies")
+        XCTAssertEqual(journal.counters.drops, 40 - admitted)
+        XCTAssertEqual(journal.counters.errors, 0)
+        XCTAssertEqual(try journalLines(directory.appendingPathComponent("journal")), admitted)
+    }
     func testCredentialFilesOverOneMiBAreNotReadForIdentity() throws {
         let auth = directory.appendingPathComponent("auth")
         try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)

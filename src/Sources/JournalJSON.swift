@@ -27,7 +27,7 @@ indirect enum JournalJSON: Equatable {
 
     private static func parse(_ bytes: UnsafeBufferPointer<UInt8>, select: Selection) -> JournalJSON? {
         var parser = JournalJSONParser(bytes: bytes)
-        guard let value = parser.value(depth: 0, select: select) else { return nil }
+        guard let value = parser.value(select: select) else { return nil }
         parser.skipWhitespace()
         return parser.index == parser.bytes.count ? value : nil
     }
@@ -71,71 +71,116 @@ private struct JournalJSONParser {
         }
     }
 
-    /// A nil `select` validates the value without building it and returns `.null`.
-    /// `depth` counts the arrays and objects enclosing this value, so a container here is at depth + 1.
-    mutating func value(depth: Int, select: JournalJSON.Selection?) -> JournalJSON? {
-        skipWhitespace()
-        guard let byte = peek else { return nil }
-        switch byte {
-        case UInt8(ascii: "{"): return depth < Self.maxDepth ? object(depth: depth, select: select) : nil
-        case UInt8(ascii: "["): return depth < Self.maxDepth ? array(depth: depth, select: select) : nil
-        case UInt8(ascii: "\""): return string(keep: select != nil).map { select == nil ? .null : .string($0) }
-        case UInt8(ascii: "t"): return literal("true") ? .bool(true) : nil
-        case UInt8(ascii: "f"): return literal("false") ? .bool(false) : nil
-        case UInt8(ascii: "n"): return literal("null") ? .null : nil
-        default: return number().map { select == nil ? .null : .number($0) }
-        }
-    }
-
-    private mutating func object(depth: Int, select: JournalJSON.Selection?) -> JournalJSON? {
-        index += 1
+    /// An array or object whose closing bracket has not been read yet.
+    private struct Container {
+        let isObject: Bool
+        /// An object's own selection; unused for an array.
+        let select: JournalJSON.Selection?
+        /// The selection of the value being read: the current member's, or every item's.
+        var child: JournalJSON.Selection?
+        var key = ""
         var members: [String: JournalJSON] = [:]
-        skipWhitespace()
-        if peek == UInt8(ascii: "}") {
-            index += 1
-            return .object(members)
-        }
-        while true {
+        var items: [JournalJSON] = []
+    }
+
+    /// A nil `select` validates the value without building it and returns `.null`.
+    /// Open containers live in `open` rather than on the call stack: parsing runs on GCD worker threads, whose 512 KiB
+    /// stacks a recursive parser overflows before the depth limit in debug builds.
+    mutating func value(select: JournalJSON.Selection?) -> JournalJSON? {
+        // `current` is the innermost open container and `open` holds the ones enclosing it.
+        var open: [Container] = []
+        var current: Container?
+        var depth = 0
+        var select = select
+        parsing: while true {
             skipWhitespace()
-            guard peek == UInt8(ascii: "\""), let key = string(keep: true) else { return nil }
-            skipWhitespace()
-            guard peek == UInt8(ascii: ":") else { return nil }
-            index += 1
-            let child = select.flatMap { $0.members == nil ? JournalJSON.Selection.all : $0.members?[key] }
-            guard let item = value(depth: depth + 1, select: child) else { return nil }
-            if child != nil { members[key] = item }
-            skipWhitespace()
-            switch peek {
-            case UInt8(ascii: ","): index += 1
-            case UInt8(ascii: "}"):
+            guard let byte = peek else { return nil }
+            var result: JournalJSON
+            switch byte {
+            case UInt8(ascii: "{"), UInt8(ascii: "["):
+                guard depth < Self.maxDepth else { return nil }
                 index += 1
-                return select == nil ? .null : .object(members)
-            default: return nil
+                skipWhitespace()
+                let isObject = byte == UInt8(ascii: "{")
+                let child = isObject ? nil : select?.members == nil ? select : nil
+                if peek == UInt8(ascii: isObject ? "}" : "]") {
+                    index += 1
+                    result = isObject ? .object([:]) : child == nil ? .null : .array([])
+                } else {
+                    var container = Container(isObject: isObject, select: isObject ? select : nil, child: child)
+                    if isObject {
+                        guard memberName(&container) else { return nil }
+                    }
+                    if let enclosing = current { open.append(enclosing) }
+                    select = container.child
+                    current = container
+                    depth += 1
+                    continue parsing
+                }
+            case UInt8(ascii: "\""):
+                guard let text = string(keep: select != nil) else { return nil }
+                result = select == nil ? .null : .string(text)
+            case UInt8(ascii: "t"):
+                guard literal("true") else { return nil }
+                result = .bool(true)
+            case UInt8(ascii: "f"):
+                guard literal("false") else { return nil }
+                result = .bool(false)
+            case UInt8(ascii: "n"):
+                guard literal("null") else { return nil }
+                result = .null
+            default:
+                guard let literal = number() else { return nil }
+                result = select == nil ? .null : .number(literal)
             }
+            // Hand the value to its container, then close every container that ends after it.
+            while current != nil {
+                let isObject = current!.isObject
+                if current!.child != nil {
+                    if isObject {
+                        let key = current!.key
+                        current!.members[key] = result
+                    } else {
+                        current!.items.append(result)
+                    }
+                }
+                skipWhitespace()
+                switch peek {
+                case UInt8(ascii: ","):
+                    index += 1
+                    if isObject {
+                        guard memberName(&current!) else { return nil }
+                    }
+                    select = current!.child
+                    continue parsing
+                case UInt8(ascii: isObject ? "}" : "]"):
+                    index += 1
+                    let closed = current!
+                    current = open.popLast()
+                    depth -= 1
+                    if isObject {
+                        result = closed.select == nil ? .null : .object(closed.members)
+                    } else {
+                        result = closed.child == nil ? .null : .array(closed.items)
+                    }
+                default:
+                    return nil
+                }
+            }
+            return result
         }
     }
 
-    private mutating func array(depth: Int, select: JournalJSON.Selection?) -> JournalJSON? {
-        index += 1
-        let child = select?.members == nil ? select : nil
-        var items: [JournalJSON] = []
+    /// Reads a member's `"name":` and chooses the member's selection.
+    private mutating func memberName(_ container: inout Container) -> Bool {
         skipWhitespace()
-        if peek == UInt8(ascii: "]") {
-            index += 1
-            return child == nil ? .null : .array(items)
-        }
-        while true {
-            guard let item = value(depth: depth + 1, select: child) else { return nil }
-            if child != nil { items.append(item) }
-            skipWhitespace()
-            switch peek {
-            case UInt8(ascii: ","): index += 1
-            case UInt8(ascii: "]"):
-                index += 1
-                return child == nil ? .null : .array(items)
-            default: return nil
-            }
-        }
+        guard peek == UInt8(ascii: "\""), let key = string(keep: true) else { return false }
+        skipWhitespace()
+        guard peek == UInt8(ascii: ":") else { return false }
+        index += 1
+        container.key = key
+        container.child = container.select.flatMap { $0.members == nil ? JournalJSON.Selection.all : $0.members?[key] }
+        return true
     }
 
     private mutating func literal(_ word: String) -> Bool {
