@@ -21,6 +21,14 @@ public sealed partial class MainWindow : Window
 
         AppWindow.SetIcon("Assets/AppIcon.ico");
 
+        // Closing the window hides to the tray; Quit lives in the tray menu.
+        AppWindow.Closing += (_, args) =>
+        {
+            if (App.Current.IsQuitting) return;
+            args.Cancel = true;
+            AppWindow.Hide();
+        };
+
         // Navigate the root frame to the main page on startup.
         RootFrame.Navigate(typeof(MainPage));
     }

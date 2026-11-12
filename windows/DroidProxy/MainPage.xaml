@@ -8,11 +8,18 @@
     xmlns:mc="http://schemas.openxmlformats.org/markup-compatibility/2006"
     mc:Ignorable="d">
 
-    <!--
-        This is the main content area of your application.
-        Add your UI elements here — for example, controls, layouts, and data-bound views.
-        Use 'dotnet new winui-page' to create additional pages and navigate to them via
-        the Frame in MainWindow (RootFrame).
-    -->
-    <Grid />
+    <ScrollViewer Padding="24">
+        <StackPanel Spacing="16" MaxWidth="640" HorizontalAlignment="Left">
+            <TextBlock Text="DroidProxy" Style="{ThemeResource TitleTextBlockStyle}" />
+            <TextBlock x:Name="StatusText" Text="Daemon offline" Style="{ThemeResource BodyStrongTextBlockStyle}" />
+            <TextBlock x:Name="DetailText" TextWrapping="WrapWholeWords" Opacity="0.75" />
+            <StackPanel Orientation="Horizontal" Spacing="8">
+                <Button x:Name="StartStopButton" Content="Start Server" Click="OnStartStopClicked" />
+                <Button x:Name="RefreshButton" Content="Refresh" Click="OnRefreshClicked" />
+            </StackPanel>
+            <TextBlock x:Name="ErrorText" TextWrapping="WrapWholeWords" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+            <TextBlock Text="Providers" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,8,0,0" />
+            <ListView x:Name="ProviderList" SelectionMode="None" />
+        </StackPanel>
+    </ScrollViewer>
 </Page>
