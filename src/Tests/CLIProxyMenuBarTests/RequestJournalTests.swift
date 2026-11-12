@@ -657,37 +657,43 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertEqual(try journalLines(journal), 0)
     }
 
-    private func residentBytes() -> Int {
-        var info = mach_task_basic_info()
-        var count = mach_msg_type_number_t(MemoryLayout<mach_task_basic_info>.size / MemoryLayout<natural_t>.size)
-        let result = withUnsafeMutablePointer(to: &info) {
-            $0.withMemoryRebound(to: integer_t.self, capacity: Int(count)) { task_info(mach_task_self_, task_flavor_t(MACH_TASK_BASIC_INFO), $0, &count) }
+    /// Bytes of live malloc allocations. Unlike resident size, it drops as soon as a buffer is freed, whatever the
+    /// allocator keeps cached.
+    private func liveHeapBytes() -> Int {
+        // Under Thread Sanitizer malloc is served by the sanitizer's allocator, whose zone reports no statistics.
+        if let sanitizer = dlsym(UnsafeMutableRawPointer(bitPattern: -2), "__sanitizer_get_current_allocated_bytes") {
+            return unsafeBitCast(sanitizer, to: (@convention(c) () -> Int).self)()
         }
-        XCTAssertEqual(result, KERN_SUCCESS)
-        return Int(info.resident_size)
+        var stats = malloc_statistics_t()
+        malloc_zone_statistics(nil, &stats)
+        return Int(stats.size_in_use)
     }
 
     /// 255 queued 5 MB requests behind a stalled writer would hold about 1.3 GB if records kept their request bodies.
+    /// Each body lives until its background parse finishes, which can lag far behind on a loaded machine, so the test
+    /// waits for the parses and then checks the heap while every record is still queued.
     func testQueuedRecordsDoNotHoldRequestBodies() throws {
         let writer = JournalWriter(directory: directory.appendingPathComponent("journal"), log: { _ in })
         let record = try sampleRecord()
         let active = DispatchSemaphore(value: 0), gate = DispatchSemaphore(value: 0)
         writer.enqueue { active.signal(); gate.wait(); return record }
         XCTAssertEqual(active.wait(timeout: .now() + 3), .success)
-        let baseline = residentBytes()
-        var peak = baseline
+        let baseline = liveHeapBytes()
         for i in 0..<255 {
             autoreleasepool {
                 let body = #"{"model":"claude-fixture","prompt_cache_key":"session-fixture-0001","messages":[{"role":"user","content":""#
                     + String(repeating: "x", count: 5_000_000) + #""}],"id":"\#(i)"}"#
                 ResponseObservation(request: journalRequest("/v1/messages", body: body), emit: writer.enqueue).finish(.backendUnreachable)
             }
-            peak = max(peak, residentBytes())
         }
+        let released = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in self.liveHeapBytes() - baseline < 61 << 20 }, object: nil)
+        let result = XCTWaiter.wait(for: [released], timeout: 60)
+        let grown = (liveHeapBytes() - baseline) >> 20
         writer.flush(timeout: 0)
+        XCTAssertEqual(writer.counters.drops, 256)
         gate.signal()
         writer.flush(timeout: 10)
-        XCTAssertLessThan(peak - baseline, 61 << 20, "peak grew \((peak - baseline) >> 20) MiB")
+        XCTAssertEqual(result, .completed, "live heap still \(grown) MiB above baseline with the records queued")
     }
 
     func testCredentialFilesOverOneMiBAreNotReadForIdentity() throws {
