@@ -880,9 +880,7 @@ class ThinkingProxy {
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(targetHost), port: port)
         let parameters = NWParameters.tcp
         let targetConnection = NWConnection(to: endpoint, using: parameters)
-        // Serializes the observation, which holds no lock: target callbacks run on this queue and client send
-        // completions hand their observation calls to it with async, which never waits.
-        let relay = DispatchQueue(label: "io.automaze.droidproxy.relay", qos: .userInitiated)
+        let relay = Relay()
         var dialed = false
         
         targetConnection.stateUpdateHandler = { state in
@@ -928,7 +926,8 @@ class ThinkingProxy {
                 
             case .failed(let error):
                 NSLog("[ThinkingProxy] Target connection failed: \(error)")
-                observation?.finish(dialed ? .upstreamError : .backendUnreachable)
+                let end: JournalEnd = dialed ? .upstreamError : .backendUnreachable
+                if relay.writing { relay.heldEnd = end } else { observation?.finish(end) }
                 self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway")
                 targetConnection.cancel()
                 
@@ -937,7 +936,7 @@ class ThinkingProxy {
             }
         }
         
-        targetConnection.start(queue: relay)
+        targetConnection.start(queue: relay.queue)
     }
     /**
      Receives response from CLIProxyAPI
@@ -945,7 +944,7 @@ class ThinkingProxy {
      */
     private func receiveResponse(from targetConnection: NWConnection,
                                  originalConnection: NWConnection,
-                                 observation: ResponseObservation?, relay: DispatchQueue) {
+                                 observation: ResponseObservation?, relay: Relay) {
         // Start the streaming loop
         streamNextChunk(from: targetConnection, to: originalConnection, observation: observation, relay: relay)
     }
@@ -955,7 +954,7 @@ class ThinkingProxy {
      */
     private func streamNextChunk(from targetConnection: NWConnection,
                                  to originalConnection: NWConnection,
-                                 observation: ResponseObservation?, relay: DispatchQueue) {
+                                 observation: ResponseObservation?, relay: Relay) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
 
@@ -969,20 +968,23 @@ class ThinkingProxy {
 
             if let data = data, !data.isEmpty {
                 let readAt = observation == nil ? nil : JournalInstant.now()
+                if observation != nil { relay.writing = true }
                 // Forward response chunk to original client
                 originalConnection.send(content: data, completion: .contentProcessed({ sendError in
                     if let sendError = sendError {
                         NSLog("[ThinkingProxy] Send response error: \(sendError)")
                     }
                     if let observation, let readAt {
-                        relay.async {
+                        relay.queue.async {
                             // NWConnection reports no accepted byte count for a failed send, so the whole buffer is undelivered.
                             if sendError != nil {
                                 observation.writeFailed(accepted: Data(), undelivered: data, readAt: readAt)
                             } else {
                                 observation.delivered(data, readAt: readAt)
                             }
+                            relay.writing = false
                             if isComplete { observation.finish(.eof) }
+                            if let end = relay.heldEnd { observation.finish(end) }
                         }
                     }
 
@@ -1658,4 +1660,15 @@ class ThinkingProxy {
             self.finishStreaming(target: targetConnection, client: originalConnection)
         }))
     }
+}
+
+/// One forwarded request's serial queue and the journal state only it touches. The observation holds no lock: target
+/// callbacks run on `queue`, and client send completions hand their observation calls to it with async, which never waits.
+private final class Relay {
+    let queue = DispatchQueue(label: "io.automaze.droidproxy.relay", qos: .userInitiated)
+    /// Set from a target read until its client write's outcome has been observed.
+    var writing = false
+    /// A target failure reported while `writing`. It ends the observation after that write, so bytes already handed to
+    /// the client, such as a terminal event, count first.
+    var heldEnd: JournalEnd?
 }

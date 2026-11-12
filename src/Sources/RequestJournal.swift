@@ -342,6 +342,8 @@ final class JournalWriter {
     private static let lockWait: TimeInterval = 1
     private let directory: URL
     private let queue = DispatchQueue(label: "io.automaze.droidproxy.journal-writer")
+    /// Counts drops that found the writer state busy. It never runs the log sink, so `flush` can wait for it.
+    private let busyDrops = DispatchQueue(label: "io.automaze.droidproxy.journal-busy-drops")
     private let capacity: Int
     private let state = OSAllocatedUnfairLock(initialState: State())
     private let log: (String) -> Void
@@ -368,7 +370,7 @@ final class JournalWriter {
         }
         guard let admission else {
             // DispatchQueue.async only enqueues the block, so the caller never waits to count this drop.
-            return Self.diagnostics.async { self.note(drops: 1) }
+            return busyDrops.async { self.note(drops: 1) }
         }
         guard admission.accepted else {
             if admission.report { scheduleReport() }
@@ -391,12 +393,15 @@ final class JournalWriter {
         }
     }
 
-    /// Waits at most `timeout` for accepted records. Every record not yet claimed for writing then, queued or in flight,
-    /// is counted as dropped and never written; the report is logged on the diagnostics queue so a stalled log sink
-    /// cannot hold the caller.
+    /// Waits at most `timeout` for accepted records and busy-lock drop counts. Every record not yet claimed for writing
+    /// then, queued or in flight, is counted as dropped and never written; the report is logged on the diagnostics queue
+    /// so a stalled log sink cannot hold the caller.
     func flush(timeout: TimeInterval = 2) {
-        let done = DispatchSemaphore(value: 0)
-        queue.async { done.signal() }
+        let done = DispatchGroup()
+        for queue in [queue, busyDrops] {
+            done.enter()
+            queue.async { done.leave() }
+        }
         guard done.wait(timeout: .now() + timeout) == .timedOut else { return }
         state.withLock { s in
             s.closed = true

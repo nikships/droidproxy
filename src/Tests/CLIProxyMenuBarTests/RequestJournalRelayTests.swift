@@ -1,6 +1,7 @@
 import XCTest
 import Network
 import Darwin
+import os
 @testable import CLIProxyMenuBar
 
 final class RequestJournalRelayTests: XCTestCase {
@@ -293,6 +294,66 @@ final class RequestJournalRelayTests: XCTestCase {
         journal.flush()
         XCTAssertTrue(try records().isEmpty)
     }
+
+    func testTargetResetAfterTheTerminalEventStillRecordsCompleteWhileItsClientWriteIsUnobserved() throws {
+        let events = "event: message_start\ndata: {\"type\":\"message_start\",\"message\":{\"model\":\"actual-model\",\"usage\":{\"input_tokens\":3}}}\n\n"
+            + "event: message_stop\ndata: {\"type\":\"message_stop\"}\n\n"
+        let response = Data(("HTTP/1.1 200 OK\r\nContent-Type: text/event-stream\r\nTransfer-Encoding: chunked\r\n\r\n"
+            + "\(String(events.utf8.count, radix: 16))\r\n\(events)\r\n").utf8)
+        let upstream = try LoopbackSocket()
+        defer { upstream.close() }
+        let requested = DispatchSemaphore(value: 0), respond = DispatchSemaphore(value: 0), reset = DispatchSemaphore(value: 0)
+        upstream.serve(reset: true) { fd, _ in
+            requested.signal()
+            guard respond.wait(timeout: .now() + 5) == .success else { return }
+            LoopbackSocket.sendAll(response, fd: fd)
+            _ = reset.wait(timeout: .now() + 5)
+        }
+        let journal = journal()
+        let proxy = try startProxy(targetPort: upstream.port, journal: journal)
+        defer { proxy.stop() }
+        let fd = try LoopbackSocket.connect(port: proxy.proxyPort)
+        defer { Darwin.close(fd) }
+        LoopbackSocket.sendAll(request(), fd: fd)
+        XCTAssertEqual(requested.wait(timeout: .now() + 3), .success)
+
+        // ThinkingProxy runs client send completions on the global user-initiated queue, which runs at most
+        // kern.wq_max_constrained_threads blocks at once. Queueing more blocks than that, all waiting, keeps the
+        // terminal chunk's write completion behind them (the queue is FIFO) until they are released.
+        let blockers = 512
+        let started = OSAllocatedUnfairLock(initialState: 0)
+        let release = DispatchSemaphore(value: 0)
+        var released = false
+        func releaseBlockers() {
+            guard !released else { return }
+            released = true
+            for _ in 0..<blockers { release.signal() }
+        }
+        defer { releaseBlockers() }
+        for _ in 0..<blockers {
+            DispatchQueue.global(qos: .userInitiated).async {
+                started.withLock { $0 += 1 }
+                release.wait()
+            }
+        }
+        respond.signal()
+        var received = Data()
+        XCTAssertTrue(LoopbackSocket.read(fd, into: &received) { $0.count >= response.count }, "the client never got the terminal event")
+        reset.signal()
+        // ThinkingProxy answers the target failure with a 502 after it has handled it for the journal.
+        XCTAssertTrue(LoopbackSocket.read(fd, into: &received) { String(decoding: $0, as: UTF8.self).contains("HTTP/1.1 502") })
+        XCTAssertLessThan(started.withLock { $0 }, blockers, "every blocker ran, so the client write completion was not held back")
+        releaseBlockers()
+        received.append(LoopbackSocket.readToEOF(fd))
+        XCTAssertEqual(received.prefix(response.count), response)
+
+        let written = XCTNSPredicateExpectation(predicate: NSPredicate { _, _ in (try? self.records().count) == 1 }, object: nil)
+        XCTAssertEqual(XCTWaiter.wait(for: [written], timeout: 3), .completed)
+        journal.flush()
+        let record = try XCTUnwrap(records().first)
+        XCTAssertEqual(record.outcome, "complete")
+        XCTAssertEqual(record.status, 200)
+    }
 }
 
 private final class LoopbackSocket {
@@ -323,12 +384,22 @@ private final class LoopbackSocket {
         if fd >= 0 { shutdown(fd, SHUT_RDWR); Darwin.close(fd); fd = -1 }
     }
 
-    func serve(_ handler: @escaping (Int32, Data) -> Void) {
+    /// Runs on its own thread rather than a dispatch queue, so it keeps serving while a test occupies the global queues.
+    /// With `reset`, the peer is closed with an RST instead of a FIN once `handler` returns.
+    func serve(reset: Bool = false, _ handler: @escaping (Int32, Data) -> Void) {
         let listener = fd
-        DispatchQueue.global().async {
+        Thread.detachNewThread {
             let peer = accept(listener, nil, nil)
             guard peer >= 0 else { return }
-            defer { shutdown(peer, SHUT_RDWR); Darwin.close(peer) }
+            defer {
+                if reset {
+                    var abort = linger(l_onoff: 1, l_linger: 0)
+                    setsockopt(peer, SOL_SOCKET, SO_LINGER, &abort, socklen_t(MemoryLayout<linger>.size))
+                } else {
+                    shutdown(peer, SHUT_RDWR)
+                }
+                Darwin.close(peer)
+            }
             Self.configure(peer)
             var request = Data()
             var buffer = [UInt8](repeating: 0, count: 65536)
@@ -381,6 +452,17 @@ private final class LoopbackSocket {
             }
             return offset
         }
+    }
+
+    /// Reads into `data` until `done` holds or the stream ends; false when it ended first.
+    static func read(_ fd: Int32, into data: inout Data, until done: (Data) -> Bool) -> Bool {
+        var buffer = [UInt8](repeating: 0, count: 65536)
+        while !done(data) {
+            let n = recv(fd, &buffer, buffer.count, 0)
+            if n <= 0 { return false }
+            data.append(contentsOf: buffer.prefix(n))
+        }
+        return true
     }
 
     static func readToEOF(_ fd: Int32) -> Data {

@@ -490,31 +490,48 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertEqual(returned.wait(timeout: .now() + 2), .success)
     }
 
+    func testFlushCountsABusyLockDropWhileTheLogSinkIsStalled() throws {
+        let entered = DispatchSemaphore(value: 0), stalled = DispatchSemaphore(value: 0)
+        let (stuck, record, _, fd) = try lockedJournal(log: { _ in entered.signal(); stalled.wait() })
+        defer {
+            for _ in 0..<8 { stalled.signal() }
+            flock(fd, LOCK_UN)
+            close(fd)
+        }
+        stuck.enqueue { record }
+        stuck.flush(timeout: 0.1)
+        XCTAssertEqual(entered.wait(timeout: .now() + 3), .success, "the stuck writer's report never reached the log sink")
+        let writer = JournalWriter(directory: directory.appendingPathComponent("busy"), log: { _ in })
+        let elapsed = millisecondsWithLocksHeld(in: [writer]) { writer.enqueue { record } }
+        XCTAssertLessThan(elapsed, 10, "dropping on a busy lock waited \(elapsed) ms")
+        writer.flush()
+        XCTAssertEqual(writer.counters.drops, 1)
+    }
+
     func testSeatRefreshContentionDoesNotHoldTheRelayOrFinalization() throws {
         let auth = directory.appendingPathComponent("auth")
         try FileManager.default.createDirectory(at: auth, withIntermediateDirectories: true)
         let file = auth.appendingPathComponent("seat.json")
         try Data(#"{"type":"claude","email":"seat@example.invalid"}"#.utf8).write(to: file)
-        let payload = Data((#"{"type":"claude","data":["# + String(repeating: "1,", count: 500_000) + "1]}").utf8)
-        for i in 0..<40 { try payload.write(to: auth.appendingPathComponent("bulk\(i).json")) }
         let index = JournalSeatIndex.index(type: "claude", path: file.path)
         let seats = JournalSeatIndex(directory: auth)
         XCTAssertNotNil(seats.bind(index))
         var builder: (() -> JournalRecord)?
         let observation = ResponseObservation(request: journalRequest("/v1/messages"), bindSeat: seats.bind, emit: { builder = $0 })
-        let entered = DispatchSemaphore(value: 0), refreshed = DispatchSemaphore(value: 0)
-        DispatchQueue.global().async { entered.signal(); seats.refresh(); refreshed.signal() }
+        // A refresh holds this lock for its whole scan; holding it here keeps the index mid-refresh until released.
+        let lock = try XCTUnwrap(Mirror(reflecting: seats).children.lazy.compactMap { $0.value as? HeldLock }.first)
+        let entered = DispatchSemaphore(value: 0), release = DispatchSemaphore(value: 0), relayed = DispatchSemaphore(value: 0)
+        DispatchQueue.global().async { lock.hold(entered, until: release) }
         entered.wait()
-        usleep(10_000)
-        var start = DispatchTime.now().uptimeNanoseconds
-        deliver(observation, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n".utf8))
-        let traced = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
-        start = DispatchTime.now().uptimeNanoseconds
-        deliver(observation, Data("{}".utf8))
-        let finalized = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
-        XCTAssertEqual(refreshed.wait(timeout: .now() + 10), .success)
-        XCTAssertLessThan(traced, 1, "learning the trace waited \(traced) ms for the seat index")
-        XCTAssertLessThan(finalized, 1, "finalization waited \(finalized) ms for the seat index")
+        DispatchQueue.global().async {
+            deliver(observation, Data("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: 20261111100000-\(index)-019a7140-0000-7000-8000-000000000001\r\nContent-Length: 2\r\n\r\n".utf8))
+            deliver(observation, Data("{}".utf8))
+            relayed.signal()
+        }
+        let returned = relayed.wait(timeout: .now() + 10)
+        release.signal()
+        XCTAssertEqual(returned, .success, "learning the trace or finalizing waited for the seat index")
+        if returned == .timedOut { relayed.wait() }
         let record = try XCTUnwrap(builder?())
         XCTAssertEqual(record.outcome, "complete")
         XCTAssertEqual(record.seat?.email, "seat@example.invalid")
