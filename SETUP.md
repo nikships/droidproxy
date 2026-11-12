@@ -212,3 +212,15 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 1. Start Factory
 2. Run `/settings`
 3. Set **Show thinking in main view: On**
+
+## Optional Request Journal
+
+DroidProxy can write one JSON line per inference request it forwards to CLIProxyAPI into `~/.droidproxy/journal/requests-YYYY-MM.jsonl`. It is off by default. To turn it on:
+
+```bash
+defaults write com.droidproxy.app requestJournal -bool true
+```
+
+Each line records the original model and endpoint, response status, timing, the client's session key, token usage when the response reports it, and the credential seat that served the request (with its email and organization or account ID when they can be resolved safely). Grok, Meta Responses, Junie, Copilot gateway, and token-count requests are not journaled.
+
+The journal holds no prompts, response content, or credentials, but it does hold account and session identifiers, so treat it as private. Records are durable once written. Reading the response for the journal happens as the bytes pass through, with no file access or waiting; it costs CPU time in proportion to the response size, a few milliseconds for a 2 MiB response. Everything else (parsing the request, finding the seat, writing the file) happens off the relay, which never waits on it, so a record is dropped (and counted in the log) when the queue is full or busy at that instant, when the request bodies still waiting to be parsed already add up to 64 MiB, when another process holds the journal file's lock for more than a second, or when DroidProxy quits with records still queued after two seconds; a crash before the write can also lose them.

@@ -25,13 +25,21 @@ import Network
  */
 class ThinkingProxy {
     private var listener: NWListener?
-    let proxyPort: UInt16 = 8317
-    private let targetPort: UInt16 = 8318
+    let proxyPort: UInt16
+    private let targetPort: UInt16
     private let targetHost = "127.0.0.1"
+    private let journal: () -> RequestJournal?
     private(set) var isRunning = false
     /// Serves `/droidproxy/control/`; nil until the app has written this launch's token.
     var control: ControlEndpoint?
     private let stateQueue = DispatchQueue(label: "io.automaze.droidproxy.thinking-proxy-state")
+
+    init(proxyPort: UInt16 = 8317, targetPort: UInt16 = 8318,
+         journal: @escaping () -> RequestJournal? = { AppPreferences.requestJournal ? .shared : nil }) {
+        self.proxyPort = proxyPort
+        self.targetPort = targetPort
+        self.journal = journal
+    }
 
     /// File-based debug logger (writes to /tmp/droidproxy-debug.log)
     private static let logFile: URL = URL(fileURLWithPath: "/tmp/droidproxy-debug.log")
@@ -308,6 +316,7 @@ class ThinkingProxy {
             let value = String(line[valueStart...]).trimmingCharacters(in: .whitespaces)
             headers.append((name, value))
         }
+        headers.removeAll { $0.0.lowercased() == "x-droidproxy-origin" }
         
         // Find the body start
         guard let bodyStartRange = requestString.range(of: "\r\n\r\n") else {
@@ -406,7 +415,18 @@ class ThinkingProxy {
         }
 
         let forwardHeaders = headersForForwarding(headers, requestFields: requestFields)
-        forwardRequest(method: method, path: rewrittenPath, version: httpVersion, headers: forwardHeaders, body: modifiedBody, originalConnection: connection)
+        var observation: ResponseObservation?
+        if JournalRequest.admitted(method: method, path: rewrittenPath), let journal = journal() {
+            // Re-read the head: `headers` trims all Unicode whitespace and no longer has X-DroidProxy-Origin.
+            let httpWhitespace = CharacterSet(charactersIn: " \t")
+            let originalHeaders: [(String, String)] = lines.dropFirst().prefix { !$0.isEmpty }.compactMap { line in
+                guard let colon = line.firstIndex(of: ":") else { return nil }
+                return (String(line[..<colon]).trimmingCharacters(in: httpWhitespace),
+                        String(line[line.index(after: colon)...]).trimmingCharacters(in: httpWhitespace))
+            }
+            observation = journal.begin(JournalRequest(endpoint: path, forwardedEndpoint: rewrittenPath, headers: originalHeaders, body: bodyString))
+        }
+        forwardRequest(method: method, path: rewrittenPath, version: httpVersion, headers: forwardHeaders, body: modifiedBody, originalConnection: connection, observation: observation)
     }
 
     private func headersForForwarding(_ headers: [(String, String)], requestFields: RequestJSONFields?) -> [(String, String)] {
@@ -850,7 +870,7 @@ class ThinkingProxy {
     /**
      Forwards the request to CLIProxyAPI on port 8318 (pass-through for non-thinking requests)
      */
-    private func forwardRequest(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection) {
+    private func forwardRequest(method: String, path: String, version: String, headers: [(String, String)], body: String, originalConnection: NWConnection, observation: ResponseObservation?) {
         // Create connection to CLIProxyAPI
         guard let port = NWEndpoint.Port(rawValue: targetPort) else {
             NSLog("[ThinkingProxy] Invalid target port: %d", targetPort)
@@ -860,13 +880,17 @@ class ThinkingProxy {
         let endpoint = NWEndpoint.hostPort(host: NWEndpoint.Host(targetHost), port: port)
         let parameters = NWParameters.tcp
         let targetConnection = NWConnection(to: endpoint, using: parameters)
+        let relay = Relay()
+        var dialed = false
         
         targetConnection.stateUpdateHandler = { state in
             switch state {
             case .ready:
+                dialed = true
                 // Build the forwarded request
                 var forwardedRequest = "\(method) \(path) \(version)\r\n"
-                let excludedHeaders: Set<String> = ["content-length", "host", "transfer-encoding"]
+                var excludedHeaders: Set<String> = ["content-length", "host", "transfer-encoding"]
+                if observation != nil { excludedHeaders.insert("accept-encoding") }
 
                 for (name, value) in headers {
                     if !excludedHeaders.contains(name.lowercased()) {
@@ -889,17 +913,22 @@ class ThinkingProxy {
                     targetConnection.send(content: requestData, completion: .contentProcessed({ error in
                         if let error = error {
                             NSLog("[ThinkingProxy] Send error: \(error)")
+                            observation?.finish(.upstreamError)
                             targetConnection.cancel()
                             originalConnection.cancel()
                         } else {
                             self.receiveResponse(from: targetConnection,
-                                                 originalConnection: originalConnection)
+                                                 originalConnection: originalConnection,
+                                                 observation: observation, relay: relay)
                         }
                     }))
                 }
                 
-            case .failed(let error):
+            // A refused loopback dial reports .waiting, not .failed, and NWConnection does not retry it on its own.
+            case .failed(let error), .waiting(let error) where !dialed:
                 NSLog("[ThinkingProxy] Target connection failed: \(error)")
+                let end: JournalEnd = dialed ? .upstreamError : .backendUnreachable
+                if relay.writing { relay.heldEnd = end } else { observation?.finish(end) }
                 self.sendError(to: originalConnection, statusCode: 502, message: "Bad Gateway")
                 targetConnection.cancel()
                 
@@ -908,48 +937,67 @@ class ThinkingProxy {
             }
         }
         
-        targetConnection.start(queue: .global(qos: .userInitiated))
+        targetConnection.start(queue: relay.queue)
     }
     /**
      Receives response from CLIProxyAPI
      Starts the streaming loop for response data
      */
     private func receiveResponse(from targetConnection: NWConnection,
-                                 originalConnection: NWConnection) {
+                                 originalConnection: NWConnection,
+                                 observation: ResponseObservation?, relay: Relay) {
         // Start the streaming loop
-        streamNextChunk(from: targetConnection, to: originalConnection)
+        streamNextChunk(from: targetConnection, to: originalConnection, observation: observation, relay: relay)
     }
     
     /**
      Streams response chunks iteratively (uses async scheduling instead of recursion to avoid stack buildup)
      */
     private func streamNextChunk(from targetConnection: NWConnection,
-                                 to originalConnection: NWConnection) {
+                                 to originalConnection: NWConnection,
+                                 observation: ResponseObservation?, relay: Relay) {
         targetConnection.receive(minimumIncompleteLength: 1, maximumLength: 65536) { [weak self] data, _, isComplete, error in
             guard let self = self else { return }
 
             if let error = error {
                 NSLog("[ThinkingProxy] Receive response error: \(error)")
+                observation?.finish(.upstreamError)
                 targetConnection.cancel()
                 originalConnection.cancel()
                 return
             }
 
             if let data = data, !data.isEmpty {
+                let readAt = observation == nil ? nil : JournalInstant.now()
+                if observation != nil { relay.writing = true }
                 // Forward response chunk to original client
                 originalConnection.send(content: data, completion: .contentProcessed({ sendError in
                     if let sendError = sendError {
                         NSLog("[ThinkingProxy] Send response error: \(sendError)")
+                    }
+                    if let observation, let readAt {
+                        relay.queue.async {
+                            // NWConnection reports no accepted byte count for a failed send, so the whole buffer is undelivered.
+                            if sendError != nil {
+                                observation.writeFailed(accepted: Data(), undelivered: data, readAt: readAt)
+                            } else {
+                                observation.delivered(data, readAt: readAt)
+                            }
+                            relay.writing = false
+                            if isComplete { observation.finish(.eof) }
+                            if let end = relay.heldEnd { observation.finish(end) }
+                        }
                     }
 
                     if isComplete {
                         self.finishStreaming(target: targetConnection, client: originalConnection)
                     } else {
                         // Schedule next iteration of the streaming loop
-                        self.streamNextChunk(from: targetConnection, to: originalConnection)
+                        self.streamNextChunk(from: targetConnection, to: originalConnection, observation: observation, relay: relay)
                     }
                 }))
             } else if isComplete {
+                observation?.finish(.eof)
                 targetConnection.cancel()
                 // Always close client connection - no keep-alive/pipelining support
                 originalConnection.send(content: nil, isComplete: true, completion: .contentProcessed({ _ in
@@ -1613,4 +1661,15 @@ class ThinkingProxy {
             self.finishStreaming(target: targetConnection, client: originalConnection)
         }))
     }
+}
+
+/// One forwarded request's serial queue and the journal state only it touches. The observation holds no lock: target
+/// callbacks run on `queue`, and client send completions hand their observation calls to it with async, which never waits.
+private final class Relay {
+    let queue = DispatchQueue(label: "io.automaze.droidproxy.relay", qos: .userInitiated)
+    /// Set from a target read until its client write's outcome has been observed.
+    var writing = false
+    /// A target failure reported while `writing`. It ends the observation after that write, so bytes already handed to
+    /// the client, such as a terminal event, count first.
+    var heldEnd: JournalEnd?
 }

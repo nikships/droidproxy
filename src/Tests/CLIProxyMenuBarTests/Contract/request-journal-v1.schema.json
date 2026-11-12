@@ -1,0 +1,201 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://github.com/nikships/droidproxy-omarchy/contract/request-journal-v1.schema.json",
+  "title": "DroidProxy request journal v1",
+  "description": "One best-effort request observation. Null means unknown, not zero. Semantic and storage rules are in request-journal-v1.md.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "v", "execution_id", "trace_id", "started_at", "ended_at", "latency_ms",
+    "ttft_ms", "origin", "endpoint", "forwarded_endpoint", "provider",
+    "requested_model", "response_model", "status", "outcome", "seat",
+    "client_session", "tokens"
+  ],
+  "properties": {
+    "v": {
+      "type": "integer",
+      "const": 1,
+      "description": "Contract version; exactly 1."
+    },
+    "execution_id": {
+      "$ref": "#/$defs/uuid",
+      "description": "CLIProxyAPI request UUID from the trace header; otherwise a locally minted UUIDv4."
+    },
+    "trace_id": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Unmodified X-CPA-TRACE-ID response header value, or null when absent."
+    },
+    "started_at": {
+      "$ref": "#/$defs/timestamp",
+      "description": "UTC time when the forwarding attempt begins, including backend dialing."
+    },
+    "ended_at": {
+      "$ref": "#/$defs/timestamp",
+      "description": "UTC time when the observation is finalized, once."
+    },
+    "latency_ms": {
+      "type": "integer",
+      "minimum": 0,
+      "description": "Elapsed monotonic milliseconds from forwarding attempt to finalization."
+    },
+    "ttft_ms": {
+      "type": ["integer", "null"],
+      "minimum": 0,
+      "description": "Elapsed milliseconds to the first response entity-body byte; excludes headers and transfer framing. Null if none arrived."
+    },
+    "origin": {
+      "enum": ["client", "primer"],
+      "description": "Primer only for the internal X-DroidProxy-Origin: window-primer marker, stripped before forwarding."
+    },
+    "endpoint": {
+      "$ref": "#/$defs/path",
+      "description": "Original client request path without query, before any path rewrite."
+    },
+    "forwarded_endpoint": {
+      "anyOf": [{"$ref": "#/$defs/path"}, {"type": "null"}],
+      "description": "Forwarded path without query only when a rewrite changed it; otherwise null."
+    },
+    "provider": {
+      "enum": ["claude", "codex", "openai", "gemini", "unknown"],
+      "description": "Request family derived from the original model and endpoint, never proof of a billing seat."
+    },
+    "requested_model": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Original request model before alias rewrites; path model for native Gemini; null if unavailable."
+    },
+    "response_model": {
+      "type": ["string", "null"],
+      "minLength": 1,
+      "description": "Last nonempty model explicitly reported in the observed response, or null."
+    },
+    "status": {
+      "type": ["integer", "null"],
+      "minimum": 100,
+      "maximum": 599,
+      "description": "Final upstream HTTP status observed, even if client delivery fails. Null before a status line; own dial-failure 502 is the sole exception."
+    },
+    "outcome": {
+      "enum": ["complete", "upstream_error", "upstream_closed_early", "client_disconnected", "backend_unreachable"],
+      "description": "Relay termination, independent of HTTP success and usage availability; see the exit-path table."
+    },
+    "seat": {
+      "anyOf": [{"$ref": "#/$defs/seat"}, {"type": "null"}],
+      "description": "Trace-selected seat. Null without a usable trace index; index and role only when identity cannot safely be resolved."
+    },
+    "client_session": {
+      "type": ["string", "null"],
+      "pattern": "^[A-Za-z0-9_.:-]{8,128}$",
+      "description": "First valid explicit client session key in the documented precedence; null if none. No truncation, hashing, or affinity prefixes."
+    },
+    "tokens": {
+      "anyOf": [{"$ref": "#/$defs/tokens"}, {"type": "null"}],
+      "description": "Terminal observed usage only; null for missing, incomplete, malformed, unsupported, or compressed usage."
+    }
+  },
+  "allOf": [
+    {
+      "if": {"properties": {"status": {"type": "integer", "minimum": 200, "maximum": 299}}},
+      "then": {"properties": {"seat": {"properties": {"role": {"const": "served"}}}}},
+      "else": {"properties": {"seat": {"properties": {"role": {"const": "last_tried"}}}}}
+    },
+    {
+      "if": {"properties": {"outcome": {"const": "backend_unreachable"}}},
+      "then": {
+        "properties": {
+          "status": {"const": 502},
+          "trace_id": {"type": "null"},
+          "seat": {"type": "null"},
+          "ttft_ms": {"type": "null"},
+          "tokens": {"type": "null"}
+        }
+      }
+    }
+  ],
+  "$defs": {
+    "uuid": {
+      "type": "string",
+      "format": "uuid",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "timestamp": {
+      "type": "string",
+      "format": "date-time",
+      "pattern": "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}\\.[0-9]{3}Z$"
+    },
+    "path": {
+      "type": "string",
+      "pattern": "^/[^?#\\s]*$"
+    },
+    "seat": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["auth_index", "role"],
+      "properties": {
+        "auth_index": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{16}$",
+          "description": "Second trace segment, identifying the last selected CLIProxyAPI auth."
+        },
+        "role": {
+          "enum": ["served", "last_tried"],
+          "description": "Served on 2xx only; last_tried otherwise. Not evidence of complete usage or spend."
+        },
+        "file": {
+          "type": "string",
+          "minLength": 1,
+          "pattern": "^[^/\\\\]+\\.json$",
+          "description": "Auth file basename, never its contents or absolute path."
+        },
+        "email": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Explicit auth identity email, not a billing-ownership fallback."
+        },
+        "org": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Claude organization_uuid or nested organization identity."
+        },
+        "account_id": {
+          "type": "string",
+          "minLength": 1,
+          "description": "Explicit Codex top-level account_id."
+        }
+      }
+    },
+    "tokens": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["input_uncached", "cache_read", "cache_creation", "output", "reasoning"],
+      "properties": {
+        "input_uncached": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Uncached input; OpenAI input or prompt total minus reported cached input."
+        },
+        "cache_read": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Input read from cache; zero only when known, including protocol-defined absent cache details."
+        },
+        "cache_creation": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Reported cache-creation input; null if unavailable. Always null for Responses v1 normalization."
+        },
+        "output": {
+          "type": "integer",
+          "minimum": 0,
+          "description": "Total output including reasoning; do not add reasoning again."
+        },
+        "reasoning": {
+          "type": ["integer", "null"],
+          "minimum": 0,
+          "description": "Reported reasoning output subset, or null when not separately available."
+        }
+      }
+    }
+  }
+}
