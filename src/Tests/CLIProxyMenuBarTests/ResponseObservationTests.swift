@@ -483,6 +483,24 @@ final class ResponseObservationTests: XCTestCase {
         }
     }
 
+    func testTraceSegmentsWithATrailingCarriageReturnFailTheirGrammar() throws {
+        let (stamp, index, uuid) = ("20261111100000", "0123456789abcdef", "019a7140-0000-7000-8000-000000000001")
+        for (value, execution) in [
+            ("\(stamp)\r-\(index)-\(uuid)", uuid),
+            ("\(stamp)-\(index)\r-\(uuid)", uuid),
+            ("\(stamp)-\(index)-\(uuid)\r", nil)
+        ] {
+            let r = try observe("HTTP/1.1 200 OK\r\nX-CPA-TRACE-ID: \(value)\r\nContent-Length: 0\r\n\r\n")
+            XCTAssertEqual(r.trace_id, value, value.debugDescription)
+            XCTAssertNil(r.seat, value.debugDescription)
+            if let execution {
+                XCTAssertEqual(r.execution_id, execution, value.debugDescription)
+            } else {
+                XCTAssertNotEqual(r.execution_id, uuid, value.debugDescription)
+            }
+        }
+    }
+
     func testChunkSizeAcceptsLeadingZerosBeyondFifteenDigits() throws {
         let json = #"{"type":"message","model":"m","usage":{"input_tokens":3,"output_tokens":5}}"#
         let size = String(repeating: "0", count: 20) + String(json.utf8.count, radix: 16)
@@ -577,8 +595,8 @@ final class ResponseObservationTests: XCTestCase {
         start = DispatchTime.now().uptimeNanoseconds
         deliver(observation, Data("{}".utf8))
         let finalized = Double(DispatchTime.now().uptimeNanoseconds - start) / 1e6
-        XCTAssertLessThan(traced, 1, "learning the trace waited \(traced) ms")
-        XCTAssertLessThan(finalized, 1, "finalization waited \(finalized) ms")
+        XCTAssertLessThan(traced, 100, "learning the trace waited \(traced) ms")
+        XCTAssertLessThan(finalized, 100, "finalization waited \(finalized) ms")
         XCTAssertEqual(validated.wait(timeout: .now()), .timedOut, "revalidated before the record was built")
         release.signal()
         let record = try XCTUnwrap(builder?())

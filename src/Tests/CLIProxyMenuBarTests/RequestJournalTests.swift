@@ -56,6 +56,22 @@ final class RequestJournalTests: XCTestCase {
         }
     }
 
+    func testSchemaPatternsMatchTheWholeString() throws {
+        let schema = try JournalSchema(data: resource("request-journal-v1.schema.json"))
+        let lines = try XCTUnwrap(String(data: resource("request-journal-v1.golden.jsonl"), encoding: .utf8)).split(separator: "\n")
+        let wrapper = try XCTUnwrap(lines.lazy.compactMap { try? JSONSerialization.jsonObject(with: Data($0.utf8)) as? [String: Any] }
+            .first { $0["valid"] as? Bool == true && ($0["record"] as? [String: Any])?["client_session"] is String })
+        let record = try XCTUnwrap(wrapper["record"] as? NSDictionary)
+        XCTAssertTrue(schema.valid(record))
+        for (key, value) in [("client_session", "valid-session-0001"), ("endpoint", "/v1/messages")] {
+            for terminator in ["", "\n", "\r\n", "\r"] {
+                let changed = record.mutableCopy() as! NSMutableDictionary
+                changed[key] = value + terminator
+                XCTAssertEqual(schema.valid(changed), terminator.isEmpty, "\(key) \(terminator.debugDescription)")
+            }
+        }
+    }
+
     /// Contract replay: whole, bytewise, and every two-read split (every 509th offset over 64 KiB).
     func testEveryTranscriptAtEverySplitAndBytewise() throws {
         let schema = try JournalSchema(data: resource("request-journal-v1.schema.json"))
@@ -90,7 +106,7 @@ final class RequestJournalTests: XCTestCase {
     private func difference(_ record: JournalRecord, expected: NSDictionary, fixture: [String: Any]) throws -> String? {
         let actual = try object(record).mutableCopy() as! NSMutableDictionary
         if (fixture["nondeterministic_fields"] as? [String])?.contains("execution_id") == true {
-            guard record.execution_id.range(of: "^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$", options: .regularExpression) != nil else {
+            guard record.execution_id.range(of: #"^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}\z"#, options: .regularExpression) != nil else {
                 return "execution_id \(record.execution_id) is not a UUIDv4"
             }
             actual["execution_id"] = expected["execution_id"]
@@ -157,8 +173,15 @@ final class RequestJournalTests: XCTestCase {
         XCTAssertEqual(journalSession([("X-Session-ID", "bad id"), ("x-session-id", "\tHeader-Session:0001 ")], body), "Header-Session:0001")
         XCTAssertEqual(journalSession([("X-Session-ID", "bad"), ("X-Claude-Code-Session-Id", "second-header-0001")], body), "second-header-0001")
         XCTAssertEqual(journalSession([], body), "body-session-0001")
-        for value in ["", "short", " bad-session-0001", "bad-session-0001 ", "bad-session-0001\n", "å-session-0001", String(repeating: "a", count: 129)] {
-            XCTAssertNil(JournalRequest.validSession(value))
+        for value in [
+            "", "short", " bad-session-0001", "bad-session-0001 ", "bad-session-0001\n", "bad-session-0001\r\n", "bad-session-0001\r",
+            "å-session-0001", String(repeating: "a", count: 129)
+        ] {
+            XCTAssertNil(JournalRequest.validSession(value), value.debugDescription)
+        }
+        for terminator in [#"\n"#, #"\r\n"#, #"\r"#] {
+            let body = #"{"prompt_cache_key":"bad-session-0001"# + terminator + #"","metadata":{"user_id":"user_session_legacy-session-0001"}}"#
+            XCTAssertEqual(journalSession([("X-Session-ID", "bad-session-0001\r")], body), "legacy-session-0001", terminator)
         }
         for user in [
             #"{"session_id":42}"#, #"{"parent_session_id":"parent-session-0001"}"#,
@@ -757,7 +780,9 @@ struct JournalSchema {
         if let expected = s["const"], !equal(value, expected) { return false }
         if let choices = s["enum"] as? [Any], !choices.contains(where: { equal(value, $0) }) { return false }
         if let text = value as? String {
-            if let pattern = s["pattern"] as? String, text.range(of: pattern, options: .regularExpression) == nil { return false }
+            // JSON Schema's `$` is end of input; ICU's also matches before a final line terminator, so require the match to cover the string.
+            if let pattern = s["pattern"] as? String,
+               text.range(of: pattern, options: .regularExpression) != text.startIndex..<text.endIndex { return false }
             if let min = s["minLength"] as? Int, text.count < min { return false }
         }
         if let number = value as? NSNumber {

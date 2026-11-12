@@ -290,15 +290,16 @@ final class ResponseObservation {
     private func learnTrace(_ value: String) {
         trace = value.isEmpty ? nil : value
         let pieces = value.split(separator: "-", maxSplits: 2, omittingEmptySubsequences: false).map(String.init)
-        guard pieces.count == 3, Self.matches(pieces[2], "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$") else { return }
+        guard pieces.count == 3, Self.matches(pieces[2], #"^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-[1-8][0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}\z"#) else { return }
         execution = pieces[2]
-        if Self.matches(pieces[0], "^[0-9]{14}$"), Self.matches(pieces[1], "^[0-9a-f]{16}$") {
+        if Self.matches(pieces[0], #"^[0-9]{14}\z"#), Self.matches(pieces[1], #"^[0-9a-f]{16}\z"#) {
             let (index, bind) = (pieces[1], bindSeat)
             self.index = index
             binding = JournalPending(on: Self.seatWork) { bind(index) }
         }
     }
 
+    /// Patterns end in `\z`, not `$`: ICU's `$` also matches before a final line terminator, and a header value can end in a bare CR.
     private static func matches(_ value: String, _ pattern: String) -> Bool {
         value.range(of: pattern, options: .regularExpression) != nil
     }

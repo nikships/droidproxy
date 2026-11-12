@@ -135,8 +135,10 @@ struct JournalRequest {
         return "unknown"
     }
 
+    /// The contract's `$` means end of input; `\z` keeps that on runtimes where `range(of:)` uses ICU, whose `$` also
+    /// matches before a final line terminator.
     static func validSession(_ value: String?) -> String? {
-        guard let value, value.range(of: "^[A-Za-z0-9_.:-]{8,128}$", options: .regularExpression) != nil else { return nil }
+        guard let value, value.range(of: #"^[A-Za-z0-9_.:-]{8,128}\z"#, options: .regularExpression) != nil else { return nil }
         return value
     }
 
@@ -283,7 +285,7 @@ final class JournalSeatIndex {
             let kind = type.lowercased()
             let identity = !bindable ? nil : JournalSeat(
                 auth_index: index, role: "served",
-                file: name.range(of: #"^[^/\\]+\.json$"#, options: .regularExpression) == nil ? nil : name,
+                file: name.range(of: #"^[^/\\]+\.json\z"#, options: .regularExpression) == nil ? nil : name,
                 email: Self.nonempty(json["email"]),
                 org: kind == "claude" ? Self.nonempty(json["organization_uuid"]) ?? Self.nonempty(json["organization"]?["uuid"]) : nil,
                 account_id: kind == "codex" ? Self.nonempty(json["account_id"]) : nil

@@ -206,14 +206,14 @@ final class RequestJournalRelayTests: XCTestCase {
             LoopbackSocket.sendAll(request(), fd: fd)
             answers.append(LoopbackSocket.readToEOF(fd))
         }
+        XCTAssertTrue(answers[0].starts(with: Data("HTTP/1.1 502 ".utf8)), String(decoding: answers[0], as: UTF8.self))
         XCTAssertEqual(answers[0], answers[1], String(decoding: answers[1], as: UTF8.self))
         journal.flush()
         let recorded = try records()
-        XCTAssertLessThanOrEqual(recorded.count, 1)
-        if let record = recorded.first {
-            XCTAssertEqual(record.outcome, "backend_unreachable")
-            XCTAssertEqual(record.status, 502)
-        }
+        XCTAssertEqual(recorded.count, 1)
+        let record = try XCTUnwrap(recorded.first)
+        XCTAssertEqual(record.outcome, "backend_unreachable")
+        XCTAssertEqual(record.status, 502)
     }
 
     func testFailedClientWriteKeepsRelayingAndRecordsDisconnectWithObservedStatus() throws {

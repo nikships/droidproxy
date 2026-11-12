@@ -924,7 +924,8 @@ class ThinkingProxy {
                     }))
                 }
                 
-            case .failed(let error):
+            // A refused loopback dial reports .waiting, not .failed, and NWConnection does not retry it on its own.
+            case .failed(let error), .waiting(let error) where !dialed:
                 NSLog("[ThinkingProxy] Target connection failed: \(error)")
                 let end: JournalEnd = dialed ? .upstreamError : .backendUnreachable
                 if relay.writing { relay.heldEnd = end } else { observation?.finish(end) }
