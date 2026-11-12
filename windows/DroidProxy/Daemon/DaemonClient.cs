@@ -120,7 +120,7 @@ public sealed class DaemonClient : IDisposable
     public void Dispose() => _http.Dispose();
 }
 
-/// <summary>The slice of the daemon snapshot this app renders today.</summary>
+/// <summary>The daemon snapshot as rendered by this app.</summary>
 public sealed record DaemonState(
     bool ServerRunning,
     bool ServerStarting,
@@ -129,9 +129,39 @@ public sealed record DaemonState(
     string Version,
     string UpdateState,
     string LatestVersion,
-    IReadOnlyList<DaemonState.ProviderInfo> Providers)
+    bool FactoryInstalled,
+    string AuthDir,
+    string LogsDir,
+    IReadOnlyList<DaemonState.ProviderInfo> Providers,
+    IReadOnlyList<DaemonState.UsageInfo> Usage,
+    DaemonState.SettingsInfo Settings,
+    DaemonState.SignInInfo SignIn)
 {
-    public sealed record ProviderInfo(string Id, string Name, bool Enabled, int AccountCount);
+    public sealed record ProviderInfo(
+        string Id, string Name, string Kind, bool Enabled, bool PrimerApplies, bool Authenticating,
+        IReadOnlyList<AccountInfo> Accounts, IReadOnlyList<ModelInfo> Models);
+
+    public sealed record AccountInfo(string Id, string DisplayName, bool Expired, bool Disabled);
+
+    public sealed record ModelInfo(string Slug, string DisplayName, bool Enabled, bool Installed);
+
+    public sealed record UsageInfo(
+        string Id, string Provider, string ProviderName, string Email, bool Loading, string Error,
+        IReadOnlyList<WindowInfo> Windows, int ResetCount, string ResetNextExpiry);
+
+    public sealed record WindowInfo(string Title, double? RemainingPercent, string ResetText);
+
+    public sealed record SettingsInfo(
+        IReadOnlyDictionary<string, bool> Flags,
+        IReadOnlyDictionary<string, int> Ints,
+        string SecretKey, string BindAddress);
+
+    public sealed record SignInInfo(
+        string GrokCode, string GrokUrl, string MetaCode, string MetaUrl,
+        string CopilotCode, string CopilotUrl)
+    {
+        public bool Any => GrokCode.Length + MetaCode.Length + CopilotCode.Length > 0;
+    }
 
     public static DaemonState Parse(string json)
     {
@@ -140,26 +170,108 @@ public sealed record DaemonState(
         var server = root.TryGetProperty("server", out var s) ? s : default;
         var app = root.TryGetProperty("app", out var a) ? a : default;
         var update = root.TryGetProperty("update", out var u) ? u : default;
+        var factory = root.TryGetProperty("factory", out var f) ? f : default;
+        var paths = root.TryGetProperty("paths", out var pa) ? pa : default;
 
         var providers = new List<ProviderInfo>();
         if (root.TryGetProperty("providers", out var list) && list.ValueKind == JsonValueKind.Array)
         {
             foreach (var p in list.EnumerateArray())
             {
-                var accounts = p.TryGetProperty("accounts", out var acc) && acc.ValueKind == JsonValueKind.Array
-                    ? acc.GetArrayLength() : 0;
+                var accounts = new List<AccountInfo>();
+                if (p.TryGetProperty("accounts", out var acc) && acc.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var ac in acc.EnumerateArray())
+                    {
+                        accounts.Add(new AccountInfo(
+                            GetString(ac, "id"), GetString(ac, "displayName"),
+                            GetBool(ac, "expired"), GetBool(ac, "disabled")));
+                    }
+                }
+                var models = new List<ModelInfo>();
+                if (p.TryGetProperty("models", out var ms) && ms.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var m in ms.EnumerateArray())
+                    {
+                        models.Add(new ModelInfo(
+                            GetString(m, "slug"), GetString(m, "displayName"),
+                            GetBool(m, "enabled"), GetBool(m, "installed")));
+                    }
+                }
                 providers.Add(new ProviderInfo(
-                    GetString(p, "id"), GetString(p, "name"),
-                    GetBool(p, "enabled"), accounts));
+                    GetString(p, "id"), GetString(p, "name"), GetString(p, "kind"),
+                    GetBool(p, "enabled"), GetBool(p, "primerApplies"), GetBool(p, "authenticating"),
+                    accounts, models));
             }
         }
+
+        var usage = new List<UsageInfo>();
+        if (root.TryGetProperty("usage", out var usg) &&
+            usg.TryGetProperty("accounts", out var uaccts) && uaccts.ValueKind == JsonValueKind.Array)
+        {
+            foreach (var ua in uaccts.EnumerateArray())
+            {
+                var windows = new List<WindowInfo>();
+                if (ua.TryGetProperty("windows", out var ws) && ws.ValueKind == JsonValueKind.Array)
+                {
+                    foreach (var w in ws.EnumerateArray())
+                    {
+                        double? remaining = w.TryGetProperty("remainingPercent", out var r) &&
+                            r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null;
+                        windows.Add(new WindowInfo(GetString(w, "title"), remaining, GetString(w, "resetText")));
+                    }
+                }
+                var resetCount = 0;
+                var resetExpiry = "";
+                if (ua.TryGetProperty("resetCredits", out var rc) && rc.ValueKind == JsonValueKind.Object)
+                {
+                    resetCount = GetInt(rc, "availableCount");
+                    resetExpiry = GetString(rc, "nextExpiresAt");
+                }
+                usage.Add(new UsageInfo(
+                    GetString(ua, "id"), GetString(ua, "provider"), GetString(ua, "providerName"),
+                    GetString(ua, "email"), GetBool(ua, "loading"), GetString(ua, "error"),
+                    windows, resetCount, resetExpiry));
+            }
+        }
+
+        var flags = new Dictionary<string, bool>();
+        var ints = new Dictionary<string, int>();
+        var secretKey = "";
+        var bindAddress = "";
+        if (root.TryGetProperty("settings", out var st) && st.ValueKind == JsonValueKind.Object)
+        {
+            foreach (var prop in st.EnumerateObject())
+            {
+                switch (prop.Value.ValueKind)
+                {
+                    case JsonValueKind.True: flags[prop.Name] = true; break;
+                    case JsonValueKind.False: flags[prop.Name] = false; break;
+                    case JsonValueKind.Number when prop.Value.TryGetInt32(out var n): ints[prop.Name] = n; break;
+                }
+            }
+            secretKey = GetString(st, "secretKey");
+            bindAddress = GetString(st, "bindAddress");
+        }
+
+        var grok = root.TryGetProperty("grok", out var g) ? g : default;
+        var meta = root.TryGetProperty("meta", out var m2) ? m2 : default;
+        var copilot = root.TryGetProperty("copilot", out var c) ? c : default;
+        var signIn = new SignInInfo(
+            GetString(grok, "userCode"), GetString(grok, "verificationUrl"),
+            GetString(meta, "deviceCode"), GetString(meta, "verificationUrl"),
+            GetString(copilot, "deviceCode"), GetString(copilot, "verificationUrl"));
 
         return new DaemonState(
             GetBool(server, "running"), GetBool(server, "starting"),
             GetInt(server, "proxyPort"), GetString(server, "lastError"),
             GetString(app, "version"),
             GetString(update, "state"), GetString(update, "latestVersion"),
-            providers);
+            GetBool(factory, "modelsInstalled"),
+            GetString(paths, "authDir"), GetString(paths, "logsDir"),
+            providers, usage,
+            new SettingsInfo(flags, ints, secretKey, bindAddress),
+            signIn);
     }
 
     private static string GetString(JsonElement el, string name) =>

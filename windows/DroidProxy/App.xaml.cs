@@ -1,5 +1,6 @@
 using System.Windows.Input;
 using DroidProxy.Daemon;
+using Microsoft.Win32;
 using H.NotifyIcon;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
@@ -55,6 +56,28 @@ public partial class App : Application
             // the window still works without the tray icon.
         }
         _window.Activate();
+    }
+
+    // Launch-at-login is owned by the app on Windows (the daemon's systemd
+    // path refuses there): a per-user Run entry pointing at this exe.
+    public static bool IsLaunchAtLoginEnabled()
+    {
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+        return key?.GetValue("DroidProxy") is string;
+    }
+
+    public static void SetLaunchAtLogin(bool enabled)
+    {
+        using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
+        if (enabled)
+        {
+            var exe = Environment.ProcessPath;
+            if (exe is not null) key.SetValue("DroidProxy", $"\"{exe}\"");
+        }
+        else
+        {
+            key.DeleteValue("DroidProxy", throwOnMissingValue: false);
+        }
     }
 
     public void ShowMainWindow()

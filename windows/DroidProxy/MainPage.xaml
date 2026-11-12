@@ -9,7 +9,7 @@
     mc:Ignorable="d">
 
     <ScrollViewer Padding="24">
-        <StackPanel Spacing="16" MaxWidth="640" HorizontalAlignment="Left">
+        <StackPanel Spacing="16" MaxWidth="760" HorizontalAlignment="Left">
             <TextBlock Text="DroidProxy" Style="{ThemeResource TitleTextBlockStyle}" />
             <TextBlock x:Name="StatusText" Text="Daemon offline" Style="{ThemeResource BodyStrongTextBlockStyle}" />
             <TextBlock x:Name="DetailText" TextWrapping="WrapWholeWords" Opacity="0.75" />
@@ -17,9 +17,16 @@
                 <Button x:Name="StartStopButton" Content="Start Server" Click="OnStartStopClicked" />
                 <Button x:Name="RefreshButton" Content="Refresh" Click="OnRefreshClicked" />
             </StackPanel>
+            <StackPanel x:Name="UpdatePanel" Spacing="6" />
             <TextBlock x:Name="ErrorText" TextWrapping="WrapWholeWords" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+            <StackPanel x:Name="SignInPanel" Spacing="6" />
+            <StackPanel x:Name="FactoryPanel" Spacing="6" />
+            <TextBlock Text="Quota Usage" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,8,0,0" />
+            <StackPanel x:Name="UsagePanel" Spacing="14" />
             <TextBlock Text="Providers" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,8,0,0" />
-            <ListView x:Name="ProviderList" SelectionMode="None" />
+            <StackPanel x:Name="ProvidersPanel" Spacing="12" />
+            <TextBlock Text="Settings" Style="{ThemeResource SubtitleTextBlockStyle}" Margin="0,8,0,0" />
+            <StackPanel x:Name="SettingsPanel" Spacing="8" />
         </StackPanel>
     </ScrollViewer>
 </Page>
