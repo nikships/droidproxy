@@ -103,7 +103,8 @@ public sealed class DaemonHost
     /// <summary>Asks the daemon to quit via its control API, giving it three seconds before killing it.</summary>
     public async Task StopAsync()
     {
-        if (IsExternal) return;
+        // Without a bundled daemon, whatever answers on the socket is not this app's to stop.
+        if (IsExternal || !IsInstalled) return;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
         {
