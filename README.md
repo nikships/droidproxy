@@ -4,7 +4,7 @@
   <img src="logo.png" alt="DroidProxy" width="128">
 </p>
 
-A native macOS menu bar app that proxies Claude Code, Codex, Gemini, Kimi, GitHub Copilot, Junie, and Grok authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
+A native macOS menu bar app (with a [Windows preview](#windows-preview)) that proxies Claude Code, Codex, Gemini, Kimi, GitHub Copilot, Junie, and Grok authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
 
 https://github.com/user-attachments/assets/d57592a2-3d3e-4ad3-b81a-91da63bb579c
 
@@ -76,6 +76,43 @@ cd src && swift build
 ```
 
 See [AGENTS.md](AGENTS.md) for the full build, notarization, and release workflow.
+
+## Windows (preview)
+
+A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [Omarchy build](https://github.com/nikships/droidproxy-omarchy) and manages it from a settings window and the tray. It handles Claude Code, Codex, Antigravity, Meta Muse, Kimi, Junie, and Grok accounts, Factory models, quota rings, and remote access. GitHub Copilot is not supported on Windows yet.
+
+<p align="center">
+  <img src="windows/screenshots/overview.png" alt="DroidProxy for Windows: Overview" width="49%">
+  <img src="windows/screenshots/providers.png" alt="DroidProxy for Windows: Providers" width="49%">
+</p>
+<p align="center">
+  <img src="windows/screenshots/providers-expanded.png" alt="DroidProxy for Windows: a provider's accounts and models" width="49%">
+  <img src="windows/screenshots/network.png" alt="DroidProxy for Windows: Network and remote" width="49%">
+</p>
+
+**Requirements:** Windows 10 1809 or later, or Windows 11, on x64, with the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) and the [Windows App Runtime](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) 2.6 release, version 2.6.5.0 or newer. That is what the app's Windows App SDK 2.6.5 bootstrapper asks for: release `0x00020006` with a minimum package version of `2.6.5.0`, from `WindowsAppSDK-VersionInfo.cs` in the `Microsoft.WindowsAppSDK.Runtime` package. The package is framework-dependent, so it does not include either runtime.
+
+**Install:** there is no release download yet. Build the package (below), unzip `DroidProxy-Windows.zip` into `%LOCALAPPDATA%\Programs\DroidProxy`, and run `DroidProxy.exe`. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for that copy.
+
+**Build from source:** you need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) (`pwsh`), and [Go](https://go.dev/dl/) for the daemon. Run these from the repository root.
+
+```powershell
+dotnet build windows/DroidProxy -c Debug -p:Platform=x64
+dotnet test windows
+
+# Package: publishes the app and copies in a Windows daemon tree
+pwsh windows/package.ps1 -DaemonRoot <daemon-tree>
+```
+
+The daemon tree is a folder with three files:
+
+- `bin\droidproxy.exe`: the Go daemon from [droidproxy-omarchy](https://github.com/nikships/droidproxy-omarchy). Its `main` branch does not build for Windows yet; build `./cmd/droidproxy` with `GOOS=windows GOARCH=amd64` from the branch in [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13).
+- `libexec\cli-proxy-api.exe`: from the `windows_amd64` zip of the [CLIProxyAPI release](https://github.com/router-for-me/CLIProxyAPI/releases) named in that repo's `CLIPROXYAPI_VERSION`.
+- `share\config.yaml`: that repo's `packaging/config.yaml`.
+
+For UI work without a daemon or real accounts, run the fake daemon in [`windows/tools/`](windows/tools/README.md). [`windows/DroidProxy/AGENTS.md`](windows/DroidProxy/AGENTS.md) describes the layout.
+
+**Known limitations:** unsigned, no auto-update, x64 only so far. Starting a second copy exits quietly instead of focusing the first. With the daemon from [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13), **Cancel sign-in** does not stop the login helper, because the daemon stops it with `SIGTERM` and Go cannot send that signal on Windows; the fix belongs in the daemon.
 
 ## Project Structure
 

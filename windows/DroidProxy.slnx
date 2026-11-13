@@ -1,0 +1,4 @@
+<Solution>
+  <Project Path="DroidProxy.Tests/DroidProxy.Tests.csproj" />
+  <Project Path="DroidProxy/DroidProxy.csproj" />
+</Solution>

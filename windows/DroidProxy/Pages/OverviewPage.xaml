@@ -1,0 +1,99 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="DroidProxy.OverviewPage"
+    NavigationCacheMode="Required"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DroidProxy"
+    xmlns:tk="using:CommunityToolkit.WinUI.Controls">
+    <ScrollViewer>
+        <StackPanel Style="{StaticResource PageStackStyle}">
+            <TextBlock Text="Overview" Style="{StaticResource PageTitleStyle}" />
+
+            <tk:SettingsCard Header="{x:Bind Vm.StatusText, Mode=OneWay}" Description="{x:Bind Vm.StatusDetail, Mode=OneWay}">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE968;" Foreground="{x:Bind Vm.StatusBrush, Mode=OneWay}" />
+                </tk:SettingsCard.HeaderIcon>
+                <Button
+                    Style="{StaticResource AccentButtonStyle}"
+                    Content="{x:Bind Vm.StartStopLabel, Mode=OneWay}"
+                    IsEnabled="{x:Bind Vm.CanStartStop, Mode=OneWay}"
+                    Click="{x:Bind Vm.StartStop}" />
+            </tk:SettingsCard>
+            <tk:SettingsCard Header="Server URL" Visibility="{x:Bind Vm.IsOnline, Mode=OneWay}">
+                <tk:SettingsCard.Description>
+                    <TextBlock Text="{x:Bind Vm.Url, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" IsTextSelectionEnabled="True" />
+                </tk:SettingsCard.Description>
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE71B;" />
+                </tk:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Copy URL" Click="{x:Bind Vm.CopyUrl}" />
+                    <Button Content="Open dashboard" Click="{x:Bind Vm.OpenDashboard}" />
+                </StackPanel>
+            </tk:SettingsCard>
+            <tk:SettingsCard Header="Factory models" Description="{x:Bind Vm.FactoryDetail, Mode=OneWay}" Visibility="{x:Bind Vm.IsOnline, Mode=OneWay}">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE73E;" />
+                </tk:SettingsCard.HeaderIcon>
+                <Button Content="{x:Bind Vm.FactoryAction, Mode=OneWay}" Click="{x:Bind Vm.ApplyFactory}" />
+            </tk:SettingsCard>
+
+            <Grid Margin="0,24,0,6">
+                <TextBlock Text="Quota" Style="{StaticResource SectionHeaderStyle}" Margin="1,0,0,0" VerticalAlignment="Center" />
+                <Button HorizontalAlignment="Right" Style="{StaticResource SubtleButtonStyle}" Click="{x:Bind Vm.RefreshUsage}" ToolTipService.ToolTip="Refresh quota" AutomationProperties.Name="Refresh quota">
+                    <StackPanel Orientation="Horizontal" Spacing="6">
+                        <FontIcon Glyph="&#xE72C;" FontSize="14" />
+                        <TextBlock Text="Refresh" />
+                    </StackPanel>
+                </Button>
+            </Grid>
+            <ItemsRepeater ItemsSource="{x:Bind Vm.Usage}">
+                <ItemsRepeater.Layout>
+                    <UniformGridLayout MinItemWidth="300" MinColumnSpacing="4" MinRowSpacing="4" ItemsStretch="Fill" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="local:UsageViewModel">
+                        <Border Style="{StaticResource CardBorderStyle}">
+                            <StackPanel Spacing="12">
+                                <StackPanel>
+                                    <TextBlock Text="{x:Bind ProviderName, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                    <TextBlock Text="{x:Bind Email, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                                               Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextTrimming="CharacterEllipsis" />
+                                </StackPanel>
+                                <ItemsRepeater ItemsSource="{x:Bind Windows}">
+                                    <ItemsRepeater.Layout>
+                                        <StackLayout Orientation="Horizontal" Spacing="16" />
+                                    </ItemsRepeater.Layout>
+                                    <ItemsRepeater.ItemTemplate>
+                                        <DataTemplate x:DataType="local:QuotaWindow">
+                                            <StackPanel Width="96" Spacing="4">
+                                                <Grid Width="56" Height="56" HorizontalAlignment="Left">
+                                                    <ProgressRing Width="56" Height="56" IsIndeterminate="False" Maximum="100"
+                                                                  Value="{x:Bind Percent, Mode=OneWay}" Foreground="{x:Bind Brush, Mode=OneWay}"
+                                                                  Background="{ThemeResource ControlStrokeColorDefaultBrush}" />
+                                                    <TextBlock Text="{x:Bind PercentText, Mode=OneWay}" HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                               Style="{StaticResource CaptionTextBlockStyle}" />
+                                                </Grid>
+                                                <TextBlock Text="{x:Bind Title}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap" />
+                                                <TextBlock Text="{x:Bind ResetText, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}" TextWrapping="Wrap"
+                                                           Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                            </StackPanel>
+                                        </DataTemplate>
+                                    </ItemsRepeater.ItemTemplate>
+                                </ItemsRepeater>
+                                <ProgressBar IsIndeterminate="True" Visibility="{x:Bind Loading, Mode=OneWay}" />
+                                <TextBlock Text="{x:Bind Error, Mode=OneWay}" Visibility="{x:Bind HasError, Mode=OneWay}" TextWrapping="Wrap"
+                                           Style="{StaticResource CaptionTextBlockStyle}" Foreground="{ThemeResource SystemFillColorCriticalBrush}" />
+                                <Grid Visibility="{x:Bind HasResets, Mode=OneWay}">
+                                    <TextBlock Text="{x:Bind ResetLabel, Mode=OneWay}" VerticalAlignment="Center" />
+                                    <Button Content="Use reset" HorizontalAlignment="Right" Click="{x:Bind UseReset}" />
+                                </Grid>
+                            </StackPanel>
+                        </Border>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="DroidProxy.AboutPage"
+    NavigationCacheMode="Required"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DroidProxy"
+    xmlns:tk="using:CommunityToolkit.WinUI.Controls">
+    <ScrollViewer>
+        <StackPanel Style="{StaticResource PageStackStyle}">
+            <TextBlock Text="About" Style="{StaticResource PageTitleStyle}" />
+            <tk:SettingsCard Header="DroidProxy" Description="{x:Bind Vm.Version, Mode=OneWay}">
+                <tk:SettingsCard.HeaderIcon>
+                    <ImageIcon Source="ms-appx:///Assets/AppIcon.ico" />
+                </tk:SettingsCard.HeaderIcon>
+                <Button Content="Report an issue" Click="{x:Bind Vm.ReportIssue}" />
+            </tk:SettingsCard>
+            <tk:SettingsCard Header="CLIProxyAPI" Description="{x:Bind Vm.CliProxyApiVersion, Mode=OneWay}">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE943;" />
+                </tk:SettingsCard.HeaderIcon>
+            </tk:SettingsCard>
+            <tk:SettingsCard Header="Updates" Description="Automatic updates aren't available on Windows yet.">
+                <tk:SettingsCard.HeaderIcon>
+                    <FontIcon Glyph="&#xE895;" />
+                </tk:SettingsCard.HeaderIcon>
+            </tk:SettingsCard>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

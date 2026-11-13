@@ -1,0 +1,23 @@
+<Project Sdk="Microsoft.NET.Sdk">
+
+  <PropertyGroup>
+    <TargetFramework>net10.0</TargetFramework>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <Nullable>enable</Nullable>
+    <IsPackable>false</IsPackable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <PackageReference Include="Microsoft.NET.Test.Sdk" Version="17.14.1" />
+    <PackageReference Include="xunit" Version="2.9.3" />
+    <PackageReference Include="xunit.runner.visualstudio" Version="3.1.4" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Using Include="Xunit" />
+    <!-- The parser has no WinUI dependencies, so the tests compile it directly instead of referencing the app. -->
+    <Compile Include="..\DroidProxy\Daemon\DaemonClient.cs" Link="Daemon\DaemonClient.cs" />
+    <None Include="..\tools\fake-state.json" Link="fake-state.json" CopyToOutputDirectory="PreserveNewest" />
+  </ItemGroup>
+
+</Project>
