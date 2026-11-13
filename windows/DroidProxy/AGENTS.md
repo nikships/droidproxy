@@ -1,64 +1,42 @@
-# Working on this app
+# DroidProxy for Windows
 
-This is a WinUI 3 app built with the
-[Windows App SDK](https://learn.microsoft.com/windows/apps/windows-app-sdk/).
+Unpackaged WinUI 3 app (.NET 10, Windows App SDK) that fronts the Go daemon.
+There is no MSIX manifest; `dotnet build` and the packaged tree are the only
+ways it runs.
 
-## Use the WinApp CLI
-
-The [WinApp CLI](https://github.com/microsoft/WinAppCli) handles the
-Windows-specific parts of app development. Install it with:
+## Build and run
 
 ```powershell
-winget install Microsoft.winappcli --source winget
+cd windows/DroidProxy
+dotnet build -c Debug -p:Platform=x64
 ```
 
-A sample of the commands it provides:
+The app starts `daemon\bin\droidproxy.exe` next to its own exe (or under
+`DROIDPROXY_DAEMON_ROOT`) and talks to it over the control socket. A bare build
+has no daemon tree, so for UI work run
+the fake daemon instead (see `windows/tools/README.md`) and set
+`DROIDPROXY_SOCKET`; the app then attaches and never starts or stops one.
 
-| Command | Use it to |
-|---------|-----------|
-| `winapp run` | Build and launch the app with full MSIX package identity |
-| `winapp find-ui "<query>"` | Find a working WinUI code example before writing a control from scratch |
-| `winapp ui inspect -a <app>` | Inspect the running app's UI element tree |
-| `winapp ui invoke\|set-value\|send-keys` | Drive the UI to verify a change works |
-| `winapp ui screenshot -a <app>` | Capture the window as a PNG |
-| `winapp manifest` | Create and modify `Package.appxmanifest` |
-| `winapp package` / `winapp sign` | Build and code-sign an MSIX for distribution |
-| `winapp cert` | Create a development signing certificate |
-
-Prefer these over hand-rolled scripts for packaging, signing, and UI verification.
-
-## Development workflow
-
-1. From the project directory, run `dotnet build` and fix any build errors.
-2. Launch with `dotnet run`. Keep the app running and use another terminal
-   for UI verification.
-3. Run `winapp ui inspect -a <app> --interactive`, replacing `<app>` with
-   the app's process name or PID. Use the reported selectors with
-   `winapp ui invoke` or `winapp ui set-value` to exercise the changed UI,
-   then inspect again to confirm the expected result. For visual changes,
-   capture a screenshot with `winapp ui screenshot -a <app> -o screenshot.png`.
-
-## Discovering commands
-
-The list above is only a sample. Every command documents itself — check the
-help before guessing at syntax:
+## Package
 
 ```powershell
-winapp --help
-winapp <command> --help
-winapp --cli-schema      # full command tree as JSON, for tooling
+pwsh windows/package.ps1 -DaemonRoot <daemon tree with bin, libexec, share>
 ```
 
-## WinUI skills
+This writes `DroidProxy-Windows/` and `DroidProxy-Windows.zip` at the repo
+root. Both are ignored by git.
 
-The [WinUI plugin](https://github.com/microsoft/WinAppCli/tree/main/plugins/winui)
-provides skills for design, development, UI testing, and packaging.
-Install it for GitHub Copilot CLI with:
+## Layout
 
-```powershell
-copilot plugin marketplace add microsoft/WinAppCli
-copilot plugin install winui@winappcli
-```
+| Path | Contents |
+|------|----------|
+| `App.xaml(.cs)` | Theme, tray icon and menu, daemon lifecycle, state watch loop |
+| `MainWindow.xaml(.cs)` | Title bar and NavigationView shell |
+| `Pages/` | Overview, Providers, Network & remote, Advanced, About |
+| `ViewModels.cs` | View models updated in place from each daemon snapshot |
+| `Daemon/` | Daemon process host and control-API client |
+| `Assets/` | App, tray and provider icons |
 
-For Claude Code or Codex, follow the
-[installation instructions](https://github.com/microsoft/WinAppCli#-using-with-ai-coding-agents).
+Each daemon snapshot is a full state. Update the existing view models with
+`SyncKeyed` and `Toggle.Sync`; never rebuild controls from a snapshot, or
+switches flash and expanders collapse.
