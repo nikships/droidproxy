@@ -53,6 +53,7 @@ public sealed partial class MainWindow : Window
             _ => typeof(OverviewPage),
         };
         ContentFrame.Navigate(page);
+        ContentFrame.BackStack.Clear();
     }
 
     [DllImport("user32.dll")]
