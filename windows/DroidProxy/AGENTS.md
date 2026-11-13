@@ -20,17 +20,20 @@ the fake daemon instead (see `windows/tools/README.md`) and set
 ## Package
 
 ```powershell
-pwsh windows/package.ps1 -DaemonRoot <daemon tree with bin, libexec, share>
+pwsh windows/package.ps1 -DaemonRoot <daemon tree with bin, libexec, share> -Version <x.y.z>
 ```
 
-This writes `DroidProxy-Windows/` and `DroidProxy-Windows.zip` at the repo
-root. Both are ignored by git.
+This runs `vpk pack` (Velopack) and writes the installer, update packages and
+`releases.win.json` to `DroidProxy-Windows/` at the repo root, which git
+ignores. Releases come from `.github/workflows/windows-release.yml`.
 
 ## Layout
 
 | Path | Contents |
 |------|----------|
+| `Program.cs` | Entry point: Velopack hooks, then WinUI |
 | `App.xaml(.cs)` | Theme, tray icon and menu, daemon lifecycle, state watch loop |
+| `Updates.cs` | Velopack update check, download and restart-to-update |
 | `MainWindow.xaml(.cs)` | Title bar and NavigationView shell |
 | `Pages/` | Overview, Providers, Network & remote, Advanced, About |
 | `ViewModels.cs` | View models updated in place from each daemon snapshot |
