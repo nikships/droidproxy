@@ -90,9 +90,11 @@ A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [O
   <img src="windows/screenshots/network.png" alt="DroidProxy for Windows: Network and remote" width="49%">
 </p>
 
-**Requirements:** Windows 10 1809 or later, or Windows 11, on x64, with the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) and the [Windows App Runtime](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) 2.6 release, version 2.6.5.0 or newer. That is what the app's Windows App SDK 2.6.5 bootstrapper asks for: release `0x00020006` with a minimum package version of `2.6.5.0`, from `WindowsAppSDK-VersionInfo.cs` in the `Microsoft.WindowsAppSDK.Runtime` package. The package is framework-dependent, so it does not include either runtime.
+**Requirements:** Windows 10 1809 or later, or Windows 11, on x64. The app ships the Windows App SDK 2.6.5 runtime in its own folder, and the installer installs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) when it is missing.
 
-**Install:** there is no release download yet. Build the package (below), unzip `DroidProxy-Windows.zip` into `%LOCALAPPDATA%\Programs\DroidProxy`, and run `DroidProxy.exe`. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for that copy.
+**Install:** download `nikships.DroidProxy-win-Setup.exe` from the [`windows-latest` release](https://github.com/nikships/droidproxy/releases/tag/windows-latest) and run it. It installs for the current user into `%LOCALAPPDATA%\nikships.DroidProxy`, with no admin prompt, and adds Start menu and desktop shortcuts. The installer is not code-signed, so SmartScreen warns first: choose **More info**, then **Run anyway**. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for the installed launcher. Uninstall from **Settings > Apps**; accounts and settings in `~\.cli-proxy-api`, `~\.factory` and `~\.local\state\droidproxy` stay.
+
+**Updates:** the installed app checks the `windows-latest` release at launch and then daily, downloads a new version in the background (a delta when it can), and installs it when you choose **Restart to update** in About or **Quit** from the tray. It stops the daemon before the update is applied.
 
 **Build from source:** you need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) (`pwsh`), and [Go](https://go.dev/dl/) for the daemon. Run these from the repository root.
 
@@ -100,19 +102,22 @@ A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [O
 dotnet build windows/DroidProxy -c Debug -p:Platform=x64
 dotnet test windows
 
-# Package: publishes the app and copies in a Windows daemon tree
-pwsh windows/package.ps1 -DaemonRoot <daemon-tree>
+# Package: publishes the app, copies in a Windows daemon tree and runs Velopack
+dotnet tool install -g vpk --version 1.2.161
+pwsh windows/package.ps1 -DaemonRoot <daemon-tree> -Version 0.1.0
 ```
+
+This writes the installer, update packages and `releases.win.json` to `DroidProxy-Windows/`, which git ignores. To release, run the **Windows Release** workflow from the Actions tab with a version higher than the last one. It builds the daemon tree and uploads everything to the `windows-latest` release, which the installed app updates from. Every Windows release goes to that one release because Velopack's GitHub source reads only the newest ten releases, and the Mac releases would push Windows ones out.
 
 The daemon tree is a folder with three files:
 
-- `bin\droidproxy.exe`: the Go daemon from [droidproxy-omarchy](https://github.com/nikships/droidproxy-omarchy). Its `main` branch does not build for Windows yet; build `./cmd/droidproxy` with `GOOS=windows GOARCH=amd64` from the branch in [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13).
+- `bin\droidproxy.exe`: the Go daemon from [droidproxy-omarchy](https://github.com/nikships/droidproxy-omarchy). Build `./cmd/droidproxy` from its `main` branch with `GOOS=windows GOARCH=amd64`.
 - `libexec\cli-proxy-api.exe`: from the `windows_amd64` zip of the [CLIProxyAPI release](https://github.com/router-for-me/CLIProxyAPI/releases) named in that repo's `CLIPROXYAPI_VERSION`.
 - `share\config.yaml`: that repo's `packaging/config.yaml`.
 
 For UI work without a daemon or real accounts, run the fake daemon in [`windows/tools/`](windows/tools/README.md). [`windows/DroidProxy/AGENTS.md`](windows/DroidProxy/AGENTS.md) describes the layout.
 
-**Known limitations:** unsigned, no auto-update, x64 only so far. Starting a second copy exits quietly instead of focusing the first. With the daemon from [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13), **Cancel sign-in** does not stop the login helper, because the daemon stops it with `SIGTERM` and Go cannot send that signal on Windows; the fix belongs in the daemon.
+**Known limitations:** unsigned, x64 only so far. Starting a second copy exits quietly instead of focusing the first.
 
 ## Project Structure
 

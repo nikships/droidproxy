@@ -20,10 +20,15 @@
                     <FontIcon Glyph="&#xE943;" />
                 </tk:SettingsCard.HeaderIcon>
             </tk:SettingsCard>
-            <tk:SettingsCard Header="Updates" Description="Automatic updates aren't available on Windows yet.">
+            <tk:SettingsCard Header="Updates" Description="{x:Bind Updates.Status, Mode=OneWay}">
                 <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE895;" />
                 </tk:SettingsCard.HeaderIcon>
+                <StackPanel Orientation="Horizontal" Spacing="8">
+                    <Button Content="Check for updates" Click="{x:Bind Updates.Check}" IsEnabled="{x:Bind Updates.CanCheck, Mode=OneWay}" />
+                    <Button Content="Restart to update" Click="{x:Bind Updates.Restart}" Style="{StaticResource AccentButtonStyle}"
+                            Visibility="{x:Bind Updates.CanRestart, Mode=OneWay}" />
+                </StackPanel>
             </tk:SettingsCard>
         </StackPanel>
     </ScrollViewer>

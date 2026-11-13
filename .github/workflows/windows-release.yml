@@ -1,0 +1,147 @@
+name: Windows Release
+
+# Manual only. Packs the Windows app with Velopack and uploads the installer and
+# update packages to the rolling `windows-latest` release, which is the feed the
+# installed app checks (windows/DroidProxy/Updates.cs). Unsigned.
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version without a leading v, e.g. 0.1.0. Must be higher than the last Windows release.'
+        required: true
+        type: string
+      daemon_ref:
+        description: 'nikships/droidproxy-omarchy branch, tag or SHA to build the daemon from'
+        required: true
+        # Until droidproxy-omarchy#13 merges, main does not build for Windows.
+        default: main
+        type: string
+
+permissions:
+  contents: read
+
+concurrency:
+  group: windows-release
+  cancel-in-progress: false
+
+env:
+  FEED_TAG: windows-latest
+  VPK_VERSION: 1.2.161 # keep on the Velopack package version in DroidProxy.csproj
+
+jobs:
+  build:
+    # Builds with a read-only token; only the publish job below can write releases.
+    name: Pack
+    runs-on: windows-latest
+    defaults:
+      run:
+        shell: pwsh
+    outputs:
+      cliproxyapi: ${{ steps.daemon.outputs.cliproxyapi }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+
+      - name: Checkout daemon
+        uses: actions/checkout@v4
+        with:
+          repository: nikships/droidproxy-omarchy
+          ref: ${{ inputs.daemon_ref }}
+          path: daemon-src
+          fetch-depth: 0
+          persist-credentials: false
+
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0.x
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: daemon-src/go.mod
+          cache-dependency-path: daemon-src/go.sum
+
+      - name: Build daemon tree
+        id: daemon
+        run: |
+          $tree = "$env:RUNNER_TEMP\daemon"
+          New-Item -ItemType Directory -Force "$tree\bin", "$tree\libexec", "$tree\share" | Out-Null
+
+          $version = git -C daemon-src describe --tags --always
+          $commit = git -C daemon-src rev-parse --short HEAD
+          $pkg = 'github.com/nikships/droidproxy-omarchy/internal/buildinfo'
+          $env:CGO_ENABLED = '0'; $env:GOOS = 'windows'; $env:GOARCH = 'amd64'
+          go build -C daemon-src -trimpath -ldflags "-s -w -X $pkg.Version=$version -X $pkg.Commit=$commit" -o "$tree\bin\droidproxy.exe" ./cmd/droidproxy
+          if ($LASTEXITCODE -ne 0) { throw 'go build failed' }
+
+          # Same pin and checksum check as the daemon's scripts/fetch-cliproxyapi.sh, for the Windows zip.
+          $cpa = (Get-Content daemon-src/CLIPROXYAPI_VERSION -Raw).Trim()
+          $file = "CLIProxyAPI_${cpa}_windows_amd64.zip"
+          $base = "https://github.com/router-for-me/CLIProxyAPI/releases/download/v$cpa"
+          Invoke-WebRequest "$base/$file" -OutFile "$env:RUNNER_TEMP\$file"
+          Invoke-WebRequest "$base/checksums.txt" -OutFile "$env:RUNNER_TEMP\checksums.txt"
+          $expected = Get-Content "$env:RUNNER_TEMP\checksums.txt" | ForEach-Object { $hash, $name = $_ -split '\s+'; if ($name -eq $file) { $hash } }
+          $actual = (Get-FileHash "$env:RUNNER_TEMP\$file" -Algorithm SHA256).Hash
+          if (-not $expected -or $expected -ne $actual) { throw "checksum mismatch for ${file}: expected '$expected', got '$actual'" }
+          Expand-Archive "$env:RUNNER_TEMP\$file" "$env:RUNNER_TEMP\cpa"
+          Copy-Item "$env:RUNNER_TEMP\cpa\cli-proxy-api.exe" "$tree\libexec\"
+
+          Copy-Item daemon-src/packaging/config.yaml "$tree\share\"
+          Set-Content "$tree\share\cliproxyapi-version" $cpa -NoNewline
+          "tree=$tree" >> $env:GITHUB_OUTPUT
+          "cliproxyapi=$cpa" >> $env:GITHUB_OUTPUT
+
+      - name: Install vpk
+        run: dotnet tool install -g vpk --version $env:VPK_VERSION
+
+      - name: Download previous release (for delta updates)
+        run: vpk download http --url "https://github.com/${{ github.repository }}/releases/download/$env:FEED_TAG" --outputDir releases --allowEmptyChannel
+
+      - name: Pack
+        env:
+          DAEMON_TREE: ${{ steps.daemon.outputs.tree }}
+          VERSION: ${{ inputs.version }}
+        run: ./windows/package.ps1 -DaemonRoot $env:DAEMON_TREE -Version $env:VERSION -Output releases
+
+      - uses: actions/upload-artifact@v4
+        with:
+          name: releases
+          path: releases/
+          if-no-files-found: error
+
+  publish:
+    name: Upload to the windows-latest release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: releases
+          path: releases
+
+      - name: Upload
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+          VERSION: ${{ inputs.version }}
+          DAEMON_REF: ${{ inputs.daemon_ref }}
+          CLIPROXYAPI: ${{ needs.build.outputs.cliproxyapi }}
+        run: |
+          set -euo pipefail
+          title="DroidProxy for Windows $VERSION"
+          notes="Windows build $VERSION (daemon \`$DAEMON_REF\`, CLIProxyAPI $CLIPROXYAPI).
+
+          Install: download \`nikships.DroidProxy-win-Setup.exe\` and run it. It installs for the current user, with no admin prompt, and updates itself from this release. The installer is not code-signed, so Windows SmartScreen asks first: choose **More info**, then **Run anyway**."
+          if gh release view "$FEED_TAG" >/dev/null 2>&1; then
+            gh release edit "$FEED_TAG" --title "$title" --notes "$notes"
+          else
+            # A prerelease never becomes the repository's Latest, which stays the Mac build.
+            gh release create "$FEED_TAG" --prerelease --latest=false --target "$GITHUB_SHA" --title "$title" --notes "$notes"
+          fi
+          # releases.win.json goes last so clients never see a feed entry before its package exists.
+          find releases -maxdepth 1 -type f ! -name releases.win.json -print0 | xargs -0 gh release upload "$FEED_TAG" --clobber
+          gh release upload "$FEED_TAG" releases/releases.win.json --clobber

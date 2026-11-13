@@ -41,6 +41,8 @@ public partial class App : Application
         ViewModel = new AppViewModel(Host, Client);
     }
 
+    public UpdatesViewModel Updates { get; } = new();
+
     public static new App Current => (App)Application.Current;
     public DaemonHost Host { get; }
     private DaemonClient Client { get; }
@@ -79,11 +81,15 @@ public partial class App : Application
         _watchCts = new CancellationTokenSource();
         _ = WatchLoopAsync(_window.DispatcherQueue, _watchCts.Token);
         _ = ViewModel.RefreshAsync();
+        _ = Updates.RunAsync(_watchCts.Token);
+        // An entry written by a manual copy or an older build moves to the install's stable launcher.
+        if (UpdatesViewModel.StableExe is not null && IsLaunchAtLoginEnabled()) SetLaunchAtLogin(true);
         _window.Activate();
     }
 
     // Launch-at-login is owned by the app on Windows (the daemon's systemd
-    // path refuses there): a per-user Run entry pointing at this exe.
+    // path refuses there): a per-user Run entry pointing at the installed
+    // launcher, or at this exe when not installed.
     public static bool IsLaunchAtLoginEnabled()
     {
         using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
@@ -95,7 +101,7 @@ public partial class App : Application
         using var key = Registry.CurrentUser.CreateSubKey(@"Software\Microsoft\Windows\CurrentVersion\Run");
         if (enabled)
         {
-            var exe = Environment.ProcessPath;
+            var exe = UpdatesViewModel.StableExe ?? Environment.ProcessPath;
             if (exe is not null) key.SetValue("DroidProxy", $"\"{exe}\"");
         }
         else
@@ -126,12 +132,15 @@ public partial class App : Application
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
-    public async Task QuitAsync()
+    /// <param name="restart">Relaunch after installing a downloaded update.</param>
+    public async Task QuitAsync(bool restart = false)
     {
         IsQuitting = true;
         _watchCts?.Cancel();
         _tray?.Dispose();
         await Host.StopAsync();
+        // Only now is nothing in the install folder in use, so a downloaded update can go in.
+        Updates.ApplyOnExit(restart);
         Exit();
     }
 
