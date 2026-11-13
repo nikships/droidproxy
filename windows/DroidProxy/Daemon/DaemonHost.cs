@@ -8,7 +8,7 @@ namespace DroidProxy.Daemon;
 /// &lt;root&gt;/share/config.yaml. In development, DROIDPROXY_DAEMON_ROOT or a
 /// sibling daemon/ folder next to the app binary provides it.
 /// </summary>
-public sealed class DaemonHost : IDisposable
+public sealed class DaemonHost
 {
     private Process? _process;
 
@@ -33,8 +33,6 @@ public sealed class DaemonHost : IDisposable
     public string? DaemonExe => Root is null ? null : Path.Combine(Root, "bin", "droidproxy.exe");
     public bool IsRunning => _process is { HasExited: false };
 
-    public event Action? Exited;
-
     private static string? FindRoot()
     {
         var candidates = new List<string>();
@@ -43,9 +41,6 @@ public sealed class DaemonHost : IDisposable
         var baseDir = AppContext.BaseDirectory;
         candidates.Add(Path.Combine(baseDir, "daemon"));
         candidates.Add(baseDir);
-        // Development fallback used by the bring-up builds on elsa-x1.
-        candidates.Add(Path.Combine(
-            Environment.GetFolderPath(Environment.SpecialFolder.UserProfile), "droidproxy-test"));
 
         foreach (var candidate in candidates)
         {
@@ -101,11 +96,7 @@ public sealed class DaemonHost : IDisposable
         if (_process is not null)
         {
             _process.EnableRaisingEvents = true;
-            _process.Exited += (_, _) =>
-            {
-                Log($"Daemon exited code={_process.ExitCode}");
-                Exited?.Invoke();
-            };
+            _process.Exited += (_, _) => Log($"Daemon exited code={_process.ExitCode}");
         }
     }
 
@@ -130,10 +121,5 @@ public sealed class DaemonHost : IDisposable
             }
         }
         _process = null;
-    }
-
-    public void Dispose()
-    {
-        _process?.Dispose();
     }
 }

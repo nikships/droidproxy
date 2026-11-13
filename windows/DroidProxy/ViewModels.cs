@@ -165,7 +165,6 @@ public sealed class AppViewModel : Observable
     public string Version { get; private set => Set(ref field, value); } = "";
     public string CliProxyApiVersion { get; private set => Set(ref field, value); } = "";
     public string IssuesUrl { get; private set => Set(ref field, value); } = "";
-    public string RepoUrl { get; private set => Set(ref field, value); } = "";
     public string AuthDir { get; private set => Set(ref field, value); } = "";
     public string LogsDir { get; private set => Set(ref field, value); } = "";
 
@@ -243,11 +242,14 @@ public sealed class AppViewModel : Observable
         DashboardUrl = s.DashboardUrl;
         CliProxyApiVersion = s.App.CliProxyApiVersion;
         IssuesUrl = s.App.IssuesUrl;
-        RepoUrl = s.App.RepoUrl;
         AuthDir = s.AuthDir;
         LogsDir = s.LogsDir;
         FactoryInstalled = s.FactoryInstalled;
-        if (_daemonError != s.LastError && (_daemonError = s.LastError).Length > 0) ShowError(s.LastError);
+        if (_daemonError != s.LastError)
+        {
+            _daemonError = s.LastError;
+            if (_daemonError.Length > 0) ShowError(_daemonError);
+        }
 
         var flags = s.Settings.Flags;
         foreach (var t in new[] { AllowRemote, VerboseLogging, SequentialFailover, RequestJournal, Beta })

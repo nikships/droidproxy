@@ -18,7 +18,6 @@ public sealed class DaemonClient : IDisposable
 
     public DaemonClient(string socketPath)
     {
-        SocketPath = socketPath;
         var handler = new SocketsHttpHandler
         {
             ConnectCallback = async (context, cancellationToken) =>
@@ -38,8 +37,6 @@ public sealed class DaemonClient : IDisposable
         };
         _http = new HttpClient(handler) { BaseAddress = new Uri("http://droidproxy") };
     }
-
-    public string SocketPath { get; }
 
     public sealed class OfflineException : Exception
     {
@@ -136,7 +133,7 @@ public sealed record DaemonState(
     IReadOnlyList<DaemonState.UsageInfo> Usage,
     DaemonState.SettingsInfo Settings)
 {
-    public sealed record AppInfo(string Version, string CliProxyApiVersion, string RepoUrl, string IssuesUrl);
+    public sealed record AppInfo(string Version, string CliProxyApiVersion, string IssuesUrl);
 
     /// <summary>DeviceCode and DeviceUrl carry a pending device-code sign-in (Grok, Meta).</summary>
     public sealed record ProviderInfo(
@@ -150,7 +147,7 @@ public sealed record DaemonState(
 
     public sealed record UsageInfo(
         string Id, string Provider, string ProviderName, string Email, bool Loading, string Error,
-        IReadOnlyList<WindowInfo> Windows, int ResetCount, string ResetNextExpiry);
+        IReadOnlyList<WindowInfo> Windows, int ResetCount);
 
     public sealed record WindowInfo(string Title, double? RemainingPercent, string ResetText);
 
@@ -222,17 +219,11 @@ public sealed record DaemonState(
                         windows.Add(new WindowInfo(GetString(w, "title"), remaining, GetString(w, "resetText")));
                     }
                 }
-                var resetCount = 0;
-                var resetExpiry = "";
-                if (ua.TryGetProperty("resetCredits", out var rc) && rc.ValueKind == JsonValueKind.Object)
-                {
-                    resetCount = GetInt(rc, "availableCount");
-                    resetExpiry = GetString(rc, "nextExpiresAt");
-                }
+                var resetCount = ua.TryGetProperty("resetCredits", out var rc) ? GetInt(rc, "availableCount") : 0;
                 usage.Add(new UsageInfo(
                     GetString(ua, "id"), GetString(ua, "provider"), GetString(ua, "providerName"),
                     GetString(ua, "email"), GetBool(ua, "loading"), GetString(ua, "error"),
-                    windows, resetCount, resetExpiry));
+                    windows, resetCount));
             }
         }
 
@@ -254,8 +245,7 @@ public sealed record DaemonState(
             GetBool(server, "running"), GetBool(server, "starting"), GetInt(server, "proxyPort"),
             GetString(server, "url"), GetString(server, "dashboardUrl"), GetString(server, "lastError"),
             new AppInfo(
-                GetString(app, "version"), GetString(app, "cliProxyApiVersion"),
-                GetString(app, "repoUrl"), GetString(app, "issuesUrl")),
+                GetString(app, "version"), GetString(app, "cliProxyApiVersion"), GetString(app, "issuesUrl")),
             GetBool(factory, "modelsInstalled"),
             GetString(paths, "authDir"), GetString(paths, "logsDir"),
             providers, usage,
