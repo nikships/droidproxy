@@ -13,7 +13,7 @@ $ErrorActionPreference = 'Stop'
 $project = Join-Path $PSScriptRoot 'DroidProxy\DroidProxy.csproj'
 $publishDir = Join-Path $PSScriptRoot 'DroidProxy\bin\publish-winui'
 
-dotnet publish $project -c Release -p:Platform=x64 -r win-x64 --self-contained false -p:PublishTrimmed=false -o $publishDir
+dotnet publish $project -c Release -p:Platform=x64 -r win-x64 --self-contained false -o $publishDir
 if ($LASTEXITCODE -ne 0) { throw 'dotnet publish failed' }
 
 if (Test-Path $Output) { Remove-Item -Recurse -Force $Output }
