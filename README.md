@@ -4,7 +4,7 @@
   <img src="logo.png" alt="DroidProxy" width="128">
 </p>
 
-A native macOS menu bar app that proxies Claude Code, Codex, Gemini, Kimi, GitHub Copilot, Junie, and Grok authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
+A native macOS menu bar app (with a [Windows preview](#windows-preview)) that proxies Claude Code, Codex, Gemini, Kimi, GitHub Copilot, Junie, and Grok authentication for use with [<img src="factory-logo.svg" alt="Factory.ai" height="16">](https://app.factory.ai) Droids. Built on [CLIProxyAPI](https://github.com/router-for-me/CLIProxyAPI).
 
 https://github.com/user-attachments/assets/d57592a2-3d3e-4ad3-b81a-91da63bb579c
 
@@ -76,6 +76,37 @@ cd src && swift build
 ```
 
 See [AGENTS.md](AGENTS.md) for the full build, notarization, and release workflow.
+
+## Windows (preview)
+
+A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [Omarchy build](https://github.com/nikships/droidproxy-omarchy) and manages it from a settings window and the tray. It handles Claude Code, Codex, Antigravity, Meta Muse, Kimi, Junie, and Grok accounts, Factory models, quota rings, and remote access. GitHub Copilot is not supported on Windows yet.
+
+<p align="center">
+  <img src="windows/screenshots/overview.png" alt="DroidProxy for Windows: Overview" width="49%">
+  <img src="windows/screenshots/providers.png" alt="DroidProxy for Windows: Providers" width="49%">
+</p>
+<p align="center">
+  <img src="windows/screenshots/providers-expanded.png" alt="DroidProxy for Windows: a provider's accounts and models" width="49%">
+  <img src="windows/screenshots/network.png" alt="DroidProxy for Windows: Network and remote" width="49%">
+</p>
+
+**Requirements:** Windows 10 1809 or later, or Windows 11, on x64, with the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) and the [Windows App Runtime 2.6](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) or later. The package is framework-dependent, so it does not include either runtime.
+
+**Install:** there is no release download yet. Build the package (below), unzip `DroidProxy-Windows.zip` into `%LOCALAPPDATA%\Programs\DroidProxy`, and run `DroidProxy.exe`. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for that copy.
+
+**Build from source:**
+
+```powershell
+cd windows/DroidProxy
+dotnet build -c Debug -p:Platform=x64
+
+# Package: publishes the app and copies in a Windows daemon tree (bin\droidproxy.exe, libexec\cli-proxy-api.exe, share\config.yaml)
+pwsh windows/package.ps1 -DaemonRoot <daemon-tree>
+```
+
+For UI work without a daemon or real accounts, run the fake daemon in [`windows/tools/`](windows/tools/README.md). [`windows/DroidProxy/AGENTS.md`](windows/DroidProxy/AGENTS.md) describes the layout.
+
+**Known limitations:** unsigned, no auto-update, x64 only so far. Starting a second copy exits quietly instead of focusing the first.
 
 ## Project Structure
 
