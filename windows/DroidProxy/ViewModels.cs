@@ -58,13 +58,15 @@ public static class KeyedSync
 
 /// <summary>
 /// A switch whose truth lives in the daemon. Sync applies a snapshot without
-/// echoing it back; a user flip commits, and snapshots are ignored until the
-/// commit lands so a stale one can't bounce the switch.
+/// echoing it back; a user flip commits, and snapshots are held until the
+/// commit lands so a stale one can't bounce the switch. The last one held is
+/// then shown, so a rejected change flips back.
 /// </summary>
 public sealed class Toggle(string key, string label, Func<bool, Task> commit) : Observable, IKeyed
 {
     private bool _isOn;
     private int _inFlight;
+    private bool? _held;
 
     public string Key { get; } = key;
     public string Label { get; } = label;
@@ -80,7 +82,12 @@ public sealed class Toggle(string key, string label, Func<bool, Task> commit) : 
 
     public void Sync(bool on)
     {
-        if (_inFlight > 0 || _isOn == on) return;
+        if (_inFlight > 0)
+        {
+            _held = on;
+            return;
+        }
+        if (_isOn == on) return;
         _isOn = on;
         Raise(nameof(IsOn));
     }
@@ -89,7 +96,14 @@ public sealed class Toggle(string key, string label, Func<bool, Task> commit) : 
     {
         _inFlight++;
         try { await commit(on); }
-        finally { _inFlight--; }
+        finally
+        {
+            if (--_inFlight == 0 && _held is { } held)
+            {
+                _held = null;
+                Sync(held);
+            }
+        }
     }
 }
 
