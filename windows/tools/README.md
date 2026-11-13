@@ -5,8 +5,10 @@ screenshotted without a real daemon, real accounts, or the live proxy.
 
 ```powershell
 $sock = "$env:TEMP\droidproxy-fake.sock"
-dotnet run windows/tools/FakeDaemon.cs -- $sock windows/tools/fake-state.json
-$env:DROIDPROXY_SOCKET = $sock; .\DroidProxy.exe
+cd windows/tools
+dotnet run --file FakeDaemon.cs -- $sock fake-state.json
+# then, in another terminal, from the app's output folder
+$env:DROIDPROXY_SOCKET = "$env:TEMP\droidproxy-fake.sock"; .\DroidProxy.exe
 ```
 
 With `DROIDPROXY_SOCKET` set the app attaches to that socket and never starts

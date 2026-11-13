@@ -2,7 +2,7 @@
 
 // Serves the daemon control API from a JSON fixture so the WinUI app can be
 // run and inspected without touching a real daemon or its accounts.
-// dotnet run FakeDaemon.cs -- <socket-path> <fixture.json>
+// From windows/tools: dotnet run --file FakeDaemon.cs -- <socket-path> fake-state.json
 using System.Text.Json.Nodes;
 
 var socketPath = args[0];
