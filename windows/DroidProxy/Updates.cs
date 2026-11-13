@@ -34,7 +34,7 @@ public sealed class UpdatesViewModel : Observable
             ? Path.Combine(root, Path.GetFileName(exe))
             : null;
 
-    /// <summary>Checks now, then daily until an update is downloaded. It applies on restart or next launch.</summary>
+    /// <summary>Checks now, then daily until an update is downloaded. It applies when the app quits.</summary>
     public async Task RunAsync(CancellationToken cancellationToken)
     {
         if (!_manager.IsInstalled) return;
@@ -58,7 +58,7 @@ public sealed class UpdatesViewModel : Observable
             Status = $"Downloading version {update.TargetFullRelease.Version}…";
             await _manager.DownloadUpdatesAsync(update);
             _ready = update;
-            Status = $"Version {update.TargetFullRelease.Version} is ready. It installs when DroidProxy restarts.";
+            Status = $"Version {update.TargetFullRelease.Version} is ready. It installs when you restart or quit DroidProxy.";
             CanRestart = true;
         }
         catch (Exception ex)
@@ -73,11 +73,24 @@ public sealed class UpdatesViewModel : Observable
 
     public void Check() => _ = CheckAsync();
 
-    /// <summary>Stops the daemon so nothing in the install folder is in use, then lets Velopack apply and relaunch.</summary>
     public async void Restart()
     {
-        if (_ready is not { } update) return;
+        if (_ready is null) return;
         CanRestart = false;
-        await App.Current.QuitAsync(() => _manager.WaitExitThenApplyUpdates(update.TargetFullRelease));
+        await App.Current.QuitAsync(restart: true);
+    }
+
+    /// <summary>Hands a downloaded update to Velopack, which installs it once this process exits.</summary>
+    public void ApplyOnExit(bool restart)
+    {
+        if (_ready is not { } update) return;
+        try
+        {
+            _manager.WaitExitThenApplyUpdates(update.TargetFullRelease, silent: !restart, restart);
+        }
+        catch
+        {
+            // Quitting must still work; the next launch finds the update again.
+        }
     }
 }

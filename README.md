@@ -94,7 +94,7 @@ A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [O
 
 **Install:** download `nikships.DroidProxy-win-Setup.exe` from the [`windows-latest` release](https://github.com/nikships/droidproxy/releases/tag/windows-latest) and run it. It installs for the current user into `%LOCALAPPDATA%\nikships.DroidProxy`, with no admin prompt, and adds Start menu and desktop shortcuts. The installer is not code-signed, so SmartScreen warns first: choose **More info**, then **Run anyway**. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for the installed launcher. Uninstall from **Settings > Apps**; accounts and settings in `~\.cli-proxy-api`, `~\.factory` and `~\.local\state\droidproxy` stay.
 
-**Updates:** the installed app checks the `windows-latest` release at launch and then daily, downloads a new version in the background (a delta when it can), and installs it when you choose **Restart to update** in About or the next time it starts. It stops the daemon before the update is applied.
+**Updates:** the installed app checks the `windows-latest` release at launch and then daily, downloads a new version in the background (a delta when it can), and installs it when you choose **Restart to update** in About or **Quit** from the tray. It stops the daemon before the update is applied.
 
 **Build from source:** you need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) (`pwsh`), and [Go](https://go.dev/dl/) for the daemon. Run these from the repository root.
 

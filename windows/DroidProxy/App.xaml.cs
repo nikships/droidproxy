@@ -132,14 +132,15 @@ public partial class App : Application
         return await dialog.ShowAsync() == ContentDialogResult.Primary;
     }
 
-    /// <param name="beforeExit">Runs once the daemon has stopped, e.g. to hand over to the updater.</param>
-    public async Task QuitAsync(Action? beforeExit = null)
+    /// <param name="restart">Relaunch after installing a downloaded update.</param>
+    public async Task QuitAsync(bool restart = false)
     {
         IsQuitting = true;
         _watchCts?.Cancel();
         _tray?.Dispose();
         await Host.StopAsync();
-        beforeExit?.Invoke();
+        // Only now is nothing in the install folder in use, so a downloaded update can go in.
+        Updates.ApplyOnExit(restart);
         Exit();
     }
 

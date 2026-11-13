@@ -11,6 +11,9 @@ public static class Program
     private static void Main()
     {
         VelopackApp.Build()
+            // Applying at startup would run before the single-instance check, so a second launch
+            // could replace files under a running app and daemon. Updates apply on quit instead.
+            .SetAutoApplyOnStartup(false)
             .OnBeforeUninstallFastCallback(_ => App.SetLaunchAtLogin(false))
             .Run();
         WinRT.ComWrappersSupport.InitializeComWrappers();
