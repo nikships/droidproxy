@@ -102,12 +102,13 @@ public sealed class DaemonHost
         Log($"Started daemon pid={_process?.Id}");
         if (_process is { } process)
         {
-            process.EnableRaisingEvents = true;
             process.Exited += (_, _) =>
             {
                 Log($"Daemon exited code={process.ExitCode}");
                 if (!_stopping) Failure = $"The daemon exited with code {process.ExitCode}.";
             };
+            // Subscribe first: a daemon that dies at once can raise Exited as soon as this is set.
+            process.EnableRaisingEvents = true;
         }
     }
 

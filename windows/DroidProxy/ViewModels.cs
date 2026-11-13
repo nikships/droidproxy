@@ -117,6 +117,7 @@ public sealed class AppViewModel : Observable
     private string _daemonBindAddress = "";
     private string _daemonError = "";
     private int _applied;
+    private int _refreshes;
 
     public AppViewModel(DaemonHost host, DaemonClient client)
     {
@@ -289,16 +290,17 @@ public sealed class AppViewModel : Observable
 
     public async Task RefreshAsync()
     {
-        // A snapshot from the event stream that lands while this request is out is newer; keep it.
+        // A snapshot that lands while this request is out, or a later refresh, is newer; keep it.
+        var request = ++_refreshes;
         var applied = _applied;
         try
         {
             var state = await _client.GetStateAsync();
-            if (applied == _applied) Apply(state);
+            if (request == _refreshes && applied == _applied) Apply(state);
         }
         catch (DaemonClient.OfflineException)
         {
-            if (applied == _applied) Apply(null);
+            if (request == _refreshes && applied == _applied) Apply(null);
         }
         catch (Exception ex)
         {

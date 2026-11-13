@@ -94,15 +94,21 @@ A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [O
 
 **Install:** there is no release download yet. Build the package (below), unzip `DroidProxy-Windows.zip` into `%LOCALAPPDATA%\Programs\DroidProxy`, and run `DroidProxy.exe`. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for that copy.
 
-**Build from source:**
+**Build from source:** run these from the repository root.
 
 ```powershell
-cd windows/DroidProxy
-dotnet build -c Debug -p:Platform=x64
+dotnet build windows/DroidProxy -c Debug -p:Platform=x64
+dotnet test windows
 
-# Package: publishes the app and copies in a Windows daemon tree (bin\droidproxy.exe, libexec\cli-proxy-api.exe, share\config.yaml)
+# Package: publishes the app and copies in a Windows daemon tree
 pwsh windows/package.ps1 -DaemonRoot <daemon-tree>
 ```
+
+The daemon tree is a folder with three files:
+
+- `bin\droidproxy.exe`: the Go daemon from [droidproxy-omarchy](https://github.com/nikships/droidproxy-omarchy). Its `main` branch does not build for Windows yet; build `./cmd/droidproxy` with `GOOS=windows GOARCH=amd64` from the branch in [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13).
+- `libexec\cli-proxy-api.exe`: from the `windows_amd64` zip of the [CLIProxyAPI release](https://github.com/router-for-me/CLIProxyAPI/releases) named in that repo's `CLIPROXYAPI_VERSION`.
+- `share\config.yaml`: that repo's `packaging/config.yaml`.
 
 For UI work without a daemon or real accounts, run the fake daemon in [`windows/tools/`](windows/tools/README.md). [`windows/DroidProxy/AGENTS.md`](windows/DroidProxy/AGENTS.md) describes the layout.
 
