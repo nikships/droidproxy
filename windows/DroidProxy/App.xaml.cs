@@ -1,3 +1,5 @@
+using System.Security.Cryptography;
+using System.Text;
 using System.Windows.Input;
 using DroidProxy.Daemon;
 using Microsoft.Win32;
@@ -29,6 +31,7 @@ public partial class App : Application
     private MenuFlyoutItem? _trayStartStop;
     private string? _trayIconName;
     private CancellationTokenSource? _watchCts;
+    private Mutex? _instance;
 
     public App()
     {
@@ -46,6 +49,15 @@ public partial class App : Application
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
+        // Two apps on one socket would each start a daemon and fight over it. Keying on the
+        // socket lets a dev build attached to the fake daemon run beside the installed app.
+        var socketHash = Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(Host.SocketPath.ToLowerInvariant())));
+        _instance = new Mutex(true, $"DroidProxy-{socketHash[..16]}", out var first);
+        if (!first)
+        {
+            Exit();
+            return;
+        }
         _window = new MainWindow();
         Host.Start();
         try

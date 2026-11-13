@@ -115,7 +115,12 @@ public sealed class DaemonHost
         }
         if (_process is { HasExited: false })
         {
-            if (!_process.WaitForExit(3000))
+            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
+            try
+            {
+                await _process.WaitForExitAsync(timeout.Token);
+            }
+            catch (OperationCanceledException)
             {
                 _process.Kill(entireProcessTree: true);
             }
