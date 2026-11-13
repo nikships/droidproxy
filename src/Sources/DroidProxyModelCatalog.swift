@@ -325,6 +325,15 @@ enum DroidProxyModelCatalog {
                 maxOutputTokens: 262144,
                 levels: [low, medium, high]
             ),
+            // Hydrogen is registered for Antigravity in CLIProxyAPI 8.0.68+ only
+            // as the -xhigh id, which accepts low through xhigh.
+            antigravityModel(
+                baseModel: "gemini-4-hydrogen-xhigh",
+                idSlug: "gemini-4-hydrogen-xhigh",
+                displayName: "Gemini 4 Hydrogen",
+                levels: [low, medium, high, xhigh],
+                defaultLevelValue: "xhigh"
+            ),
             // Claude 5.5 is only served to directly billed (non-trial) Google AI Pro/Ultra accounts.
             // CLIProxyAPI registers an Antigravity model only when the account's
             // fetchAvailableModels returns it, so on other accounts the 5.5 entries fail with
