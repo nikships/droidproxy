@@ -14,7 +14,7 @@
                 <tk:SettingsCard.HeaderIcon>
                     <FontIcon Glyph="&#xE774;" />
                 </tk:SettingsCard.HeaderIcon>
-                <ToggleSwitch IsOn="{x:Bind Vm.AllowRemote.IsOn, Mode=TwoWay}" />
+                <ToggleSwitch OnContent="" OffContent="" MinWidth="0" IsOn="{x:Bind Vm.AllowRemote.IsOn, Mode=TwoWay}" />
             </tk:SettingsCard>
             <tk:SettingsCard Header="Remote management secret key" Description="Required to manage the proxy from another device.">
                 <tk:SettingsCard.HeaderIcon>
