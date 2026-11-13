@@ -46,6 +46,7 @@ public partial class App : Application
     private DaemonClient Client { get; }
     public AppViewModel ViewModel { get; }
     public bool IsQuitting { get; private set; }
+    public bool HasTray => _tray is not null;
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
@@ -67,7 +68,9 @@ public partial class App : Application
         catch
         {
             // No shell notification area (e.g. a non-interactive session):
-            // the window still works without the tray icon.
+            // the window still works, and closing it quits.
+            _tray?.Dispose();
+            _tray = null;
         }
         ViewModel.PropertyChanged += (_, e) =>
         {

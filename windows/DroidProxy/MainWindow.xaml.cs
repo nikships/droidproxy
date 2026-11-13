@@ -29,12 +29,13 @@ public sealed partial class MainWindow : Window
             presenter.PreferredMinimumHeight = (int)(560 * scale);
         }
 
-        // Closing the window hides to the tray; Quit lives in the tray menu.
-        AppWindow.Closing += (_, args) =>
+        // Closing the window hides to the tray, where Quit lives; without a tray it quits.
+        AppWindow.Closing += async (_, args) =>
         {
             if (App.Current.IsQuitting) return;
             args.Cancel = true;
-            AppWindow.Hide();
+            if (App.Current.HasTray) AppWindow.Hide();
+            else await App.Current.QuitAsync();
         };
 
         Nav.SelectedItem = Nav.MenuItems[0];
