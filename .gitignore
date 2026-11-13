@@ -42,6 +42,9 @@ website/.firebase/
 windows-wip/node_modules/
 windows-wip/dist/
 
+# windows/package.ps1 output
+DroidProxy-Windows/
+
 # Reference / context material
 context/
 .agent/
