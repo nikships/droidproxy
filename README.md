@@ -90,7 +90,7 @@ A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [O
   <img src="windows/screenshots/network.png" alt="DroidProxy for Windows: Network and remote" width="49%">
 </p>
 
-**Requirements:** Windows 10 1809 or later, or Windows 11, on x64, with the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) and the [Windows App Runtime 2.6](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) or later. The package is framework-dependent, so it does not include either runtime.
+**Requirements:** Windows 10 1809 or later, or Windows 11, on x64, with the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) and the [Windows App Runtime](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) 2.6 release, version 2.6.5.0 or newer. That is what the app's Windows App SDK 2.6.5 bootstrapper asks for: release `0x00020006` with a minimum package version of `2.6.5.0`, from `WindowsAppSDK-VersionInfo.cs` in the `Microsoft.WindowsAppSDK.Runtime` package. The package is framework-dependent, so it does not include either runtime.
 
 **Install:** there is no release download yet. Build the package (below), unzip `DroidProxy-Windows.zip` into `%LOCALAPPDATA%\Programs\DroidProxy`, and run `DroidProxy.exe`. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for that copy.
 
