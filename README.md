@@ -117,7 +117,7 @@ The daemon tree is a folder with three files:
 
 For UI work without a daemon or real accounts, run the fake daemon in [`windows/tools/`](windows/tools/README.md). [`windows/DroidProxy/AGENTS.md`](windows/DroidProxy/AGENTS.md) describes the layout.
 
-**Known limitations:** unsigned, x64 only so far. Starting a second copy exits quietly instead of focusing the first. With the daemon from [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13), **Cancel sign-in** does not stop the login helper, because the daemon stops it with `SIGTERM` and Go cannot send that signal on Windows; the fix belongs in the daemon.
+**Known limitations:** unsigned, x64 only so far. Starting a second copy exits quietly instead of focusing the first. **Cancel sign-in** needs the daemon from [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13), which stops the login helper on Windows; older daemon builds could not.
 
 ## Project Structure
 
