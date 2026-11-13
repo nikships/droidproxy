@@ -22,7 +22,8 @@
                     <FontIcon Glyph="&#xE192;" />
                 </tk:SettingsCard.HeaderIcon>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <PasswordBox Width="240" Password="{x:Bind Vm.SecretKeyDraft, Mode=TwoWay}" PasswordRevealMode="Peek" />
+                    <PasswordBox Width="240" Password="{x:Bind Vm.SecretKeyDraft, Mode=TwoWay}" PasswordRevealMode="Peek"
+                                 AutomationProperties.Name="Remote management secret key" />
                     <Button Content="Save" Click="{x:Bind Vm.SaveSecretKey}" />
                 </StackPanel>
             </tk:SettingsCard>
@@ -31,7 +32,8 @@
                     <FontIcon Glyph="&#xE968;" />
                 </tk:SettingsCard.HeaderIcon>
                 <StackPanel Orientation="Horizontal" Spacing="8">
-                    <TextBox Width="240" Text="{x:Bind Vm.BindAddressDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MonoFont}" />
+                    <TextBox Width="240" Text="{x:Bind Vm.BindAddressDraft, Mode=TwoWay, UpdateSourceTrigger=PropertyChanged}" FontFamily="{StaticResource MonoFont}"
+                             AutomationProperties.Name="Bind address" />
                     <Button Content="Save" Click="{x:Bind Vm.SaveBindAddress}" />
                 </StackPanel>
             </tk:SettingsCard>

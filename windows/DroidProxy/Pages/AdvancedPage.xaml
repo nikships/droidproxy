@@ -27,7 +27,8 @@
                 </tk:SettingsCard.HeaderIcon>
                 <StackPanel Orientation="Horizontal" Spacing="12">
                     <Button Content="Open logs" Click="{x:Bind Vm.OpenLogsFolder}" />
-                    <ToggleSwitch OnContent="" OffContent="" MinWidth="0" IsOn="{x:Bind Vm.VerboseLogging.IsOn, Mode=TwoWay}" />
+                    <ToggleSwitch OnContent="" OffContent="" MinWidth="0" IsOn="{x:Bind Vm.VerboseLogging.IsOn, Mode=TwoWay}"
+                                  AutomationProperties.Name="{x:Bind Vm.VerboseLogging.Label}" />
                 </StackPanel>
             </tk:SettingsCard>
             <tk:SettingsCard Header="{x:Bind Vm.RequestJournal.Label}" Description="Keep a journal of proxied requests.">

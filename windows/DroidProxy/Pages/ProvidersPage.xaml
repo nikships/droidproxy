@@ -69,7 +69,8 @@
                                         </InfoBar.Content>
                                     </InfoBar>
                                     <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind IsJunie, Mode=OneWay}">
-                                        <PasswordBox Width="320" PlaceholderText="JetBrains Junie API key" Password="{x:Bind ApiKeyDraft, Mode=TwoWay}" />
+                                        <PasswordBox Width="320" PlaceholderText="JetBrains Junie API key" Password="{x:Bind ApiKeyDraft, Mode=TwoWay}"
+                                                     AutomationProperties.Name="JetBrains Junie API key" />
                                         <Button Content="Save key" Click="{x:Bind SaveKey}" />
                                     </StackPanel>
                                     <StackPanel Spacing="8" Visibility="{x:Bind HasModels, Mode=OneWay}">
