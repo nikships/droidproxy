@@ -102,6 +102,7 @@ public sealed class AppViewModel : Observable
     private string _daemonSecretKey = "";
     private string _daemonBindAddress = "";
     private string _daemonError = "";
+    private int _applied;
 
     public AppViewModel(DaemonHost host, DaemonClient client)
     {
@@ -227,6 +228,7 @@ public sealed class AppViewModel : Observable
 
     public void Apply(DaemonState? s)
     {
+        _applied++;
         if (s is null)
         {
             Status = _host.IsInstalled || _host.IsExternal ? ServerStatus.Offline : ServerStatus.NotInstalled;
@@ -274,13 +276,16 @@ public sealed class AppViewModel : Observable
 
     public async Task RefreshAsync()
     {
+        // A snapshot from the event stream that lands while this request is out is newer; keep it.
+        var applied = _applied;
         try
         {
-            Apply(await _client.GetStateAsync());
+            var state = await _client.GetStateAsync();
+            if (applied == _applied) Apply(state);
         }
         catch (DaemonClient.OfflineException)
         {
-            Apply(null);
+            if (applied == _applied) Apply(null);
         }
         catch (Exception ex)
         {
