@@ -249,8 +249,7 @@ public sealed class AppViewModel : Observable
             (StatusText, StatusDetail) = Status == ServerStatus.Offline
                 ? ("Daemon offline", "The bundled daemon is not responding. Start it to bring the proxy up.")
                 : ("Daemon not installed", "No daemon bundle found next to the app (daemon\\bin\\droidproxy.exe).");
-            Providers.Clear();
-            Usage.Clear();
+            // Keep the view models so open cards and unsaved drafts survive until the daemon is back.
             return;
         }
         Port = s.ProxyPort;
