@@ -93,38 +93,29 @@ public sealed class DaemonHost
             return;
         }
         Log($"Started daemon pid={_process?.Id}");
-        if (_process is not null)
+        if (_process is { } process)
         {
-            _process.EnableRaisingEvents = true;
-            _process.Exited += (_, _) => Log($"Daemon exited code={_process.ExitCode}");
+            process.EnableRaisingEvents = true;
+            process.Exited += (_, _) => Log($"Daemon exited code={process.ExitCode}");
         }
     }
 
-    /// <summary>Asks the daemon to quit via its control API, then waits briefly.</summary>
+    /// <summary>Asks the daemon to quit via its control API, giving it three seconds before killing it.</summary>
     public async Task StopAsync()
     {
         if (IsExternal) return;
+        using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
         {
             using var client = new DaemonClient(SocketPath);
-            await client.CallAsync("app.quit");
+            await client.CallAsync("app.quit", cancellationToken: timeout.Token);
+            if (_process is not null) await _process.WaitForExitAsync(timeout.Token);
         }
-        catch (DaemonClient.OfflineException)
+        catch
         {
-            // Already down; fall through to process cleanup.
+            // Down already, no answer, or too slow: the kill below covers every case.
         }
-        if (_process is { HasExited: false })
-        {
-            using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
-            try
-            {
-                await _process.WaitForExitAsync(timeout.Token);
-            }
-            catch (OperationCanceledException)
-            {
-                _process.Kill(entireProcessTree: true);
-            }
-        }
+        if (_process is { HasExited: false }) _process.Kill(entireProcessTree: true);
         _process = null;
     }
 }
