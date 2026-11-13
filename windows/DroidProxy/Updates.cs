@@ -14,17 +14,22 @@ public sealed class UpdatesViewModel : Observable
     // DROIDPROXY_UPDATE_URL points a test install at a local folder or another feed.
     private readonly UpdateManager _manager = new(
         Environment.GetEnvironmentVariable("DROIDPROXY_UPDATE_URL") is { Length: > 0 } url ? url : Feed);
-    private UpdateInfo? _ready;
+    private VelopackAsset? _ready;
 
     public UpdatesViewModel()
     {
-        CanCheck = _manager.IsInstalled;
-        Status = _manager.IsInstalled
-            ? $"Version {_manager.CurrentVersion}"
-            : "Updates work only in the installed app.";
+        if (!_manager.IsInstalled)
+        {
+            Status = "Updates work only in the installed app.";
+            return;
+        }
+        // An update downloaded before the app last stopped without quitting is still on disk.
+        if (_manager.UpdatePendingRestart is { } pending) Ready(pending);
+        else Status = $"Version {_manager.CurrentVersion}";
+        CanCheck = _ready is null;
     }
 
-    public string Status { get; private set => Set(ref field, value); }
+    public string Status { get; private set => Set(ref field, value); } = "";
     public bool CanCheck { get; private set => Set(ref field, value); }
     public bool CanRestart { get; private set => Set(ref field, value); }
 
@@ -57,9 +62,7 @@ public sealed class UpdatesViewModel : Observable
             }
             Status = $"Downloading version {update.TargetFullRelease.Version}…";
             await _manager.DownloadUpdatesAsync(update);
-            _ready = update;
-            Status = $"Version {update.TargetFullRelease.Version} is ready. It installs when you restart or quit DroidProxy.";
-            CanRestart = true;
+            Ready(update.TargetFullRelease);
         }
         catch (Exception ex)
         {
@@ -69,6 +72,13 @@ public sealed class UpdatesViewModel : Observable
         {
             CanCheck = _ready is null;
         }
+    }
+
+    private void Ready(VelopackAsset update)
+    {
+        _ready = update;
+        Status = $"Version {update.Version} is ready. It installs when you restart or quit DroidProxy.";
+        CanRestart = true;
     }
 
     public void Check() => _ = CheckAsync();
@@ -83,10 +93,10 @@ public sealed class UpdatesViewModel : Observable
     /// <summary>Hands a downloaded update to Velopack, which installs it once this process exits.</summary>
     public void ApplyOnExit(bool restart)
     {
-        if (_ready is not { } update) return;
+        if (_ready is null) return;
         try
         {
-            _manager.WaitExitThenApplyUpdates(update.TargetFullRelease, silent: !restart, restart);
+            _manager.WaitExitThenApplyUpdates(_ready, silent: !restart, restart);
         }
         catch
         {

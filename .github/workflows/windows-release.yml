@@ -14,11 +14,12 @@ on:
       daemon_ref:
         description: 'nikships/droidproxy-omarchy branch, tag or SHA to build the daemon from'
         required: true
-        default: main
+        # Until droidproxy-omarchy#13 merges, main does not build for Windows.
+        default: feat/windows-daemon-build
         type: string
 
 permissions:
-  contents: write
+  contents: read
 
 concurrency:
   group: windows-release
@@ -29,15 +30,20 @@ env:
   VPK_VERSION: 1.2.161 # keep on the Velopack package version in DroidProxy.csproj
 
 jobs:
-  release:
-    name: Pack & upload
+  build:
+    # Builds with a read-only token; only the publish job below can write releases.
+    name: Pack
     runs-on: windows-latest
     defaults:
       run:
         shell: pwsh
+    outputs:
+      cliproxyapi: ${{ steps.daemon.outputs.cliproxyapi }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          persist-credentials: false
 
       - name: Checkout daemon
         uses: actions/checkout@v4
@@ -46,6 +52,7 @@ jobs:
           ref: ${{ inputs.daemon_ref }}
           path: daemon-src
           fetch-depth: 0
+          persist-credentials: false
 
       - uses: actions/setup-dotnet@v4
         with:
@@ -98,31 +105,43 @@ jobs:
           VERSION: ${{ inputs.version }}
         run: ./windows/package.ps1 -DaemonRoot $env:DAEMON_TREE -Version $env:VERSION -Output releases
 
-      - name: Upload to the windows-latest release
+      - uses: actions/upload-artifact@v4
+        with:
+          name: releases
+          path: releases/
+          if-no-files-found: error
+
+  publish:
+    name: Upload to the windows-latest release
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: releases
+          path: releases
+
+      - name: Upload
         env:
           GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
           VERSION: ${{ inputs.version }}
           DAEMON_REF: ${{ inputs.daemon_ref }}
-          CLIPROXYAPI: ${{ steps.daemon.outputs.cliproxyapi }}
+          CLIPROXYAPI: ${{ needs.build.outputs.cliproxyapi }}
         run: |
-          $title = "DroidProxy for Windows $env:VERSION"
-          $notes = @"
-          Windows build $env:VERSION (daemon ``$env:DAEMON_REF``, CLIProxyAPI $env:CLIPROXYAPI).
+          set -euo pipefail
+          title="DroidProxy for Windows $VERSION"
+          notes="Windows build $VERSION (daemon \`$DAEMON_REF\`, CLIProxyAPI $CLIPROXYAPI).
 
-          Install: download ``nikships.DroidProxy-win-Setup.exe`` and run it. It installs for the current user, with no admin prompt, and updates itself from this release. The installer is not code-signed, so Windows SmartScreen asks first: choose **More info**, then **Run anyway**.
-          "@
-          gh release view $env:FEED_TAG *> $null
-          if ($LASTEXITCODE -ne 0) {
+          Install: download \`nikships.DroidProxy-win-Setup.exe\` and run it. It installs for the current user, with no admin prompt, and updates itself from this release. The installer is not code-signed, so Windows SmartScreen asks first: choose **More info**, then **Run anyway**."
+          if gh release view "$FEED_TAG" >/dev/null 2>&1; then
+            gh release edit "$FEED_TAG" --title "$title" --notes "$notes"
+          else
             # A prerelease never becomes the repository's Latest, which stays the Mac build.
-            gh release create $env:FEED_TAG --prerelease --latest=false --target $env:GITHUB_SHA --title $title --notes $notes
-            if ($LASTEXITCODE -ne 0) { throw 'gh release create failed' }
-          } else {
-            gh release edit $env:FEED_TAG --title $title --notes $notes
-            if ($LASTEXITCODE -ne 0) { throw 'gh release edit failed' }
-          }
+            gh release create "$FEED_TAG" --prerelease --latest=false --target "$GITHUB_SHA" --title "$title" --notes "$notes"
+          fi
           # releases.win.json goes last so clients never see a feed entry before its package exists.
-          $files = Get-ChildItem releases -File | Where-Object Name -ne 'releases.win.json' | ForEach-Object FullName
-          gh release upload $env:FEED_TAG @files --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'gh release upload failed' }
-          gh release upload $env:FEED_TAG releases/releases.win.json --clobber
-          if ($LASTEXITCODE -ne 0) { throw 'gh release upload failed' }
+          find releases -maxdepth 1 -type f ! -name releases.win.json -print0 | xargs -0 gh release upload "$FEED_TAG" --clobber
+          gh release upload "$FEED_TAG" releases/releases.win.json --clobber
