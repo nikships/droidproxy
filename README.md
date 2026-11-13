@@ -53,7 +53,7 @@ Then in Droid, ask to generate an image (or invoke the skill). Both skills post 
 - **Grok** — model `grok-imagine-image-2.0`; ThinkingProxy injects your Grok OAuth token and forwards to xAI.
 - **GPT** — default `gpt-image-2.6-flare`, or `gpt-image-2.6-sunburst` for detailed work. Until CLIProxyAPI accepts them, explicitly set `GPT_IMAGE_MODEL=gpt-image-2.5-flare` or `gpt-image-2.5-sunburst` for raster work. CLIProxyAPI injects Codex OAuth; older backends require Plus/Pro. The 2.6 all-tier announcement does not verify this backend's access.
 
-**Requirements:** Windows 10 1809 or later, or Windows 11, on x64. The app ships the Windows App SDK 2.6.5 runtime in its own folder, and the installer installs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) when it is missing.
+**Requirements:** DroidProxy running, the matching provider connected in Settings. Image gen is separate from chat — selecting “DroidProxy: Grok 4.7” or “DroidProxy: GPT 5.x” alone does not generate images.
 
 ## Requirements
 
@@ -90,7 +90,7 @@ A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [O
   <img src="windows/screenshots/network.png" alt="DroidProxy for Windows: Network and remote" width="49%">
 </p>
 
-**Requirements:** Windows 10 1809 or later, or Windows 11, on x64, with the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) and the [Windows App Runtime](https://learn.microsoft.com/windows/apps/windows-app-sdk/downloads) 2.6 release, version 2.6.5.0 or newer. That is what the app's Windows App SDK 2.6.5 bootstrapper asks for: release `0x00020006` with a minimum package version of `2.6.5.0`, from `WindowsAppSDK-VersionInfo.cs` in the `Microsoft.WindowsAppSDK.Runtime` package. The app is framework-dependent: the installer installs the .NET 10 Desktop Runtime when it is missing, but not the Windows App Runtime.
+**Requirements:** Windows 10 1809 or later, or Windows 11, on x64. The app ships the Windows App SDK 2.6.5 runtime in its own folder, and the installer installs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) when it is missing.
 
 **Install:** download `nikships.DroidProxy-win-Setup.exe` from the [`windows-latest` release](https://github.com/nikships/droidproxy/releases/tag/windows-latest) and run it. It installs for the current user into `%LOCALAPPDATA%\nikships.DroidProxy`, with no admin prompt, and adds Start menu and desktop shortcuts. The installer is not code-signed, so SmartScreen warns first: choose **More info**, then **Run anyway**. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for the installed launcher. Uninstall from **Settings > Apps**; accounts and settings in `~\.cli-proxy-api`, `~\.factory` and `~\.local\state\droidproxy` stay.
 

@@ -55,19 +55,29 @@ public sealed class UpdatesViewModel : Observable
         try
         {
             Status = "Checking for updates…";
-            if (await _manager.CheckForUpdatesAsync() is not { } update)
+            UpdateInfo? update;
+            try
+            {
+                update = await _manager.CheckForUpdatesAsync();
+            }
+            catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+            {
+                // The windows-latest release does not exist until the first Windows Release run.
+                Status = $"Version {_manager.CurrentVersion}. No Windows release is published yet.";
+                return;
+            }
+            if (update is not { } found)
             {
                 Status = $"Version {_manager.CurrentVersion} is up to date.";
                 return;
             }
-            Status = $"Downloading version {update.TargetFullRelease.Version}…";
-            await _manager.DownloadUpdatesAsync(update);
-            Ready(update.TargetFullRelease);
+            Status = $"Downloading version {found.TargetFullRelease.Version}…";
+            await _manager.DownloadUpdatesAsync(found);
+            Ready(found.TargetFullRelease);
         }
         catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
         {
-            // The windows-latest release does not exist until the first Windows Release run.
-            Status = $"Version {_manager.CurrentVersion}. No Windows release is published yet.";
+            Status = "Update download failed: the package was not found.";
         }
         catch (Exception ex)
         {
