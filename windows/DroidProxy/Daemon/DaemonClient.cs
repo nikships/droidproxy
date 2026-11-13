@@ -162,109 +162,84 @@ public sealed record DaemonState(
     {
         using var doc = JsonDocument.Parse(json);
         var root = doc.RootElement;
-        var server = root.TryGetProperty("server", out var s) ? s : default;
-        var app = root.TryGetProperty("app", out var a) ? a : default;
-        var grok = root.TryGetProperty("grok", out var g) ? g : default;
-        var meta = root.TryGetProperty("meta", out var mt) ? mt : default;
-        var factory = root.TryGetProperty("factory", out var f) ? f : default;
-        var paths = root.TryGetProperty("paths", out var pa) ? pa : default;
+        var server = Prop(root, "server");
+        var app = Prop(root, "app");
+        var grok = Prop(root, "grok");
+        var meta = Prop(root, "meta");
+        var paths = Prop(root, "paths");
 
         var providers = new List<ProviderInfo>();
-        if (root.TryGetProperty("providers", out var list) && list.ValueKind == JsonValueKind.Array)
+        foreach (var p in Items(root, "providers"))
         {
-            foreach (var p in list.EnumerateArray())
+            var accounts = Items(p, "accounts").Select(ac => new AccountInfo(
+                GetString(ac, "id"), GetString(ac, "displayName"),
+                GetBool(ac, "expired"), GetBool(ac, "disabled"))).ToList();
+            var models = Items(p, "models").Select(m => new ModelInfo(
+                GetString(m, "slug"), GetString(m, "displayName"),
+                GetBool(m, "enabled"), GetBool(m, "installed"))).ToList();
+            var id = GetString(p, "id");
+            var (code, url) = id switch
             {
-                var accounts = new List<AccountInfo>();
-                if (p.TryGetProperty("accounts", out var acc) && acc.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var ac in acc.EnumerateArray())
-                    {
-                        accounts.Add(new AccountInfo(
-                            GetString(ac, "id"), GetString(ac, "displayName"),
-                            GetBool(ac, "expired"), GetBool(ac, "disabled")));
-                    }
-                }
-                var models = new List<ModelInfo>();
-                if (p.TryGetProperty("models", out var ms) && ms.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var m in ms.EnumerateArray())
-                    {
-                        models.Add(new ModelInfo(
-                            GetString(m, "slug"), GetString(m, "displayName"),
-                            GetBool(m, "enabled"), GetBool(m, "installed")));
-                    }
-                }
-                var id = GetString(p, "id");
-                var (code, url) = id switch
-                {
-                    "grok" => (GetString(grok, "userCode"), GetString(grok, "verificationUrl")),
-                    "meta" => (GetString(meta, "deviceCode"), GetString(meta, "verificationUrl")),
-                    _ => ("", ""),
-                };
-                providers.Add(new ProviderInfo(
-                    id, GetString(p, "name"), GetString(p, "icon"), GetString(p, "color"), GetString(p, "kind"),
-                    GetBool(p, "enabled"), GetBool(p, "primerApplies"), GetBool(p, "authenticating"), code, url,
-                    accounts, models));
-            }
+                "grok" => (GetString(grok, "userCode"), GetString(grok, "verificationUrl")),
+                "meta" => (GetString(meta, "deviceCode"), GetString(meta, "verificationUrl")),
+                _ => ("", ""),
+            };
+            providers.Add(new ProviderInfo(
+                id, GetString(p, "name"), GetString(p, "icon"), GetString(p, "color"), GetString(p, "kind"),
+                GetBool(p, "enabled"), GetBool(p, "primerApplies"), GetBool(p, "authenticating"), code, url,
+                accounts, models));
         }
 
         var usage = new List<UsageInfo>();
-        if (root.TryGetProperty("usage", out var usg) &&
-            usg.TryGetProperty("accounts", out var uaccts) && uaccts.ValueKind == JsonValueKind.Array)
+        foreach (var ua in Items(Prop(root, "usage"), "accounts"))
         {
-            foreach (var ua in uaccts.EnumerateArray())
-            {
-                var windows = new List<WindowInfo>();
-                if (ua.TryGetProperty("windows", out var ws) && ws.ValueKind == JsonValueKind.Array)
-                {
-                    foreach (var w in ws.EnumerateArray())
-                    {
-                        double? remaining = w.TryGetProperty("remainingPercent", out var r) &&
-                            r.ValueKind == JsonValueKind.Number ? r.GetDouble() : null;
-                        windows.Add(new WindowInfo(GetString(w, "title"), remaining, GetString(w, "resetText")));
-                    }
-                }
-                var resetCount = ua.TryGetProperty("resetCredits", out var rc) ? GetInt(rc, "availableCount") : 0;
-                usage.Add(new UsageInfo(
-                    GetString(ua, "id"), GetString(ua, "provider"), GetString(ua, "providerName"),
-                    GetString(ua, "email"), GetBool(ua, "loading"), GetString(ua, "error"),
-                    windows, resetCount));
-            }
+            var windows = Items(ua, "windows").Select(w => new WindowInfo(
+                GetString(w, "title"),
+                Prop(w, "remainingPercent") is { ValueKind: JsonValueKind.Number } r ? r.GetDouble() : null,
+                GetString(w, "resetText"))).ToList();
+            usage.Add(new UsageInfo(
+                GetString(ua, "id"), GetString(ua, "provider"), GetString(ua, "providerName"),
+                GetString(ua, "email"), GetBool(ua, "loading"), GetString(ua, "error"),
+                windows, GetInt(Prop(ua, "resetCredits"), "availableCount")));
         }
 
         var flags = new Dictionary<string, bool>();
-        var secretKey = "";
-        var bindAddress = "";
-        if (root.TryGetProperty("settings", out var st) && st.ValueKind == JsonValueKind.Object)
+        var settings = Prop(root, "settings");
+        if (settings.ValueKind == JsonValueKind.Object)
         {
-            foreach (var prop in st.EnumerateObject())
+            foreach (var prop in settings.EnumerateObject())
             {
                 if (prop.Value.ValueKind is JsonValueKind.True or JsonValueKind.False)
                     flags[prop.Name] = prop.Value.GetBoolean();
             }
-            secretKey = GetString(st, "secretKey");
-            bindAddress = GetString(st, "bindAddress");
         }
 
         return new DaemonState(
             GetBool(server, "running"), GetBool(server, "starting"), GetInt(server, "proxyPort"),
             GetString(server, "url"), GetString(server, "dashboardUrl"), GetString(server, "lastError"),
-            new AppInfo(
-                GetString(app, "version"), GetString(app, "cliProxyApiVersion")),
-            GetBool(factory, "modelsInstalled"),
+            new AppInfo(GetString(app, "version"), GetString(app, "cliProxyApiVersion")),
+            GetBool(Prop(root, "factory"), "modelsInstalled"),
             GetString(paths, "authDir"), GetString(paths, "logsDir"),
             providers, usage,
-            new SettingsInfo(flags, secretKey, bindAddress));
+            new SettingsInfo(flags, GetString(settings, "secretKey"), GetString(settings, "bindAddress")));
     }
 
+    /// <summary>The named member of an object, or an undefined element for anything else.</summary>
+    private static JsonElement Prop(JsonElement el, string name) =>
+        el.ValueKind == JsonValueKind.Object && el.TryGetProperty(name, out var v) ? v : default;
+
+    /// <summary>The object entries of the named array; a missing, null or non-array member is empty.</summary>
+    private static IEnumerable<JsonElement> Items(JsonElement el, string name) =>
+        Prop(el, name) is { ValueKind: JsonValueKind.Array } list
+            ? list.EnumerateArray().Where(e => e.ValueKind == JsonValueKind.Object)
+            : [];
+
     internal static string GetString(JsonElement el, string name) =>
-        el.ValueKind == JsonValueKind.Object && el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
-            ? v.GetString() ?? "" : "";
+        Prop(el, name) is { ValueKind: JsonValueKind.String } v ? v.GetString() ?? "" : "";
 
     private static bool GetBool(JsonElement el, string name) =>
-        el.ValueKind == JsonValueKind.Object && el.TryGetProperty(name, out var v) &&
-        (v.ValueKind == JsonValueKind.True);
+        Prop(el, name).ValueKind == JsonValueKind.True;
 
     private static int GetInt(JsonElement el, string name) =>
-        el.ValueKind == JsonValueKind.Object && el.TryGetProperty(name, out var v) && v.TryGetInt32(out var n) ? n : 0;
+        Prop(el, name) is { ValueKind: JsonValueKind.Number } v && v.TryGetInt32(out var n) ? n : 0;
 }
