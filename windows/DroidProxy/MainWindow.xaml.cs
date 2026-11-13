@@ -16,7 +16,7 @@ public sealed partial class MainWindow : Window
         SetTitleBar(AppTitleBar);
         // The app is always dark, so the system caption buttons must be drawn for a dark surface.
         AppWindow.TitleBar.PreferredTheme = TitleBarTheme.Dark;
-        AppWindow.SetIcon("Assets/AppIcon.ico");
+        AppWindow.SetIcon(Path.Combine(AppContext.BaseDirectory, "Assets", "AppIcon.ico"));
 
         var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
         var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
