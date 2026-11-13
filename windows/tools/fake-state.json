@@ -1,0 +1,45 @@
+{
+  "app": { "name": "DroidProxy", "version": "1.0.13", "commit": "sample", "repoUrl": "https://github.com/nikships/droidproxy-omarchy", "issuesUrl": "https://github.com/nikships/droidproxy-omarchy/issues", "cliProxyApiUrl": "https://github.com/router-for-me/CLIProxyAPI", "cliProxyApiVersion": "8.0.67" },
+  "server": { "running": true, "starting": false, "proxyPort": 8317, "backendPort": 8318, "url": "http://127.0.0.1:8317", "dashboardUrl": "http://127.0.0.1:8318/management.html", "lastError": "" },
+  "settings": { "launchAtLogin": false, "allowRemote": false, "secretKey": "", "bindAddress": "127.0.0.1", "beta": false, "verboseLogging": false, "sequentialAccountFailover": false, "gpt6AstraFastMode": true, "gpt61SolFastMode": true, "gpt61TerraFastMode": false, "gpt6LunaFastMode": false, "metaContributorMode": false, "windowPrimerEnabled.claude": false, "windowPrimerMinutes.claude": 420, "windowPrimerEnabled.codex": false, "windowPrimerMinutes.codex": 420, "windowPrimerEnabled.meta": false, "windowPrimerMinutes.meta": 420, "autoCheckUpdates": true, "autoInstallUpdates": false, "requestJournal": false },
+  "paths": { "authDir": "", "logsDir": "" },
+  "factory": { "modelsInstalled": true },
+  "providers": [
+    { "id": "claude", "name": "Claude Code", "icon": "icon-claude.png", "color": "#D97757", "kind": "standard", "enabled": true, "primerApplies": true, "authenticating": false,
+      "accounts": [
+        { "id": "alex@example.com", "displayName": "alex@example.com · Personal Max", "email": "alex@example.com", "expired": false, "disabled": false },
+        { "id": "dev@example.com", "displayName": "dev@example.com · Personal Max", "email": "dev@example.com", "expired": false, "disabled": false } ],
+      "models": [
+        { "slug": "fable-5-1", "displayName": "Fable 5.1", "enabled": true, "installed": true },
+        { "slug": "opus-5-5", "displayName": "Opus 5.5", "enabled": true, "installed": true },
+        { "slug": "sonnet-5-5", "displayName": "Sonnet 5.5", "enabled": true, "installed": true },
+        { "slug": "haiku-5-5", "displayName": "Haiku 5.5", "enabled": false, "installed": false } ] },
+    { "id": "codex", "name": "Codex", "icon": "icon-codex.png", "color": "#74AA9C", "kind": "standard", "enabled": true, "primerApplies": true, "authenticating": false,
+      "accounts": [ { "id": "alex@example.com", "displayName": "alex@example.com", "email": "alex@example.com", "expired": false, "disabled": false } ],
+      "models": [
+        { "slug": "gpt-6-astra", "displayName": "GPT 6 Astra", "enabled": true, "installed": true },
+        { "slug": "gpt-6.1-sol", "displayName": "GPT 6.1 Sol", "enabled": true, "installed": true } ] },
+    { "id": "antigravity", "name": "Antigravity", "icon": "icon-gemini.png", "color": "#4285F4", "kind": "standard", "enabled": true, "primerApplies": false, "authenticating": false,
+      "accounts": [ { "id": "alex@example.com", "displayName": "alex@example.com", "email": "alex@example.com", "expired": false, "disabled": false } ],
+      "models": [ { "slug": "gemini-4-argon-high", "displayName": "Gemini 4 Argon", "enabled": true, "installed": true } ] },
+    { "id": "meta", "name": "Meta Muse", "icon": "icon-meta.svg", "color": "#0866FF", "kind": "meta", "enabled": false, "primerApplies": true, "authenticating": false, "accounts": [], "models": null },
+    { "id": "kimi", "name": "Kimi", "icon": "icon-kimi.svg", "color": "#FFFFFF", "kind": "standard", "enabled": false, "primerApplies": false, "authenticating": false, "accounts": [],
+      "models": [ { "slug": "kimi-k3", "displayName": "Kimi K3", "enabled": false, "installed": false } ] },
+    { "id": "junie", "name": "Junie", "icon": "icon-junie.svg", "color": "#48E054", "kind": "junie", "enabled": false, "primerApplies": false, "authenticating": false, "accounts": [],
+      "models": [ { "slug": "junie-claude-opus-5-5", "displayName": "Junie Opus 5.5", "enabled": false, "installed": false } ] },
+    { "id": "grok", "name": "Grok", "icon": "icon-grok.svg", "color": "#FFFFFF", "kind": "grok", "enabled": true, "primerApplies": false, "authenticating": false, "accounts": [],
+      "models": [ { "slug": "grok-4.7", "displayName": "Grok 4.7", "enabled": true, "installed": true } ] }
+  ],
+  "copilot": { "deviceCode": "", "verificationUrl": "" },
+  "meta": { "authenticating": false, "deviceCode": "", "verificationUrl": "" },
+  "grok": { "authenticating": false, "userCode": "", "verificationUrl": "" },
+  "usage": { "visible": true, "refreshing": false, "accounts": [
+    { "id": "alex@example.com", "provider": "claude", "providerName": "Claude Code", "email": "alex@example.com · Personal Max", "loading": false, "error": "",
+      "windows": [ { "title": "5-hour", "remainingPercent": 64, "resetText": "in 2 hours" }, { "title": "Weekly", "remainingPercent": 97, "resetText": "in 6 days" } ] },
+    { "id": "dev@example.com", "provider": "claude", "providerName": "Claude Code", "email": "dev@example.com · Personal Max", "loading": false, "error": "Token refresh failed", "windows": [] },
+    { "id": "alex@example.com", "provider": "codex", "providerName": "Codex", "email": "alex@example.com", "loading": false, "error": "",
+      "windows": [ { "title": "Weekly", "remainingPercent": 38, "resetText": "in 3 days" } ], "resetCredits": { "availableCount": 1, "nextExpiresAt": "2026-12-01T22:24:49Z" } },
+    { "id": "alex@example.com", "provider": "antigravity", "providerName": "Antigravity", "email": "alex@example.com", "loading": false, "error": "",
+      "windows": [ { "title": "Gemini 5-hour", "remainingPercent": 89, "resetText": "in 2 hours" }, { "title": "Gemini Weekly", "remainingPercent": 28, "resetText": "in 1 day" } ] } ] },
+  "update": { "state": "idle", "currentVersion": "1.0.13", "latestVersion": "" }
+}

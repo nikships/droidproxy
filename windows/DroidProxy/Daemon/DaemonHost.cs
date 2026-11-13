@@ -15,12 +15,18 @@ public sealed class DaemonHost : IDisposable
     public DaemonHost()
     {
         Root = FindRoot();
-        var local = Path.Combine(
+        var external = Environment.GetEnvironmentVariable("DROIDPROXY_SOCKET");
+        IsExternal = !string.IsNullOrWhiteSpace(external);
+        SocketPath = IsExternal ? external! : Path.Combine(
             Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData),
-            "DroidProxy");
-        SocketPath = Path.Combine(local, "control.sock");
+            "DroidProxy", "control.sock");
     }
 
+    /// <summary>
+    /// DROIDPROXY_SOCKET attaches the app to a daemon it does not own, such as
+    /// windows/tools/FakeDaemon.cs. The app then never starts or stops one.
+    /// </summary>
+    public bool IsExternal { get; }
     public string? Root { get; }
     public string SocketPath { get; }
     public bool IsInstalled => DaemonExe is not null;
@@ -68,6 +74,7 @@ public sealed class DaemonHost : IDisposable
 
     public void Start()
     {
+        if (IsExternal) return;
         Log($"Start: root={Root ?? "<null>"} exe={DaemonExe ?? "<null>"} running={IsRunning}");
         if (IsRunning || DaemonExe is null) return;
         Directory.CreateDirectory(Path.GetDirectoryName(SocketPath)!);
@@ -105,6 +112,7 @@ public sealed class DaemonHost : IDisposable
     /// <summary>Asks the daemon to quit via its control API, then waits briefly.</summary>
     public async Task StopAsync()
     {
+        if (IsExternal) return;
         try
         {
             using var client = new DaemonClient(SocketPath);
