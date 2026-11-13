@@ -293,12 +293,14 @@ public sealed class AppViewModel : Observable
         }
     }
 
-    public async Task CallAsync(string method, object? parameters = null)
+    public async Task<bool> CallAsync(string method, object? parameters = null)
     {
+        var ok = false;
         try
         {
             var result = await _client.CallAsync(method, parameters);
-            if (result.Ok) ClearMessage();
+            ok = result.Ok;
+            if (ok) ClearMessage();
             else ShowError(result.Error);
         }
         catch (DaemonClient.OfflineException)
@@ -310,6 +312,7 @@ public sealed class AppViewModel : Observable
             ShowError(ex.Message);
         }
         await RefreshAsync();
+        return ok;
     }
 
     public async void StartStop()
@@ -460,8 +463,8 @@ public sealed class ProviderViewModel : Observable, IKeyed
 
         Models.SyncKeyed(p.Models, m => m.Slug, m => new Toggle(m.Slug, m.DisplayName, async on =>
         {
-            await _app.CallAsync("model.setEnabled", new { slug = m.Slug, enabled = on });
-            await _app.CallAsync("factory.apply");
+            if (await _app.CallAsync("model.setEnabled", new { slug = m.Slug, enabled = on }))
+                await _app.CallAsync("factory.apply");
         }), (t, m) => t.Sync(m.Enabled));
         HasModels = Models.Count > 0;
 
