@@ -143,7 +143,7 @@ public partial class App : Application
                 {
                     Publish(state);
                     return Task.CompletedTask;
-                }, cancellationToken);
+                }, (body, isError) => ui.TryEnqueue(() => ViewModel.ShowDaemonMessage(body, isError)), cancellationToken);
             }
             catch (OperationCanceledException)
             {

@@ -9,6 +9,7 @@ var socketPath = args[0];
 var state = JsonNode.Parse(File.ReadAllText(args[1]))!.AsObject();
 var gate = new object();
 var tick = 0;
+var messages = new System.Collections.Concurrent.ConcurrentQueue<JsonObject>();
 File.Delete(socketPath);
 
 var builder = WebApplication.CreateSlimBuilder();
@@ -26,6 +27,7 @@ app.MapGet("/v1/events", async (HttpContext ctx) =>
     while (!ctx.RequestAborted.IsCancellationRequested)
     {
         // Same cadence as the real daemon: a full snapshot every second.
+        while (messages.TryDequeue(out var message)) await ctx.Response.WriteAsync(message.ToJsonString() + "\n");
         await ctx.Response.WriteAsync($"{{\"type\":\"state\",\"state\":{Snapshot()}}}\n");
         await ctx.Response.Body.FlushAsync();
         Console.WriteLine($"event {Interlocked.Increment(ref tick)}");
@@ -62,6 +64,25 @@ void Apply(string method, JsonObject p)
             var account = Provider((string?)p["provider"])!["accounts"]!.AsArray()
                 .First(a => (string?)a!["id"] == (string?)p["accountId"])!;
             account["disabled"] = !(bool)account["disabled"]!;
+            break;
+        case "provider.connect" when (string?)p["provider"] == "grok":
+            // Mirrors the daemon's device-code sign-in: a code and URL appear, then wait for approval.
+            Provider("grok")!["authenticating"] = true;
+            state["grok"] = new JsonObject
+            {
+                ["authenticating"] = true,
+                ["userCode"] = "FAKE-0000",
+                ["verificationUrl"] = "https://example.com/device?user_code=FAKE-0000",
+            };
+            messages.Enqueue(new JsonObject
+            {
+                ["type"] = "message", ["title"] = "DroidProxy", ["level"] = "info",
+                ["body"] = "Browser opened for Grok login.\n\nIf prompted, enter code: FAKE-0000\n\nWaiting for approval…",
+            });
+            break;
+        case "provider.cancelAuth" when (string?)p["provider"] == "grok":
+            Provider("grok")!["authenticating"] = false;
+            state["grok"] = new JsonObject { ["authenticating"] = false, ["userCode"] = "", ["verificationUrl"] = "" };
             break;
         case "model.setEnabled":
             foreach (var model in state["providers"]!.AsArray().SelectMany(n => n!["models"]?.AsArray() ?? []))

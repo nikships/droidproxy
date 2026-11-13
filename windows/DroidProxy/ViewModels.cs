@@ -217,6 +217,14 @@ public sealed class AppViewModel : Observable
         Message = message;
     }
 
+    /// <summary>Messages the daemon posts on its event stream, such as a failed or finished sign-in.</summary>
+    public void ShowDaemonMessage(string body, bool isError)
+    {
+        if (body.Length == 0) return;
+        MessageSeverity = isError ? InfoBarSeverity.Error : InfoBarSeverity.Informational;
+        Message = body.Trim();
+    }
+
     public void Apply(DaemonState? s)
     {
         if (s is null)
@@ -397,6 +405,7 @@ public sealed class ProviderViewModel : Observable, IKeyed
     public string DeviceCode { get; private set => Set(ref field, value); } = "";
     public string DeviceUrl { get; private set => Set(ref field, value); } = "";
     public bool HasDeviceCode { get; private set => Set(ref field, value); }
+    public bool IsExpanded { get; set => Set(ref field, value); }
     public string ApiKeyDraft { get; set => Set(ref field, value); } = "";
 
     internal void Sync(DaemonState.ProviderInfo p, DaemonState s)
@@ -426,8 +435,18 @@ public sealed class ProviderViewModel : Observable, IKeyed
         HasAction = !IsJunie;
         ActionLabel = p.Authenticating ? "Cancel sign-in" : p.Kind is "grok" or "meta" ? "Sign in" : "Add account";
         DeviceCode = p.DeviceCode;
-        DeviceUrl = p.DeviceUrl;
         HasDeviceCode = p.DeviceCode.Length > 0;
+        if (DeviceUrl != p.DeviceUrl)
+        {
+            DeviceUrl = p.DeviceUrl;
+            // The daemon's own browser launch is xdg-open, which does nothing on Windows,
+            // so the app opens each new sign-in page and expands the card to show its code.
+            if (p.Authenticating && DeviceUrl.Length > 0)
+            {
+                IsExpanded = true;
+                AppViewModel.Open(DeviceUrl);
+            }
+        }
         Enabled.Sync(p.Enabled);
 
         var usage = s.Usage.Where(u => u.Provider == p.Id).ToDictionary(u => u.Id, u => u);

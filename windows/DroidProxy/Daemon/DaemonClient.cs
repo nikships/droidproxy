@@ -84,10 +84,11 @@ public sealed class DaemonClient : IDisposable
     }
 
     /// <summary>
-    /// Streams state snapshots until cancelled or the daemon drops the
+    /// Streams state snapshots and daemon messages until cancelled or the daemon drops the
     /// connection. Reconnecting is the caller's job.
     /// </summary>
-    public async Task WatchAsync(Func<DaemonState, Task> onState, CancellationToken cancellationToken)
+    public async Task WatchAsync(
+        Func<DaemonState, Task> onState, Action<string, bool> onMessage, CancellationToken cancellationToken)
     {
         try
         {
@@ -100,11 +101,15 @@ public sealed class DaemonClient : IDisposable
             {
                 if (line.Length == 0) continue;
                 using var doc = JsonDocument.Parse(line);
-                if (doc.RootElement.TryGetProperty("type", out var type) &&
-                    type.GetString() == "state" &&
-                    doc.RootElement.TryGetProperty("state", out var state))
+                var root = doc.RootElement;
+                switch (DaemonState.GetString(root, "type"))
                 {
-                    await onState(DaemonState.Parse(state.GetRawText()));
+                    case "state" when root.TryGetProperty("state", out var state):
+                        await onState(DaemonState.Parse(state.GetRawText()));
+                        break;
+                    case "message":
+                        onMessage(DaemonState.GetString(root, "body"), DaemonState.GetString(root, "level") == "error");
+                        break;
                 }
             }
         }
@@ -252,7 +257,7 @@ public sealed record DaemonState(
             new SettingsInfo(flags, secretKey, bindAddress));
     }
 
-    private static string GetString(JsonElement el, string name) =>
+    internal static string GetString(JsonElement el, string name) =>
         el.ValueKind == JsonValueKind.Object && el.TryGetProperty(name, out var v) && v.ValueKind == JsonValueKind.String
             ? v.GetString() ?? "" : "";
 

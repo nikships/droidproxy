@@ -17,7 +17,7 @@
                 </ItemsRepeater.Layout>
                 <ItemsRepeater.ItemTemplate>
                     <DataTemplate x:DataType="local:ProviderViewModel">
-                        <tk:SettingsExpander ItemsSource="{x:Bind Accounts}">
+                        <tk:SettingsExpander ItemsSource="{x:Bind Accounts}" IsExpanded="{x:Bind IsExpanded, Mode=TwoWay}">
                             <tk:SettingsExpander.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="16">
                                     <Grid Width="36" Height="36" CornerRadius="{ThemeResource ControlCornerRadius}" Background="{x:Bind TileBrush, Mode=OneWay}">
