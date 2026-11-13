@@ -41,7 +41,7 @@
 
             <Grid Margin="0,24,0,6">
                 <TextBlock Text="Quota" Style="{StaticResource SectionHeaderStyle}" Margin="1,0,0,0" VerticalAlignment="Center" />
-                <Button HorizontalAlignment="Right" Style="{StaticResource SubtleButtonStyle}" Click="{x:Bind Vm.RefreshUsage}" ToolTipService.ToolTip="Refresh quota">
+                <Button HorizontalAlignment="Right" Style="{StaticResource SubtleButtonStyle}" Click="{x:Bind Vm.RefreshUsage}" ToolTipService.ToolTip="Refresh quota" AutomationProperties.Name="Refresh quota">
                     <StackPanel Orientation="Horizontal" Spacing="6">
                         <FontIcon Glyph="&#xE72C;" FontSize="14" />
                         <TextBlock Text="Refresh" />

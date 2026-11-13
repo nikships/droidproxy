@@ -179,7 +179,6 @@ public sealed class AppViewModel : Observable
     public string DashboardUrl { get; private set => Set(ref field, value); } = "";
     public string Version { get; private set => Set(ref field, value); } = "";
     public string CliProxyApiVersion { get; private set => Set(ref field, value); } = "";
-    public string IssuesUrl { get; private set => Set(ref field, value); } = "";
     public string AuthDir { get; private set => Set(ref field, value); } = "";
     public string LogsDir { get; private set => Set(ref field, value); } = "";
 
@@ -264,7 +263,6 @@ public sealed class AppViewModel : Observable
         Url = s.ServerUrl;
         DashboardUrl = s.DashboardUrl;
         CliProxyApiVersion = s.App.CliProxyApiVersion;
-        IssuesUrl = s.App.IssuesUrl;
         AuthDir = s.AuthDir;
         LogsDir = s.LogsDir;
         FactoryInstalled = s.FactoryInstalled;
@@ -347,7 +345,7 @@ public sealed class AppViewModel : Observable
 
     public void CopyUrl() => Copy(Url, "Server URL copied.");
     public void OpenDashboard() => Open(DashboardUrl);
-    public void ReportIssue() => Open(IssuesUrl);
+    public void ReportIssue() => Open("https://github.com/nikships/droidproxy/issues");
     public void OpenAuthFolder() => OpenFolder(AuthDir);
     public void OpenLogsFolder() => OpenFolder(LogsDir);
 
@@ -400,7 +398,11 @@ public sealed class ProviderViewModel : Observable, IKeyed
     {
         _app = app;
         Key = id;
-        Enabled = new("enabled", "", on => app.CallAsync("provider.setEnabled", new { provider = id, enabled = on }));
+        Enabled = new("enabled", "", async on =>
+        {
+            if (await app.CallAsync("provider.setEnabled", new { provider = id, enabled = on }))
+                await app.CallAsync("factory.apply");
+        });
     }
 
     public string Key { get; }

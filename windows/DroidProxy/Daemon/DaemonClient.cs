@@ -138,7 +138,7 @@ public sealed record DaemonState(
     IReadOnlyList<DaemonState.UsageInfo> Usage,
     DaemonState.SettingsInfo Settings)
 {
-    public sealed record AppInfo(string Version, string CliProxyApiVersion, string IssuesUrl);
+    public sealed record AppInfo(string Version, string CliProxyApiVersion);
 
     /// <summary>DeviceCode and DeviceUrl carry a pending device-code sign-in (Grok, Meta).</summary>
     public sealed record ProviderInfo(
@@ -250,7 +250,7 @@ public sealed record DaemonState(
             GetBool(server, "running"), GetBool(server, "starting"), GetInt(server, "proxyPort"),
             GetString(server, "url"), GetString(server, "dashboardUrl"), GetString(server, "lastError"),
             new AppInfo(
-                GetString(app, "version"), GetString(app, "cliProxyApiVersion"), GetString(app, "issuesUrl")),
+                GetString(app, "version"), GetString(app, "cliProxyApiVersion")),
             GetBool(factory, "modelsInstalled"),
             GetString(paths, "authDir"), GetString(paths, "logsDir"),
             providers, usage,
