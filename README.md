@@ -53,7 +53,7 @@ Then in Droid, ask to generate an image (or invoke the skill). Both skills post 
 - **Grok** — model `grok-imagine-image-2.0`; ThinkingProxy injects your Grok OAuth token and forwards to xAI.
 - **GPT** — default `gpt-image-2.6-flare`, or `gpt-image-2.6-sunburst` for detailed work. Until CLIProxyAPI accepts them, explicitly set `GPT_IMAGE_MODEL=gpt-image-2.5-flare` or `gpt-image-2.5-sunburst` for raster work. CLIProxyAPI injects Codex OAuth; older backends require Plus/Pro. The 2.6 all-tier announcement does not verify this backend's access.
 
-**Requirements:** DroidProxy running, the matching provider connected in Settings. Image gen is separate from chat — selecting “DroidProxy: Grok 4.7” or “DroidProxy: GPT 5.x” alone does not generate images.
+**Requirements:** Windows 10 1809 or later, or Windows 11, on x64. The app ships the Windows App SDK 2.6.5 runtime in its own folder, and the installer installs the [.NET 10 Desktop Runtime](https://dotnet.microsoft.com/download/dotnet/10.0) when it is missing.
 
 ## Requirements
 

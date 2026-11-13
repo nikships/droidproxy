@@ -64,6 +64,11 @@ public sealed class UpdatesViewModel : Observable
             await _manager.DownloadUpdatesAsync(update);
             Ready(update.TargetFullRelease);
         }
+        catch (HttpRequestException ex) when (ex.StatusCode == System.Net.HttpStatusCode.NotFound)
+        {
+            // The windows-latest release does not exist until the first Windows Release run.
+            Status = $"Version {_manager.CurrentVersion}. No Windows release is published yet.";
+        }
         catch (Exception ex)
         {
             Status = $"Update check failed: {ex.Message}";
