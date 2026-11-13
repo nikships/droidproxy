@@ -94,7 +94,7 @@ A native WinUI 3 app in [`windows/`](windows/) runs the same Go daemon as the [O
 
 **Install:** there is no release download yet. Build the package (below), unzip `DroidProxy-Windows.zip` into `%LOCALAPPDATA%\Programs\DroidProxy`, and run `DroidProxy.exe`. Closing the window keeps it in the tray. Use **Quit** there to stop the app and the daemon. **Launch at login** in Advanced adds a per-user Run entry for that copy.
 
-**Build from source:** run these from the repository root.
+**Build from source:** you need the [.NET 10 SDK](https://dotnet.microsoft.com/download/dotnet/10.0), [PowerShell 7](https://learn.microsoft.com/powershell/scripting/install/installing-powershell-on-windows) (`pwsh`), and [Go](https://go.dev/dl/) for the daemon. Run these from the repository root.
 
 ```powershell
 dotnet build windows/DroidProxy -c Debug -p:Platform=x64
@@ -112,7 +112,7 @@ The daemon tree is a folder with three files:
 
 For UI work without a daemon or real accounts, run the fake daemon in [`windows/tools/`](windows/tools/README.md). [`windows/DroidProxy/AGENTS.md`](windows/DroidProxy/AGENTS.md) describes the layout.
 
-**Known limitations:** unsigned, no auto-update, x64 only so far. Starting a second copy exits quietly instead of focusing the first.
+**Known limitations:** unsigned, no auto-update, x64 only so far. Starting a second copy exits quietly instead of focusing the first. With the daemon from [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13), **Cancel sign-in** does not stop the login helper, because the daemon stops it with `SIGTERM` and Go cannot send that signal on Windows; the fix belongs in the daemon.
 
 ## Project Structure
 
