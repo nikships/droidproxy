@@ -11,6 +11,7 @@ namespace DroidProxy.Daemon;
 public sealed class DaemonHost
 {
     private Process? _process;
+    private volatile bool _stopping;
 
     public DaemonHost()
     {
@@ -32,6 +33,9 @@ public sealed class DaemonHost
     public bool IsInstalled => DaemonExe is not null;
     public string? DaemonExe => Root is null ? null : Path.Combine(Root, "bin", "droidproxy.exe");
     public bool IsRunning => _process is { HasExited: false };
+
+    /// <summary>Why the last start failed or the daemon died on its own; empty otherwise.</summary>
+    public string Failure { get; private set; } = "";
 
     private static string? FindRoot()
     {
@@ -72,6 +76,8 @@ public sealed class DaemonHost
         if (IsExternal) return;
         Log($"Start: root={Root ?? "<null>"} exe={DaemonExe ?? "<null>"} running={IsRunning}");
         if (IsRunning || DaemonExe is null) return;
+        Failure = "";
+        _stopping = false;
         Directory.CreateDirectory(Path.GetDirectoryName(SocketPath)!);
         var psi = new ProcessStartInfo
         {
@@ -90,13 +96,18 @@ public sealed class DaemonHost
         catch (Exception ex)
         {
             Log($"Process.Start failed: {ex.Message}");
+            Failure = $"The daemon could not start: {ex.Message}";
             return;
         }
         Log($"Started daemon pid={_process?.Id}");
         if (_process is { } process)
         {
             process.EnableRaisingEvents = true;
-            process.Exited += (_, _) => Log($"Daemon exited code={process.ExitCode}");
+            process.Exited += (_, _) =>
+            {
+                Log($"Daemon exited code={process.ExitCode}");
+                if (!_stopping) Failure = $"The daemon exited with code {process.ExitCode}.";
+            };
         }
     }
 
@@ -105,6 +116,7 @@ public sealed class DaemonHost
     {
         // Without a bundled daemon, whatever answers on the socket is not this app's to stop.
         if (IsExternal || !IsInstalled) return;
+        _stopping = true;
         using var timeout = new CancellationTokenSource(TimeSpan.FromSeconds(3));
         try
         {

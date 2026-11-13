@@ -246,7 +246,9 @@ public sealed class AppViewModel : Observable
         {
             Status = _host.IsInstalled || _host.IsExternal ? ServerStatus.Offline : ServerStatus.NotInstalled;
             (StatusText, StatusDetail) = Status == ServerStatus.Offline
-                ? ("Daemon offline", "The bundled daemon is not responding. Start it to bring the proxy up.")
+                ? ("Daemon offline", _host.Failure.Length > 0
+                    ? $"{_host.Failure} Details are in %LOCALAPPDATA%\\DroidProxy\\host.log."
+                    : "The bundled daemon is not responding. Start it to bring the proxy up.")
                 : ("Daemon not installed", "No daemon bundle found next to the app (daemon\\bin\\droidproxy.exe).");
             // Keep the view models so open cards and unsaved drafts survive until the daemon is back.
             return;
@@ -312,7 +314,7 @@ public sealed class AppViewModel : Observable
             var result = await _client.CallAsync(method, parameters);
             ok = result.Ok;
             if (ok) ClearMessage();
-            else ShowError(result.Error);
+            else ShowError(result.Error.Length > 0 ? result.Error : $"The daemon could not run {method}.");
         }
         catch (DaemonClient.OfflineException)
         {
