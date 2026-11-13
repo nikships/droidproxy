@@ -43,6 +43,8 @@ public partial class App : Application
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
         _window = new MainWindow();
+        var dispatcher = _window.DispatcherQueue;
+        StateChanged += state => dispatcher.TryEnqueue(() => UpdateTrayIcon(state?.ServerRunning == true));
         Host.Start();
         _watchCts = new CancellationTokenSource();
         _ = WatchLoopAsync(_watchCts.Token);
@@ -153,10 +155,24 @@ public partial class App : Application
         _tray = new TaskbarIcon
         {
             ToolTipText = "DroidProxy",
-            IconSource = new BitmapImage(new Uri("ms-appx:///Assets/AppIcon.ico")),
             ContextFlyout = menu,
             DoubleClickCommand = new RelayCommand(ShowMainWindow),
         };
+        UpdateTrayIcon(running: false);
         _tray.ForceCreate();
+    }
+
+    private string? _trayIconName;
+
+    private void UpdateTrayIcon(bool running)
+    {
+        if (_tray is null) return;
+        // The glyph is monochrome, so it follows the taskbar theme rather than the app theme.
+        using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
+        var taskbar = key?.GetValue("SystemUsesLightTheme") is 1 ? "light" : "dark";
+        var name = $"tray-{taskbar}-{(running ? "active" : "inactive")}.ico";
+        if (name == _trayIconName) return;
+        _trayIconName = name;
+        _tray.IconSource = new BitmapImage(new Uri($"ms-appx:///Assets/Tray/{name}"));
     }
 }
