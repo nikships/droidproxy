@@ -381,6 +381,9 @@ public sealed class ProviderViewModel : Observable, IKeyed
     public string Name { get; private set => Set(ref field, value); } = "";
     public string Summary { get; private set => Set(ref field, value); } = "";
     public ImageSource? Icon { get; private set => Set(ref field, value); }
+    public bool HasIcon { get; private set => Set(ref field, value); }
+    public bool HasInitial { get; private set => Set(ref field, value); }
+    public string Initial { get; private set => Set(ref field, value); } = "";
     public SolidColorBrush Brush { get; private set => Set(ref field, value); } = new();
     public SolidColorBrush TileBrush { get; private set => Set(ref field, value); } = new();
     public bool IsJunie { get; private set => Set(ref field, value); }
@@ -397,11 +400,18 @@ public sealed class ProviderViewModel : Observable, IKeyed
     internal void Sync(DaemonState.ProviderInfo p, DaemonState s)
     {
         Name = p.Name;
+        Initial = p.Name.Length > 0 ? p.Name[..1] : "?";
         if (_iconName != p.Icon)
         {
+            // The daemon sends a file name from the Mac app's resources; the Windows copies ship in Assets\Providers.
             _iconName = p.Icon;
+            var bundled = p.Icon.Length > 0 && File.Exists(Path.Combine(AppContext.BaseDirectory, "Assets", "Providers", p.Icon));
             var uri = new Uri($"ms-appx:///Assets/Providers/{p.Icon}");
-            Icon = p.Icon.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? new SvgImageSource(uri) : new BitmapImage(uri);
+            Icon = !bundled ? null
+                : p.Icon.EndsWith(".svg", StringComparison.OrdinalIgnoreCase) ? new SvgImageSource(uri)
+                : new BitmapImage(uri);
+            HasIcon = Icon is not null;
+            HasInitial = !HasIcon;
         }
         var color = AppViewModel.ParseColor(p.Color);
         if (Brush.Color != color)

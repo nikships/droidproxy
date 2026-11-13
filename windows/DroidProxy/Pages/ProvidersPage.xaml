@@ -19,9 +19,12 @@
                         <tk:SettingsExpander ItemsSource="{x:Bind Accounts}">
                             <tk:SettingsExpander.Header>
                                 <StackPanel Orientation="Horizontal" Spacing="16">
-                                    <Border Width="36" Height="36" CornerRadius="{ThemeResource ControlCornerRadius}" Background="{x:Bind TileBrush, Mode=OneWay}">
-                                        <Image Width="20" Height="20" Source="{x:Bind Icon, Mode=OneWay}" />
-                                    </Border>
+                                    <Grid Width="36" Height="36" CornerRadius="{ThemeResource ControlCornerRadius}" Background="{x:Bind TileBrush, Mode=OneWay}">
+                                        <Image Width="20" Height="20" Source="{x:Bind Icon, Mode=OneWay}" Visibility="{x:Bind HasIcon, Mode=OneWay}" />
+                                        <TextBlock Text="{x:Bind Initial, Mode=OneWay}" Visibility="{x:Bind HasInitial, Mode=OneWay}"
+                                                   HorizontalAlignment="Center" VerticalAlignment="Center"
+                                                   Style="{StaticResource BodyStrongTextBlockStyle}" Foreground="{x:Bind Brush, Mode=OneWay}" />
+                                    </Grid>
                                     <StackPanel VerticalAlignment="Center">
                                         <TextBlock Text="{x:Bind Name, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
                                         <TextBlock Text="{x:Bind Summary, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
