@@ -125,20 +125,23 @@ public sealed record DaemonState(
     bool ServerRunning,
     bool ServerStarting,
     int ProxyPort,
+    string ServerUrl,
+    string DashboardUrl,
     string LastError,
-    string Version,
-    string UpdateState,
-    string LatestVersion,
+    DaemonState.AppInfo App,
     bool FactoryInstalled,
     string AuthDir,
     string LogsDir,
     IReadOnlyList<DaemonState.ProviderInfo> Providers,
     IReadOnlyList<DaemonState.UsageInfo> Usage,
-    DaemonState.SettingsInfo Settings,
-    DaemonState.SignInInfo SignIn)
+    DaemonState.SettingsInfo Settings)
 {
+    public sealed record AppInfo(string Version, string CliProxyApiVersion, string RepoUrl, string IssuesUrl);
+
+    /// <summary>DeviceCode and DeviceUrl carry a pending device-code sign-in (Grok, Meta).</summary>
     public sealed record ProviderInfo(
-        string Id, string Name, string Kind, bool Enabled, bool PrimerApplies, bool Authenticating,
+        string Id, string Name, string Icon, string Color, string Kind,
+        bool Enabled, bool PrimerApplies, bool Authenticating, string DeviceCode, string DeviceUrl,
         IReadOnlyList<AccountInfo> Accounts, IReadOnlyList<ModelInfo> Models);
 
     public sealed record AccountInfo(string Id, string DisplayName, bool Expired, bool Disabled);
@@ -151,17 +154,7 @@ public sealed record DaemonState(
 
     public sealed record WindowInfo(string Title, double? RemainingPercent, string ResetText);
 
-    public sealed record SettingsInfo(
-        IReadOnlyDictionary<string, bool> Flags,
-        IReadOnlyDictionary<string, int> Ints,
-        string SecretKey, string BindAddress);
-
-    public sealed record SignInInfo(
-        string GrokCode, string GrokUrl, string MetaCode, string MetaUrl,
-        string CopilotCode, string CopilotUrl)
-    {
-        public bool Any => GrokCode.Length + MetaCode.Length + CopilotCode.Length > 0;
-    }
+    public sealed record SettingsInfo(IReadOnlyDictionary<string, bool> Flags, string SecretKey, string BindAddress);
 
     public static DaemonState Parse(string json)
     {
@@ -169,7 +162,8 @@ public sealed record DaemonState(
         var root = doc.RootElement;
         var server = root.TryGetProperty("server", out var s) ? s : default;
         var app = root.TryGetProperty("app", out var a) ? a : default;
-        var update = root.TryGetProperty("update", out var u) ? u : default;
+        var grok = root.TryGetProperty("grok", out var g) ? g : default;
+        var meta = root.TryGetProperty("meta", out var mt) ? mt : default;
         var factory = root.TryGetProperty("factory", out var f) ? f : default;
         var paths = root.TryGetProperty("paths", out var pa) ? pa : default;
 
@@ -198,9 +192,16 @@ public sealed record DaemonState(
                             GetBool(m, "enabled"), GetBool(m, "installed")));
                     }
                 }
+                var id = GetString(p, "id");
+                var (code, url) = id switch
+                {
+                    "grok" => (GetString(grok, "userCode"), GetString(grok, "verificationUrl")),
+                    "meta" => (GetString(meta, "deviceCode"), GetString(meta, "verificationUrl")),
+                    _ => ("", ""),
+                };
                 providers.Add(new ProviderInfo(
-                    GetString(p, "id"), GetString(p, "name"), GetString(p, "kind"),
-                    GetBool(p, "enabled"), GetBool(p, "primerApplies"), GetBool(p, "authenticating"),
+                    id, GetString(p, "name"), GetString(p, "icon"), GetString(p, "color"), GetString(p, "kind"),
+                    GetBool(p, "enabled"), GetBool(p, "primerApplies"), GetBool(p, "authenticating"), code, url,
                     accounts, models));
             }
         }
@@ -236,42 +237,29 @@ public sealed record DaemonState(
         }
 
         var flags = new Dictionary<string, bool>();
-        var ints = new Dictionary<string, int>();
         var secretKey = "";
         var bindAddress = "";
         if (root.TryGetProperty("settings", out var st) && st.ValueKind == JsonValueKind.Object)
         {
             foreach (var prop in st.EnumerateObject())
             {
-                switch (prop.Value.ValueKind)
-                {
-                    case JsonValueKind.True: flags[prop.Name] = true; break;
-                    case JsonValueKind.False: flags[prop.Name] = false; break;
-                    case JsonValueKind.Number when prop.Value.TryGetInt32(out var n): ints[prop.Name] = n; break;
-                }
+                if (prop.Value.ValueKind is JsonValueKind.True or JsonValueKind.False)
+                    flags[prop.Name] = prop.Value.GetBoolean();
             }
             secretKey = GetString(st, "secretKey");
             bindAddress = GetString(st, "bindAddress");
         }
 
-        var grok = root.TryGetProperty("grok", out var g) ? g : default;
-        var meta = root.TryGetProperty("meta", out var m2) ? m2 : default;
-        var copilot = root.TryGetProperty("copilot", out var c) ? c : default;
-        var signIn = new SignInInfo(
-            GetString(grok, "userCode"), GetString(grok, "verificationUrl"),
-            GetString(meta, "deviceCode"), GetString(meta, "verificationUrl"),
-            GetString(copilot, "deviceCode"), GetString(copilot, "verificationUrl"));
-
         return new DaemonState(
-            GetBool(server, "running"), GetBool(server, "starting"),
-            GetInt(server, "proxyPort"), GetString(server, "lastError"),
-            GetString(app, "version"),
-            GetString(update, "state"), GetString(update, "latestVersion"),
+            GetBool(server, "running"), GetBool(server, "starting"), GetInt(server, "proxyPort"),
+            GetString(server, "url"), GetString(server, "dashboardUrl"), GetString(server, "lastError"),
+            new AppInfo(
+                GetString(app, "version"), GetString(app, "cliProxyApiVersion"),
+                GetString(app, "repoUrl"), GetString(app, "issuesUrl")),
             GetBool(factory, "modelsInstalled"),
             GetString(paths, "authDir"), GetString(paths, "logsDir"),
             providers, usage,
-            new SettingsInfo(flags, ints, secretKey, bindAddress),
-            signIn);
+            new SettingsInfo(flags, secretKey, bindAddress));
     }
 
     private static string GetString(JsonElement el, string name) =>

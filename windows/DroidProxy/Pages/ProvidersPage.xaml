@@ -1,0 +1,107 @@
+<?xml version="1.0" encoding="utf-8" ?>
+<Page
+    x:Class="DroidProxy.ProvidersPage"
+    xmlns="http://schemas.microsoft.com/winfx/2006/xaml/presentation"
+    xmlns:x="http://schemas.microsoft.com/winfx/2006/xaml"
+    xmlns:local="using:DroidProxy"
+    xmlns:tk="using:CommunityToolkit.WinUI.Controls">
+    <ScrollViewer>
+        <StackPanel Style="{StaticResource PageStackStyle}">
+            <TextBlock Text="Providers" Style="{StaticResource PageTitleStyle}" Margin="0,0,0,4" />
+            <TextBlock Margin="0,0,0,20" Foreground="{ThemeResource TextFillColorSecondaryBrush}" TextWrapping="Wrap"
+                       Text="Each provider routes Factory requests through your existing subscription. Changes apply live." />
+            <ItemsRepeater ItemsSource="{x:Bind Vm.Providers}">
+                <ItemsRepeater.Layout>
+                    <StackLayout Spacing="4" />
+                </ItemsRepeater.Layout>
+                <ItemsRepeater.ItemTemplate>
+                    <DataTemplate x:DataType="local:ProviderViewModel">
+                        <tk:SettingsExpander ItemsSource="{x:Bind Accounts}">
+                            <tk:SettingsExpander.Header>
+                                <StackPanel Orientation="Horizontal" Spacing="16">
+                                    <Border Width="36" Height="36" CornerRadius="{ThemeResource ControlCornerRadius}" Background="{x:Bind TileBrush, Mode=OneWay}">
+                                        <Image Width="20" Height="20" Source="{x:Bind Icon, Mode=OneWay}" />
+                                    </Border>
+                                    <StackPanel VerticalAlignment="Center">
+                                        <TextBlock Text="{x:Bind Name, Mode=OneWay}" Style="{StaticResource BodyStrongTextBlockStyle}" />
+                                        <TextBlock Text="{x:Bind Summary, Mode=OneWay}" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" />
+                                    </StackPanel>
+                                </StackPanel>
+                            </tk:SettingsExpander.Header>
+                            <StackPanel Orientation="Horizontal" Spacing="12">
+                                <Button Content="{x:Bind ActionLabel, Mode=OneWay}" Visibility="{x:Bind HasAction, Mode=OneWay}" Click="{x:Bind Act}" />
+                                <ToggleSwitch IsOn="{x:Bind Enabled.IsOn, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0"
+                                              AutomationProperties.Name="{x:Bind Name, Mode=OneWay}" />
+                            </StackPanel>
+                            <tk:SettingsExpander.ItemTemplate>
+                                <DataTemplate x:DataType="local:AccountViewModel">
+                                    <tk:SettingsCard Header="{x:Bind Name, Mode=OneWay}" Description="{x:Bind Detail, Mode=OneWay}">
+                                        <StackPanel Orientation="Horizontal" Spacing="4">
+                                            <ToggleSwitch IsOn="{x:Bind Enabled.IsOn, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0"
+                                                          AutomationProperties.Name="{x:Bind Name, Mode=OneWay}" />
+                                            <Button Style="{StaticResource SubtleButtonStyle}" AutomationProperties.Name="Account options">
+                                                <FontIcon Glyph="&#xE712;" FontSize="14" />
+                                                <Button.Flyout>
+                                                    <MenuFlyout>
+                                                        <MenuFlyoutItem Text="Remove account" Click="{x:Bind Remove}" />
+                                                    </MenuFlyout>
+                                                </Button.Flyout>
+                                            </Button>
+                                        </StackPanel>
+                                    </tk:SettingsCard>
+                                </DataTemplate>
+                            </tk:SettingsExpander.ItemTemplate>
+                            <tk:SettingsExpander.ItemsFooter>
+                                <StackPanel Padding="58,12,16,16" Spacing="16" BorderThickness="0,1,0,0" BorderBrush="{ThemeResource CardStrokeColorDefaultBrush}">
+                                    <InfoBar Title="Sign-in code" IsClosable="False" Severity="Informational" IsOpen="{x:Bind HasDeviceCode, Mode=OneWay}">
+                                        <InfoBar.Content>
+                                            <StackPanel Orientation="Horizontal" Spacing="12" Margin="0,0,0,12">
+                                                <TextBlock Text="{x:Bind DeviceCode, Mode=OneWay}" FontFamily="{StaticResource MonoFont}" FontSize="20"
+                                                           IsTextSelectionEnabled="True" VerticalAlignment="Center" />
+                                                <Button Content="Copy" Click="{x:Bind CopyCode}" />
+                                                <Button Content="Open sign-in page" Click="{x:Bind OpenSignIn}" />
+                                            </StackPanel>
+                                        </InfoBar.Content>
+                                    </InfoBar>
+                                    <StackPanel Orientation="Horizontal" Spacing="8" Visibility="{x:Bind IsJunie, Mode=OneWay}">
+                                        <PasswordBox Width="320" PlaceholderText="JetBrains Junie API key" Password="{x:Bind ApiKeyDraft, Mode=TwoWay}" />
+                                        <Button Content="Save key" Click="{x:Bind SaveKey}" />
+                                    </StackPanel>
+                                    <StackPanel Spacing="8" Visibility="{x:Bind HasModels, Mode=OneWay}">
+                                        <TextBlock Text="MODELS IN FACTORY" Style="{StaticResource CaptionTextBlockStyle}"
+                                                   Foreground="{ThemeResource TextFillColorSecondaryBrush}" CharacterSpacing="40" />
+                                        <ItemsRepeater ItemsSource="{x:Bind Models}">
+                                            <ItemsRepeater.Layout>
+                                                <UniformGridLayout MinItemWidth="200" MinColumnSpacing="8" MinRowSpacing="8" ItemsStretch="Fill" />
+                                            </ItemsRepeater.Layout>
+                                            <ItemsRepeater.ItemTemplate>
+                                                <DataTemplate x:DataType="local:Toggle">
+                                                    <CheckBox Content="{x:Bind Label}" IsChecked="{x:Bind IsOn, Mode=TwoWay}" />
+                                                </DataTemplate>
+                                            </ItemsRepeater.ItemTemplate>
+                                        </ItemsRepeater>
+                                    </StackPanel>
+                                    <ItemsRepeater ItemsSource="{x:Bind Options}" Visibility="{x:Bind HasOptions, Mode=OneWay}">
+                                        <ItemsRepeater.Layout>
+                                            <StackLayout Spacing="8" />
+                                        </ItemsRepeater.Layout>
+                                        <ItemsRepeater.ItemTemplate>
+                                            <DataTemplate x:DataType="local:Toggle">
+                                                <Grid>
+                                                    <TextBlock Text="{x:Bind Label}" VerticalAlignment="Center" />
+                                                    <ToggleSwitch HorizontalAlignment="Right" IsOn="{x:Bind IsOn, Mode=TwoWay}" OnContent="" OffContent="" MinWidth="0"
+                                                                  AutomationProperties.Name="{x:Bind Label}" />
+                                                </Grid>
+                                            </DataTemplate>
+                                        </ItemsRepeater.ItemTemplate>
+                                    </ItemsRepeater>
+                                </StackPanel>
+                            </tk:SettingsExpander.ItemsFooter>
+                        </tk:SettingsExpander>
+                    </DataTemplate>
+                </ItemsRepeater.ItemTemplate>
+            </ItemsRepeater>
+        </StackPanel>
+    </ScrollViewer>
+</Page>

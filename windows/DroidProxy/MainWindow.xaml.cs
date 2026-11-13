@@ -1,15 +1,11 @@
+using System.Runtime.InteropServices;
+using Microsoft.UI.Windowing;
 using Microsoft.UI.Xaml;
-
-// To learn more about WinUI, the WinUI project structure,
-// and more about our project templates, see: http://aka.ms/winui-project-info.
+using Microsoft.UI.Xaml.Controls;
+using Windows.Graphics;
 
 namespace DroidProxy;
 
-/// <summary>
-/// The application window. This hosts a Frame that displays pages. Add your
-/// UI and logic to MainPage.xaml / MainPage.xaml.cs instead of here so you
-/// can use Page features such as navigation events and the Loaded lifecycle.
-/// </summary>
 public sealed partial class MainWindow : Window
 {
     public MainWindow()
@@ -18,8 +14,20 @@ public sealed partial class MainWindow : Window
 
         ExtendsContentIntoTitleBar = true;
         SetTitleBar(AppTitleBar);
-
+        // The app is always dark, so the system caption buttons must be drawn for a dark surface.
+        AppWindow.TitleBar.PreferredTheme = TitleBarTheme.Dark;
         AppWindow.SetIcon("Assets/AppIcon.ico");
+
+        var scale = GetDpiForWindow(WinRT.Interop.WindowNative.GetWindowHandle(this)) / 96.0;
+        var work = DisplayArea.GetFromWindowId(AppWindow.Id, DisplayAreaFallback.Primary).WorkArea;
+        var size = new SizeInt32(Math.Min((int)(1000 * scale), work.Width), Math.Min((int)(720 * scale), work.Height));
+        AppWindow.MoveAndResize(new RectInt32(
+            work.X + (work.Width - size.Width) / 2, work.Y + (work.Height - size.Height) / 2, size.Width, size.Height));
+        if (AppWindow.Presenter is OverlappedPresenter presenter)
+        {
+            presenter.PreferredMinimumWidth = (int)(760 * scale);
+            presenter.PreferredMinimumHeight = (int)(560 * scale);
+        }
 
         // Closing the window hides to the tray; Quit lives in the tray menu.
         AppWindow.Closing += (_, args) =>
@@ -29,7 +37,24 @@ public sealed partial class MainWindow : Window
             AppWindow.Hide();
         };
 
-        // Navigate the root frame to the main page on startup.
-        RootFrame.Navigate(typeof(MainPage));
+        Nav.SelectedItem = Nav.MenuItems[0];
     }
+
+    public AppViewModel Vm => App.Current.ViewModel;
+
+    private void OnNavigate(NavigationView sender, NavigationViewSelectionChangedEventArgs args)
+    {
+        var page = (args.SelectedItem as NavigationViewItem)?.Tag switch
+        {
+            "providers" => typeof(ProvidersPage),
+            "network" => typeof(NetworkPage),
+            "advanced" => typeof(AdvancedPage),
+            "about" => typeof(AboutPage),
+            _ => typeof(OverviewPage),
+        };
+        ContentFrame.Navigate(page);
+    }
+
+    [DllImport("user32.dll")]
+    private static extern uint GetDpiForWindow(nint hwnd);
 }

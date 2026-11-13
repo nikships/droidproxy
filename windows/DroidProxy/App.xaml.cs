@@ -2,6 +2,7 @@ using System.Windows.Input;
 using DroidProxy.Daemon;
 using Microsoft.Win32;
 using H.NotifyIcon;
+using Microsoft.UI.Dispatching;
 using Microsoft.UI.Xaml;
 using Microsoft.UI.Xaml.Controls;
 using Microsoft.UI.Xaml.Media.Imaging;
@@ -9,8 +10,9 @@ using Microsoft.UI.Xaml.Media.Imaging;
 namespace DroidProxy;
 
 /// <summary>
-/// Owns the daemon process, the control-API client, and the tray icon.
-/// The window is a view on the daemon state streamed from /v1/events.
+/// Owns the daemon process, the control-API client, the view model and the
+/// tray icon. Snapshots streamed from /v1/events are applied to the view
+/// model on the UI thread; every window and the tray bind to it.
 /// </summary>
 public partial class App : Application
 {
@@ -23,6 +25,9 @@ public partial class App : Application
 
     private Window? _window;
     private TaskbarIcon? _tray;
+    private MenuFlyoutItem? _trayStatus;
+    private MenuFlyoutItem? _trayStartStop;
+    private string? _trayIconName;
     private CancellationTokenSource? _watchCts;
 
     public App()
@@ -30,24 +35,19 @@ public partial class App : Application
         InitializeComponent();
         Host = new DaemonHost();
         Client = new DaemonClient(Host.SocketPath);
+        ViewModel = new AppViewModel(Host, Client);
     }
 
     public static new App Current => (App)Application.Current;
     public DaemonHost Host { get; }
     public DaemonClient Client { get; }
+    public AppViewModel ViewModel { get; }
     public bool IsQuitting { get; private set; }
-
-    /// <summary>Raised on a background thread; null means the daemon is offline.</summary>
-    public event Action<DaemonState?>? StateChanged;
 
     protected override void OnLaunched(Microsoft.UI.Xaml.LaunchActivatedEventArgs args)
     {
         _window = new MainWindow();
-        var dispatcher = _window.DispatcherQueue;
-        StateChanged += state => dispatcher.TryEnqueue(() => UpdateTrayIcon(state?.ServerRunning == true));
         Host.Start();
-        _watchCts = new CancellationTokenSource();
-        _ = WatchLoopAsync(_watchCts.Token);
         try
         {
             CreateTrayIcon();
@@ -57,6 +57,13 @@ public partial class App : Application
             // No shell notification area (e.g. a non-interactive session):
             // the window still works without the tray icon.
         }
+        ViewModel.PropertyChanged += (_, e) =>
+        {
+            if (e.PropertyName is nameof(AppViewModel.Status) or nameof(AppViewModel.StatusText)) UpdateTray();
+        };
+        _watchCts = new CancellationTokenSource();
+        _ = WatchLoopAsync(_window.DispatcherQueue, _watchCts.Token);
+        _ = ViewModel.RefreshAsync();
         _window.Activate();
     }
 
@@ -89,6 +96,21 @@ public partial class App : Application
         _window.Activate();
     }
 
+    public async Task<bool> ConfirmAsync(string title, string content, string primary)
+    {
+        if (_window?.Content.XamlRoot is not { } root) return false;
+        var dialog = new ContentDialog
+        {
+            Title = title,
+            Content = content,
+            PrimaryButtonText = primary,
+            CloseButtonText = "Cancel",
+            DefaultButton = ContentDialogButton.Close,
+            XamlRoot = root,
+        };
+        return await dialog.ShowAsync() == ContentDialogResult.Primary;
+    }
+
     public async Task QuitAsync()
     {
         IsQuitting = true;
@@ -98,21 +120,18 @@ public partial class App : Application
         Exit();
     }
 
-    private async Task WatchLoopAsync(CancellationToken cancellationToken)
+    private async Task WatchLoopAsync(DispatcherQueue ui, CancellationToken cancellationToken)
     {
+        void Publish(DaemonState? state) => ui.TryEnqueue(() => ViewModel.Apply(state));
         while (!cancellationToken.IsCancellationRequested)
         {
             try
             {
                 await Client.WatchAsync(state =>
                 {
-                    StateChanged?.Invoke(state);
+                    Publish(state);
                     return Task.CompletedTask;
                 }, cancellationToken);
-            }
-            catch (DaemonClient.OfflineException)
-            {
-                StateChanged?.Invoke(null);
             }
             catch (OperationCanceledException)
             {
@@ -120,7 +139,7 @@ public partial class App : Application
             }
             catch
             {
-                StateChanged?.Invoke(null);
+                Publish(null);
             }
             try
             {
@@ -135,42 +154,44 @@ public partial class App : Application
 
     private void CreateTrayIcon()
     {
-        var openItem = new MenuFlyoutItem { Text = "Open DroidProxy" };
-        openItem.Click += (_, _) => ShowMainWindow();
-        var toggleItem = new MenuFlyoutItem { Text = "Start/Stop Server" };
-        toggleItem.Click += async (_, _) =>
+        MenuFlyoutItem Item(string text, Action onClick)
         {
-            try { await Client.CallAsync("server.toggle"); }
-            catch (DaemonClient.OfflineException) { Host.Start(); }
-        };
-        var quitItem = new MenuFlyoutItem { Text = "Quit" };
-        quitItem.Click += async (_, _) => await QuitAsync();
-
+            var item = new MenuFlyoutItem { Text = text };
+            item.Click += (_, _) => onClick();
+            return item;
+        }
+        _trayStatus = new MenuFlyoutItem { IsEnabled = false };
+        _trayStartStop = Item("", ViewModel.StartStop);
         var menu = new MenuFlyout();
-        menu.Items.Add(openItem);
-        menu.Items.Add(toggleItem);
+        menu.Items.Add(_trayStatus);
         menu.Items.Add(new MenuFlyoutSeparator());
-        menu.Items.Add(quitItem);
+        menu.Items.Add(Item("Open DroidProxy", ShowMainWindow));
+        menu.Items.Add(_trayStartStop);
+        menu.Items.Add(Item("Copy server URL", ViewModel.CopyUrl));
+        menu.Items.Add(Item("Open dashboard", ViewModel.OpenDashboard));
+        menu.Items.Add(new MenuFlyoutSeparator());
+        menu.Items.Add(Item("Quit", async () => await QuitAsync()));
 
         _tray = new TaskbarIcon
         {
-            ToolTipText = "DroidProxy",
             ContextFlyout = menu,
             DoubleClickCommand = new RelayCommand(ShowMainWindow),
         };
-        UpdateTrayIcon(running: false);
+        UpdateTray();
         _tray.ForceCreate();
     }
 
-    private string? _trayIconName;
-
-    private void UpdateTrayIcon(bool running)
+    private void UpdateTray()
     {
         if (_tray is null) return;
+        var vm = ViewModel;
+        _trayStatus!.Text = $"Server: {vm.StatusText}";
+        _trayStartStop!.Text = vm.StartStopLabel;
+        _tray.ToolTipText = $"DroidProxy · {vm.StatusText}";
         // The glyph is monochrome, so it follows the taskbar theme rather than the app theme.
         using var key = Registry.CurrentUser.OpenSubKey(@"Software\Microsoft\Windows\CurrentVersion\Themes\Personalize");
         var taskbar = key?.GetValue("SystemUsesLightTheme") is 1 ? "light" : "dark";
-        var name = $"tray-{taskbar}-{(running ? "active" : "inactive")}.ico";
+        var name = $"tray-{taskbar}-{(vm.IsRunning ? "active" : "inactive")}.ico";
         if (name == _trayIconName) return;
         _trayIconName = name;
         _tray.IconSource = new BitmapImage(new Uri($"ms-appx:///Assets/Tray/{name}"));
