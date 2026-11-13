@@ -111,13 +111,13 @@ This writes the installer, update packages and `releases.win.json` to `DroidProx
 
 The daemon tree is a folder with three files:
 
-- `bin\droidproxy.exe`: the Go daemon from [droidproxy-omarchy](https://github.com/nikships/droidproxy-omarchy). Its `main` branch does not build for Windows yet; build `./cmd/droidproxy` with `GOOS=windows GOARCH=amd64` from the branch in [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13).
+- `bin\droidproxy.exe`: the Go daemon from [droidproxy-omarchy](https://github.com/nikships/droidproxy-omarchy). Build `./cmd/droidproxy` from its `main` branch with `GOOS=windows GOARCH=amd64`.
 - `libexec\cli-proxy-api.exe`: from the `windows_amd64` zip of the [CLIProxyAPI release](https://github.com/router-for-me/CLIProxyAPI/releases) named in that repo's `CLIPROXYAPI_VERSION`.
 - `share\config.yaml`: that repo's `packaging/config.yaml`.
 
 For UI work without a daemon or real accounts, run the fake daemon in [`windows/tools/`](windows/tools/README.md). [`windows/DroidProxy/AGENTS.md`](windows/DroidProxy/AGENTS.md) describes the layout.
 
-**Known limitations:** unsigned, x64 only so far. Starting a second copy exits quietly instead of focusing the first. **Cancel sign-in** needs the daemon from [droidproxy-omarchy#13](https://github.com/nikships/droidproxy-omarchy/pull/13), which stops the login helper on Windows; older daemon builds could not.
+**Known limitations:** unsigned, x64 only so far. Starting a second copy exits quietly instead of focusing the first.
 
 ## Project Structure
 

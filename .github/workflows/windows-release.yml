@@ -15,7 +15,7 @@ on:
         description: 'nikships/droidproxy-omarchy branch, tag or SHA to build the daemon from'
         required: true
         # Until droidproxy-omarchy#13 merges, main does not build for Windows.
-        default: feat/windows-daemon-build
+        default: main
         type: string
 
 permissions:
