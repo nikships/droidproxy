@@ -171,9 +171,8 @@ public partial class App : Application
     {
         MenuFlyoutItem Item(string text, Action onClick)
         {
-            var item = new MenuFlyoutItem { Text = text };
-            item.Click += (_, _) => onClick();
-            return item;
+            // H.NotifyIcon's default PopupMenu mode runs Command and ignores Click.
+            return new MenuFlyoutItem { Text = text, Command = new RelayCommand(onClick) };
         }
         _trayStatus = new MenuFlyoutItem { IsEnabled = false };
         _trayStartStop = Item("", ViewModel.StartStop);
