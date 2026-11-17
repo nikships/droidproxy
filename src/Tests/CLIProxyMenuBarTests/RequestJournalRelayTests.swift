@@ -76,6 +76,59 @@ final class RequestJournalRelayTests: XCTestCase {
         XCTAssertFalse(FileManager.default.fileExists(atPath: directory.appendingPathComponent("journal").path))
     }
 
+    func testGpt62FastModeUsesExistingOptInsAndPreservesReasoningAndBytes() throws {
+        let defaults = UserDefaults.standard
+        let keys = [AppPreferences.gpt6AstraFastModeKey, AppPreferences.gpt61SolFastModeKey]
+        let saved = keys.map { defaults.object(forKey: $0) }
+        defer {
+            for (key, value) in zip(keys, saved) {
+                if let value { defaults.set(value, forKey: key) }
+                else { defaults.removeObject(forKey: key) }
+            }
+        }
+        let cases: [(path: String, enabled: Bool, tier: String?, inject: Bool)] = [
+            ("/v1/responses", false, nil, false),
+            ("/v1/responses", true, nil, true),
+            ("/api/v1/responses?fixture=1", true, nil, true),
+            ("/v1/chat/completions", true, nil, false),
+            ("/v1/responses", true, "default", false),
+            ("/v1/responses", true, "ultrafast", false)
+        ]
+        for (model, key) in zip(["gpt-6.2-astra", "gpt-6.2-sol"], keys) {
+            for test in cases {
+                // Turn the other model's setting on to prove these remain independent.
+                for otherKey in keys { defaults.set(otherKey != key || test.enabled, forKey: otherKey) }
+                let upstream = try LoopbackSocket()
+                defer { upstream.close() }
+                let received = expectation(description: "\(model) \(test.path) \(test.enabled)")
+                var forwarded = ""
+                let response = Data("HTTP/1.1 200 OK\r\nContent-Length: 2\r\n\r\n{}".utf8)
+                upstream.serve { fd, data in
+                    forwarded = String(decoding: data, as: UTF8.self)
+                    LoopbackSocket.sendAll(response, fd: fd)
+                    received.fulfill()
+                }
+                let proxy = try startProxy(targetPort: upstream.port, journal: nil)
+                defer { proxy.stop() }
+                let fd = try LoopbackSocket.connect(port: proxy.proxyPort)
+                defer { Darwin.close(fd) }
+                let modelPair = #""model":"\#(model)""#
+                let tier = test.tier.map { #","service_tier":"\#($0)""# } ?? ""
+                let body = #"{"instructions":"synthetic fixture",\#(modelPair),"reasoning":{"effort":"max"},"input":[{"type":"reasoning","encrypted_content":"synthetic-state"},{"role":"user","content":"fixture"}]\#(tier)}"#
+                let request = "POST \(test.path) HTTP/1.1\r\nHost: localhost\r\nContent-Type: application/json\r\nContent-Length: \(body.utf8.count)\r\n\r\n\(body)"
+                LoopbackSocket.sendAll(Data(request.utf8), fd: fd)
+                XCTAssertEqual(LoopbackSocket.readToEOF(fd), response)
+                wait(for: [received], timeout: 3)
+                let expected = test.inject
+                    ? body.replacingOccurrences(of: modelPair, with: modelPair + #","service_tier":"priority""#)
+                    : body
+                XCTAssertTrue(forwarded.hasPrefix("POST \(test.path) HTTP/1.1\r\n"))
+                XCTAssertEqual(forwarded.components(separatedBy: "\r\n\r\n").last, expected)
+                XCTAssertTrue(forwarded.contains("Content-Length: \(expected.utf8.count)\r\n"))
+            }
+        }
+    }
+
     func testObservedStreamedAndNonStreamedExchanges() throws {
         for streamed in [false, true] {
             let auth = directory.appendingPathComponent("auth")

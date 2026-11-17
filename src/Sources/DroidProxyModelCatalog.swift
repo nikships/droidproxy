@@ -245,11 +245,12 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
 
-            // Context windows match CLIProxyAPI's Codex model registry.
+            // Keep the conservative Codex input cap for the 6.2 upgrades until
+            // CLIProxyAPI publishes their subscription-specific context limits.
             DroidProxyModelDefinition(
-                baseModel: "gpt-6-astra",
-                idSlug: "gpt-6-astra",
-                displayName: "GPT 6 Astra",
+                baseModel: "gpt-6.2-astra",
+                idSlug: "gpt-6.2-astra",
+                displayName: "GPT 6.2 Astra",
                 maxOutputTokens: 128000,
                 maxContextLimit: 272_000,
                 provider: "openai",
@@ -260,9 +261,9 @@ enum DroidProxyModelCatalog {
                 defaultLevelValue: "xhigh"
             ),
             DroidProxyModelDefinition(
-                baseModel: "gpt-6.1-sol",
-                idSlug: "gpt-6.1-sol",
-                displayName: "GPT 6.1 Sol",
+                baseModel: "gpt-6.2-sol",
+                idSlug: "gpt-6.2-sol",
+                displayName: "GPT 6.2 Sol",
                 maxOutputTokens: 128000,
                 maxContextLimit: 272_000,
                 provider: "openai",
