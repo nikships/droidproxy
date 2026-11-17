@@ -97,7 +97,8 @@ final class RequestJournalRelayTests: XCTestCase {
         for (model, key) in zip(["gpt-6.2-astra", "gpt-6.2-sol"], keys) {
             for test in cases {
                 // Turn the other model's setting on to prove these remain independent.
-                for otherKey in keys { defaults.set(otherKey != key || test.enabled, forKey: otherKey) }
+                defaults.set(test.enabled, forKey: key)
+                for otherKey in keys where otherKey != key { defaults.set(true, forKey: otherKey) }
                 let upstream = try LoopbackSocket()
                 defer { upstream.close() }
                 let received = expectation(description: "\(model) \(test.path) \(test.enabled)")
