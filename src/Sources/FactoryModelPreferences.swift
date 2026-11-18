@@ -42,6 +42,12 @@ enum FactoryModelPreferences {
     }
 
     private static func normalizedSlug(_ slug: String) -> String {
-        slug.trimmingCharacters(in: .whitespacesAndNewlines)
+        let trimmed = slug.trimmingCharacters(in: .whitespacesAndNewlines)
+        // A model-level opt-out follows the replacement, just like Fast Mode.
+        switch trimmed {
+        case "gpt-6-astra": return "gpt-6.2-astra"
+        case "gpt-6.1-sol": return "gpt-6.2-sol"
+        default: return trimmed
+        }
     }
 }

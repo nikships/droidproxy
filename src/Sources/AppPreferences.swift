@@ -1,6 +1,8 @@
 import Foundation
 
 enum AppPreferences {
+    // Keep the stored Astra/Sol keys stable across catalog upgrades so each
+    // model's existing opt-in follows its replacement.
     static let gpt6AstraFastModeKey = "gpt6AstraFastMode"
     static let gpt61SolFastModeKey = "gpt61SolFastMode"
     static let gpt61TerraFastModeKey = "gpt61TerraFastMode"

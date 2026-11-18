@@ -643,14 +643,14 @@ struct SettingsView: View {
                             }
                             if codexFastModeExpanded {
                                 codexFastModeToggleRow(
-                                    "GPT 6 Astra",
+                                    "GPT 6.2 Astra",
                                     isOn: $gpt6AstraFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 6 Astra Responses API requests (Codex fast mode)"
+                                    helpText: "Injects service_tier=priority for GPT 6.2 Astra Responses API requests (Codex fast mode)"
                                 )
                                 codexFastModeToggleRow(
-                                    "GPT 6.1 Sol",
+                                    "GPT 6.2 Sol",
                                     isOn: $gpt61SolFastMode,
-                                    helpText: "Injects service_tier=priority for GPT 6.1 Sol Responses API requests (Codex fast mode)"
+                                    helpText: "Injects service_tier=priority for GPT 6.2 Sol Responses API requests (Codex fast mode)"
                                 )
                                 codexFastModeToggleRow(
                                     "GPT 6.1 Terra",

@@ -105,12 +105,12 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
       "provider": "anthropic"
     },
     {
-      "model": "gpt-6.1-sol",
-      "id": "custom:droidproxy:gpt-6.1-sol",
+      "model": "gpt-6.2-sol",
+      "id": "custom:droidproxy:gpt-6.2-sol",
       "index": 3,
       "baseUrl": "http://localhost:8317/v1",
       "apiKey": "dummy-not-used",
-      "displayName": "DroidProxy: GPT 6.1 Sol",
+      "displayName": "DroidProxy: GPT 6.2 Sol",
       "maxOutputTokens": 128000,
       "maxContextLimit": 272000,
       "noImageSupport": false,
@@ -194,6 +194,13 @@ Open `~/.factory/settings.json` and add the following to the `customModels` arra
 
 Use the standard Claude, Codex, Gemini, and Kimi model aliases in the `model` field. Claude and Gemini entries use `http://localhost:8317` (with `provider: "anthropic"` and `provider: "google"` respectively); GPT/Codex and Kimi entries use `provider: "openai"` with `http://localhost:8317/v1`. Reasoning effort is chosen per session from Droid CLI's model selector. DroidProxy preserves that selection, and CLIProxyAPI translates it to the provider-native request format.
 
+GPT 6.2 Astra (`gpt-6.2-astra`) replaces GPT 6 Astra, and GPT 6.2 Sol
+(`gpt-6.2-sol`) replaces GPT 6.1 Sol. Re-apply Factory Models to replace the
+old entries; Terra and Luna stay unchanged. Existing Fast Mode choices and
+per-model opt-outs follow the replacements. Both upgrades retain the conservative
+272,000-token Codex input cap until CLIProxyAPI publishes subscription-specific
+limits, rather than assuming the public API's larger window.
+
 ## 3. Choose Reasoning Effort
 
 Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy registers each model with its native reasoning levels, preserves the selected value, and lets CLIProxyAPI translate it to the upstream provider format. Supported levels per model:
@@ -202,7 +209,7 @@ Reasoning effort is selected per session in Droid CLI's model picker. DroidProxy
 - Opus 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Haiku 5.5: `low`, `medium`, `high`, `xhigh`, or `max`
 - Sonnet 4.6: `low`, `medium`, `high`, or `max`
-- GPT 6 Astra, GPT 6.1 Sol, GPT 6.1 Terra, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
+- GPT 6.2 Astra, GPT 6.2 Sol, GPT 6.1 Terra, GPT 6 Luna: `low`, `medium`, `high`, `xhigh`, or `max`
 - Gemini 3 Flash: `minimal`, `low`, `medium`, or `high`
 - Kimi K3: `max` (the only currently supported effort)
 - Kimi K2.6: `high`

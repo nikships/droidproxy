@@ -135,10 +135,11 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(haikuDefinitions.map(\.providerKey), ["claude"])
     }
 
-    func testGpt61SolTerraAndLunaUseNativeModelMetadata() throws {
+    func testGpt62SolTerraAndLunaUseNativeModelMetadata() throws {
         XCTAssertNil(settingsEntry(id: "custom:droidproxy:gpt-6-sol"))
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:gpt-6.1-sol"))
 
-        for (slug, name) in [("gpt-6.1-sol", "GPT 6.1 Sol"), ("gpt-6.1-terra", "GPT 6.1 Terra"), ("gpt-6-luna", "GPT 6 Luna")] {
+        for (slug, name) in [("gpt-6.2-sol", "GPT 6.2 Sol"), ("gpt-6.1-terra", "GPT 6.1 Terra"), ("gpt-6-luna", "GPT 6 Luna")] {
             let entry = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:\(slug)"))
 
             XCTAssertEqual(entry["model"] as? String, slug)
@@ -158,26 +159,57 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         let ids = Set(DroidProxyModelCatalog.settingsModels { $0 == "codex" }
             .compactMap { $0["id"] as? String })
         XCTAssertEqual(ids, [
-            "custom:droidproxy:gpt-6-astra",
-            "custom:droidproxy:gpt-6.1-sol",
+            "custom:droidproxy:gpt-6.2-astra",
+            "custom:droidproxy:gpt-6.2-sol",
             "custom:droidproxy:gpt-6.1-terra",
             "custom:droidproxy:gpt-6-luna"
         ])
     }
 
-    func testGpt6AstraUsesNativeModelMetadata() throws {
-        let astra = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:gpt-6-astra"))
+    func testGpt62AstraReplacesGpt6AstraWithNativeModelMetadata() throws {
+        XCTAssertNil(settingsEntry(id: "custom:droidproxy:gpt-6-astra"))
+        let astra = try XCTUnwrap(settingsEntry(id: "custom:droidproxy:gpt-6.2-astra"))
 
-        XCTAssertEqual(astra["model"] as? String, "gpt-6-astra")
+        XCTAssertEqual(astra["model"] as? String, "gpt-6.2-astra")
         XCTAssertEqual(astra["provider"] as? String, "openai")
         XCTAssertEqual(astra["baseUrl"] as? String, "http://localhost:8317/v1")
-        XCTAssertEqual(astra["displayName"] as? String, "DroidProxy: GPT 6 Astra")
+        XCTAssertEqual(astra["displayName"] as? String, "DroidProxy: GPT 6.2 Astra")
         XCTAssertEqual(astra["maxOutputTokens"] as? Int, 128000)
         XCTAssertEqual(astra["maxContextLimit"] as? Int, 272_000)
         XCTAssertEqual(astra["enableThinking"] as? Bool, true)
         XCTAssertEqual(astra["reasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(astra["defaultReasoningEffort"] as? String, "xhigh")
         XCTAssertEqual(astra["supportedReasoningEfforts"] as? [String], ["low", "medium", "high", "xhigh", "max"])
+    }
+
+    func testReapplyReplacesOldAstraAndSolWithoutAddingCodexModels() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("settings.json")
+        let oldModels = ["gpt-6-astra", "gpt-6.1-sol", "gpt-6.1-terra", "gpt-6-luna"].map {
+            ["id": "custom:droidproxy:\($0)", "model": $0]
+        }
+        let otherModel = ["id": "custom:user-model", "model": "user-model", "apiKey": "synthetic-key"]
+        let original = try JSONSerialization.data(withJSONObject: [
+            "customModels": oldModels + [otherModel], "unrelated": "preserved"
+        ])
+        try original.write(to: url)
+        let expected = DroidProxyModelCatalog.settingsModels { $0 == "codex" }
+        let catalogIDs = DroidProxyModelCatalog.allSettingsIDs
+        XCTAssertTrue(FactoryModels.status(settingsAt: url, expected: expected, catalogIDs: catalogIDs).stale)
+
+        let result = try FactoryModels.apply(settingsAt: url, models: expected, catalogIDs: catalogIDs)
+        XCTAssertEqual(result.installed, 4)
+        XCTAssertEqual(try Data(contentsOf: XCTUnwrap(result.backup)), original)
+        let updated = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let models = try XCTUnwrap(updated["customModels"] as? [[String: Any]])
+        XCTAssertEqual(models.count, 5)
+        XCTAssertEqual(models.first as? [String: String], otherModel)
+        XCTAssertEqual(updated["unrelated"] as? String, "preserved")
+        XCTAssertEqual(models.dropFirst().compactMap { $0["model"] as? String },
+                       ["gpt-6.2-astra", "gpt-6.2-sol", "gpt-6.1-terra", "gpt-6-luna"])
+        XCTAssertTrue(FactoryModels.status(settingsAt: url, expected: expected, catalogIDs: catalogIDs).isApplied)
     }
 
     func testKimiK3UsesMaxReasoningMetadata() throws {

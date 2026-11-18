@@ -19,11 +19,11 @@ const codePlain = `// What Apply writes.
     "defaultReasoningEffort": "xhigh"
   },
   {
-    "model": "gpt-6-astra",
-    "id": "custom:droidproxy:gpt-6-astra",
+    "model": "gpt-6.2-astra",
+    "id": "custom:droidproxy:gpt-6.2-astra",
     "baseUrl": "http://localhost:8317/v1",
     "apiKey": "***",
-    "displayName": "DroidProxy: GPT 6 Astra",
+    "displayName": "DroidProxy: GPT 6.2 Astra",
     "maxOutputTokens": 128000,
     "maxContextLimit": 272000,
     "provider": "openai",
@@ -31,7 +31,7 @@ const codePlain = `// What Apply writes.
     "supportedReasoningEfforts": ["low", "medium", "high", "xhigh", "max"],
     "defaultReasoningEffort": "xhigh"
   }
-  // + Opus 5.5, Sonnet 5.5, Haiku 5.5, GPT 6.1 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …
+  // + Opus 5.5, Sonnet 5.5, Haiku 5.5, GPT 6.2 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …
 ]`
 
 const codeHtml = `<span class="c">// What Apply writes.</span>
@@ -50,11 +50,11 @@ const codeHtml = `<span class="c">// What Apply writes.</span>
     <span class="k">"defaultReasoningEffort"</span>: <span class="s">"xhigh"</span>
   },
   {
-    <span class="k">"model"</span>: <span class="s">"gpt-6-astra"</span>,
-    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:gpt-6-astra"</span>,
+    <span class="k">"model"</span>: <span class="s">"gpt-6.2-astra"</span>,
+    <span class="k">"id"</span>: <span class="s">"custom:droidproxy:gpt-6.2-astra"</span>,
     <span class="k">"baseUrl"</span>: <span class="s">"http://localhost:8317/v1"</span>,
     <span class="k">"apiKey"</span>: <span class="s">"***"</span>,
-    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: GPT 6 Astra"</span>,
+    <span class="k">"displayName"</span>: <span class="s">"DroidProxy: GPT 6.2 Astra"</span>,
     <span class="k">"maxOutputTokens"</span>: <span class="n">128000</span>,
     <span class="k">"maxContextLimit"</span>: <span class="n">272000</span>,
     <span class="k">"provider"</span>: <span class="s">"openai"</span>,
@@ -62,7 +62,7 @@ const codeHtml = `<span class="c">// What Apply writes.</span>
     <span class="k">"supportedReasoningEfforts"</span>: [<span class="s">"low"</span>, <span class="s">"medium"</span>, <span class="s">"high"</span>, <span class="s">"xhigh"</span>, <span class="s">"max"</span>],
     <span class="k">"defaultReasoningEffort"</span>: <span class="s">"xhigh"</span>
   }
-  <span class="c">// + Opus 5.5, Sonnet 5.5, Haiku 5.5, GPT 6.1 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …</span>
+  <span class="c">// + Opus 5.5, Sonnet 5.5, Haiku 5.5, GPT 6.2 Sol, GPT 6 Luna, Antigravity, Grok 4.7, Kimi K3, …</span>
 ]`
 
 export default function InstallSection() {
@@ -106,7 +106,7 @@ export default function InstallSection() {
               <span className="step-n">03</span>
               <div>
                 <h4>Click <em>Apply Factory Models</em></h4>
-                <p>{noOrphan('One click writes DroidProxy models into Factory. Restart Droid, pick Fable 5.2 or GPT 6 Astra, and your existing plan is billed.')}</p>
+                <p>{noOrphan('One click writes DroidProxy models into Factory. Restart Droid, pick Fable 5.2 or GPT 6.2 Astra, and your existing plan is billed.')}</p>
               </div>
             </div>
 

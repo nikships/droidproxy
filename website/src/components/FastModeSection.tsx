@@ -3,7 +3,7 @@ import { noOrphan } from '../typography'
 
 const fastModeCode = `<span class="c">// Fast Mode: one extra field on GPT Responses.</span>
 {
-  <span class="k">"model"</span>: <span class="s">"gpt-6-astra"</span>,
+  <span class="k">"model"</span>: <span class="s">"gpt-6.2-astra"</span>,
   <span class="k">"service_tier"</span>: <span class="s">"priority"</span>,
   <span class="k">"reasoning"</span>: { <span class="k">"effort"</span>: <span class="s">"high"</span> }
 }`
@@ -15,12 +15,12 @@ export default function FastModeSection() {
         <div>
           <Eyebrow index="04">Fast Mode</Eyebrow>
           <h2>A priority lane when you want the answer now.</h2>
-          <p>{noOrphan('Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy asks OpenAI for the priority service tier on GPT 6 Astra, 6.1 Sol, 6.1 Terra, and 6 Luna.')}</p>
+          <p>{noOrphan('Fast Mode is independent of reasoning effort. Droid still picks thinking. DroidProxy asks OpenAI for the priority service tier on GPT 6.2 Astra, 6.2 Sol, 6.1 Terra, and 6 Luna.')}</p>
           <dl className="spot-list">
             <dt>What it does</dt>
             <dd>Injects <span className="mono">service_tier: priority</span> on GPT Responses API calls</dd>
             <dt>Works with</dt>
-            <dd>{noOrphan('GPT 6 Astra, 6.1 Sol, 6.1 Terra, and 6 Luna — toggle each model from Settings')}</dd>
+            <dd>{noOrphan('GPT 6.2 Astra, 6.2 Sol, 6.1 Terra, and 6 Luna — toggle each model from Settings')}</dd>
             <dt>Reasoning</dt>
             <dd>{noOrphan('Left untouched. You still pick the thinking level per session inside Droid CLI')}</dd>
           </dl>
