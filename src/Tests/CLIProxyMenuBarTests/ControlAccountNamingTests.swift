@@ -16,6 +16,15 @@ final class ControlAccountNamingTests: XCTestCase {
         )
     }
 
+    func testMistralIsABrowserProviderNamedForTheControlAPI() {
+        XCTAssertEqual(ServiceType.mistral.rawValue, "mistral")
+        XCTAssertEqual(ServiceType.mistral.controlName, "Mistral")
+        XCTAssertEqual(ServiceType.mistral.connectKind, .browser)
+        XCTAssertNil(ServiceType.mistral.authCommand)
+        XCTAssertEqual(ServiceType(authFileType: "vibe"), .mistral)
+        XCTAssertEqual(ServiceType(rawValue: "mistral"), .mistral)
+    }
+
     func testAnIDNamesItsAccountEvenWhenTheEmailIsShared() {
         let personal = account("claude-a@b.com-1.json", email: "a@b.com")
         let team = account("claude-a@b.com-2.json", email: "a@b.com")

@@ -4,5 +4,6 @@ extension Notification.Name {
     static let serverStatusChanged = Notification.Name("ServerStatusChanged")
     static let authDirectoryChanged = Notification.Name("AuthDirectoryChanged")
     static let metaAccountsChanged = Notification.Name("MetaAccountsChanged")
+    static let mistralAccountsChanged = Notification.Name("MistralAccountsChanged")
     static let metaUsageChanged = Notification.Name("MetaUsageChanged")
 }

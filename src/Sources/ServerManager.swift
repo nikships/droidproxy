@@ -47,6 +47,7 @@ private struct RingBuffer<Element> {
 class ServerManager: ObservableObject {
     private var process: Process?
     private var metaAccountsObserver: AnyCancellable?
+    private var mistralAccountsObserver: AnyCancellable?
     @Published private(set) var isRunning = false
     private(set) var port = 8317
 
@@ -85,6 +86,11 @@ class ServerManager: ObservableObject {
             enabledProviders = saved
         }
         metaAccountsObserver = NotificationCenter.default.publisher(for: .metaAccountsChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                _ = self?.getConfigPath()
+            }
+        mistralAccountsObserver = NotificationCenter.default.publisher(for: .mistralAccountsChanged)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 _ = self?.getConfigPath()
@@ -487,12 +493,19 @@ class ServerManager: ObservableObject {
             }
         }
 
-        // Completions still go through this compatibility block (and its
-        // account failover). Responses are TLS-forwarded by ThinkingProxy —
-        // CLIProxyAPI would otherwise rewrite them into `/chat/completions`.
-        configContent += MetaMuseCredentialStore.compatibilityConfig(
-            accounts: MetaMuseCredentialStore.shared.accounts,
-            enabled: isProviderEnabled(.meta)
+        // One shared `openai-compatibility:` block: the backend rejects a repeated key.
+        configContent += OpenAICompatibilityConfig.render([
+            MetaMuseCredentialStore.compatibilityEntry(
+                accounts: MetaMuseCredentialStore.shared.accounts,
+                enabled: isProviderEnabled(.meta)
+            ),
+            MistralCredentialStore.shared.compatibilityEntry(enabled: isProviderEnabled(.mistral))
+        ].compactMap { $0 })
+
+        // The only writer of the top-level `payload:` key; see `payloadFilterConfig`.
+        configContent += MistralCredentialStore.payloadFilterConfig(
+            accounts: MistralCredentialStore.shared.accounts,
+            enabled: isProviderEnabled(.mistral)
         )
 
         let mergedConfigPath = authDir.appendingPathComponent("merged-config.yaml")

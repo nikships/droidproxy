@@ -9,6 +9,7 @@ enum ControlUsage {
         grok: [AuthAccount],
         meta: [AuthAccount],
         antigravity: [AuthAccount] = [],
+        mistral: [AuthAccount] = [],
         now: Date
     ) async -> [OAuthAccountUsage] {
         var usages = await OAuthUsageTracker.fetchUsage(
@@ -16,7 +17,8 @@ enum ControlUsage {
             claude: claude,
             grok: grok,
             meta: [],
-            antigravity: antigravity
+            antigravity: antigravity,
+            mistral: mistral
         )
         usages += meta.map(OAuthUsageTracker.storedMetaUsage(for:))
         return usages
@@ -133,6 +135,7 @@ extension ProviderController: ControlBackend {
             grok: (enabled[.grok] ?? true) ? activeGrok : [],
             meta: (enabled[.meta] ?? true) ? (accounts[.meta] ?? []).filter { !$0.isDisabled } : [],
             antigravity: live(.antigravity),
+            mistral: live(.mistral),
             now: now
         )
 

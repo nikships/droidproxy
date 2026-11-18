@@ -9,6 +9,7 @@ enum ServiceType: String, CaseIterable, Codable {
     case grok
     case copilot
     case meta
+    case mistral
 
     init?(authFileType: String) {
         switch authFileType.lowercased() {
@@ -28,6 +29,8 @@ enum ServiceType: String, CaseIterable, Codable {
             self = .copilot
         case "meta", "muse":
             self = .meta
+        case "mistral", "vibe":
+            self = .mistral
         default:
             return nil
         }
@@ -43,6 +46,7 @@ enum ServiceType: String, CaseIterable, Codable {
         case .grok: return "Grok"
         case .copilot: return "GitHub Copilot"
         case .meta: return "Meta Muse"
+        case .mistral: return "Mistral"
         }
     }
 }
@@ -130,6 +134,7 @@ class AuthManager: ObservableObject {
         var accounts = scanAccounts()
         let publish = {
             accounts[.meta]?.accounts = MetaMuseCredentialStore.shared.authAccounts
+            accounts[.mistral]?.accounts = MistralCredentialStore.shared.authAccounts
             self.serviceAccounts = accounts
         }
         if Thread.isMainThread {
@@ -145,6 +150,7 @@ class AuthManager: ObservableObject {
     func loadAccountsSnapshot() -> [ServiceType: [AuthAccount]] {
         var accounts = scanAccounts().mapValues(\.accounts)
         accounts[.meta] = MetaMuseCredentialStore.shared.authAccounts
+        accounts[.mistral] = MistralCredentialStore.shared.authAccounts
         return accounts
     }
 
@@ -163,7 +169,7 @@ class AuthManager: ObservableObject {
         for file in files where file.pathExtension == "json" {
             NSLog("[AuthStatus] Checking file: %@", file.lastPathComponent)
             guard let account = parseAccount(from: file) else { continue }
-            if account.type == .meta { continue }
+            if account.type == .meta || account.type == .mistral { continue }
             newAccounts[account.type]?.accounts.append(account)
             NSLog("[AuthStatus] Found %@ auth: %@", account.type.displayName, account.displayName)
         }
@@ -175,6 +181,11 @@ class AuthManager: ObservableObject {
     func toggleAccountDisabled(_ account: AuthAccount) -> Bool {
         if account.type == .meta {
             let updated = MetaMuseCredentialStore.shared.toggleDisabled(id: account.id)
+            if updated { checkAuthStatus() }
+            return updated
+        }
+        if account.type == .mistral {
+            let updated = MistralCredentialStore.shared.toggleDisabled(id: account.id)
             if updated { checkAuthStatus() }
             return updated
         }
@@ -208,6 +219,11 @@ class AuthManager: ObservableObject {
     func deleteAccount(_ account: AuthAccount) -> Bool {
         if account.type == .meta {
             let removed = MetaMuseCredentialStore.shared.remove(id: account.id)
+            if removed { checkAuthStatus() }
+            return removed
+        }
+        if account.type == .mistral {
+            let removed = MistralCredentialStore.shared.remove(id: account.id)
             if removed { checkAuthStatus() }
             return removed
         }
