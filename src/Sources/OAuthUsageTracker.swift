@@ -10,17 +10,21 @@ struct OAuthUsageWindow: Identifiable, Equatable, Codable {
     /// Window length when the provider's payload states it (or the bucket
     /// implies it); nil when unknown. Drives short-window detection.
     let lengthSeconds: Int?
+    /// True when use past the allowance is billed instead of refused (Mistral
+    /// pay-as-you-go), so the window never makes a model unavailable.
+    let overageBilled: Bool?
 
-    init(title: String, usedPercent: Double?, resetText: String?, resetDate: Date?, lengthSeconds: Int? = nil) {
+    init(title: String, usedPercent: Double?, resetText: String?, resetDate: Date?, lengthSeconds: Int? = nil, overageBilled: Bool? = nil) {
         self.title = title
         self.usedPercent = usedPercent
         self.resetText = resetText
         self.resetDate = resetDate
         self.lengthSeconds = lengthSeconds
+        self.overageBilled = overageBilled
     }
 
     private enum CodingKeys: String, CodingKey {
-        case title, usedPercent, resetText, resetDate, lengthSeconds
+        case title, usedPercent, resetText, resetDate, lengthSeconds, overageBilled
     }
 
     var remainingPercent: Double? {
@@ -92,7 +96,7 @@ final class OAuthUsageTracker: ObservableObject {
         refreshTask?.cancel()
     }
 
-    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount], grokAccounts: [AuthAccount] = [], metaAccounts: [AuthAccount] = [], antigravityAccounts: [AuthAccount] = []) {
+    func refresh(codexAccounts: [AuthAccount], claudeAccounts: [AuthAccount], grokAccounts: [AuthAccount] = [], metaAccounts: [AuthAccount] = [], antigravityAccounts: [AuthAccount] = [], mistralAccounts: [AuthAccount] = []) {
         refreshTask?.cancel()
 
         let enabledCodex = codexAccounts.filter { !$0.isDisabled && !$0.isExpired }
@@ -100,8 +104,9 @@ final class OAuthUsageTracker: ObservableObject {
         let enabledGrok = Self.activeGrokAccounts(grokAccounts)
         let enabledMeta = metaAccounts.filter { !$0.isDisabled }
         let enabledAntigravity = antigravityAccounts.filter { !$0.isDisabled && !$0.isExpired }
+        let enabledMistral = mistralAccounts.filter { !$0.isDisabled }
 
-        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty || !enabledGrok.isEmpty || !enabledMeta.isEmpty || !enabledAntigravity.isEmpty else {
+        guard !enabledCodex.isEmpty || !enabledClaude.isEmpty || !enabledGrok.isEmpty || !enabledMeta.isEmpty || !enabledAntigravity.isEmpty || !enabledMistral.isEmpty else {
             accounts = []
             isRefreshing = false
             return
@@ -113,14 +118,16 @@ final class OAuthUsageTracker: ObservableObject {
             + enabledGrok.map { Self.loadingPlaceholder(for: $0, provider: .grok) }
             + enabledMeta.map { Self.loadingPlaceholder(for: $0, provider: .meta) }
             + enabledAntigravity.map { Self.loadingPlaceholder(for: $0, provider: .antigravity) }
+            + enabledMistral.map { Self.loadingPlaceholder(for: $0, provider: .mistral) }
 
-        refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok, enabledMeta, enabledAntigravity] in
+        refreshTask = Task { [enabledCodex, enabledClaude, enabledGrok, enabledMeta, enabledAntigravity, enabledMistral] in
             let results = await Self.fetchUsage(
                 codex: enabledCodex,
                 claude: enabledClaude,
                 grok: enabledGrok,
                 meta: enabledMeta,
-                antigravity: enabledAntigravity
+                antigravity: enabledAntigravity,
+                mistral: enabledMistral
             )
 
             guard !Task.isCancelled else { return }
@@ -136,7 +143,8 @@ final class OAuthUsageTracker: ObservableObject {
         claude: [AuthAccount],
         grok: [AuthAccount],
         meta: [AuthAccount],
-        antigravity: [AuthAccount] = []
+        antigravity: [AuthAccount] = [],
+        mistral: [AuthAccount] = []
     ) async -> [OAuthAccountUsage] {
         await withTaskGroup(of: OAuthAccountUsage.self) { group in
             for account in codex {
@@ -160,6 +168,11 @@ final class OAuthUsageTracker: ObservableObject {
             for account in antigravity {
                 group.addTask {
                     await OAuthUsageCache.shared.usage(for: account) { await fetchAntigravityUsage(for: account) }
+                }
+            }
+            for account in mistral {
+                group.addTask {
+                    await OAuthUsageCache.shared.usage(for: account) { await fetchMistralUsage(for: account) }
                 }
             }
 
@@ -444,6 +457,85 @@ final class OAuthUsageTracker: ObservableObject {
             return successAccount(account, windows: windows)
         } catch {
             return failedAccount(account, error.localizedDescription)
+        }
+    }
+
+    /// The Vibe CLI's budget read (`vibe/app_server/_billing.py`): not in Mistral's public
+    /// docs, so the parser takes every field as optional. The budget belongs to the
+    /// organization, so several keys from one organization show the same numbers.
+    nonisolated static let defaultMistralBudgetURL = URL(string: "\(MistralCredentialStore.baseURL)/billing/budget")!
+
+    nonisolated static func fetchMistralUsage(
+        for account: AuthAccount,
+        session: URLSession = .shared,
+        budgetURL: URL = defaultMistralBudgetURL,
+        apiKey: String? = nil
+    ) async -> OAuthAccountUsage {
+        let storedKey = apiKey ?? MistralCredentialStore.shared.accounts.first { $0.id == account.id }?.apiKey
+        guard let key = storedKey, !key.isEmpty else {
+            return failedAccount(account, "Missing Mistral API key")
+        }
+        var request = URLRequest(url: budgetURL)
+        request.httpMethod = "GET"
+        request.timeoutInterval = OAuthUsageParsing.requestTimeout
+        request.setValue("Bearer \(key)", forHTTPHeaderField: "Authorization")
+        request.setValue("application/json", forHTTPHeaderField: "Accept")
+
+        do {
+            let (data, response) = try await session.data(for: request)
+            guard let http = response as? HTTPURLResponse else {
+                return failedAccount(account, "No HTTP response")
+            }
+            switch http.statusCode {
+            case 200..<300:
+                break
+            case 401:
+                return failedAccount(account, "Mistral rejected this API key (HTTP 401). Reconnect Mistral in Settings.")
+            case 403, 404:
+                // Vibe reads these as "no budget": a team member without the
+                // `see_org_inference_usage` permission gets 403.
+                return failedAccount(account, "This Mistral key cannot read its organization's budget (HTTP \(http.statusCode))")
+            default:
+                return failedAccount(account, "Mistral budget API returned \(http.statusCode)", response: http)
+            }
+            let windows = parseMistralWindows(try JSONSerialization.jsonObject(with: data))
+            guard !windows.isEmpty else {
+                return failedAccount(account, "Budget response did not include a monthly allowance")
+            }
+            return successAccount(account, windows: windows)
+        } catch {
+            return failedAccount(account, error.localizedDescription)
+        }
+    }
+
+    /// One window per budget with an allowance: Vibe and API (which one DroidProxy's
+    /// traffic draws from is unverified, so both are shown). `usage_percentage` is
+    /// already 0-100 and passes 100 when pay-as-you-go bills the overage.
+    nonisolated static func parseMistralWindows(_ object: Any) -> [OAuthUsageWindow] {
+        guard let root = object as? [String: Any] else { return [] }
+        var buckets: [(title: String, values: [String: Any])] = []
+        if let vibe = root["vibe_budget"] as? [String: Any] { buckets.append(("Monthly (Vibe)", vibe)) }
+        if let api = root["api_budget"] as? [String: Any] { buckets.append(("Monthly (API)", api)) }
+        // The top-level fields repeat `api_budget`; read them only when neither bucket is present.
+        if buckets.isEmpty { buckets.append(("Monthly", root)) }
+
+        return buckets.compactMap { title, values in
+            guard let allowance = numberValue(values["initial_budget"]), allowance > 0,
+                  let used = numberValue(values["usage_percentage"]) else {
+                return nil
+            }
+            let resetString = values["reset_at"] as? String
+            let resetDate = resetString.flatMap(parseISO8601Date)
+            let overageBilled = (values["payg_enabled"] as? Bool) ?? false
+            let reset = resetDate.map(resetText(for:)) ?? resetString
+            return OAuthUsageWindow(
+                title: title,
+                usedPercent: max(0.0, min(100.0, used)),
+                resetText: overageBilled ? [reset, "pay-as-you-go past 100%"].compactMap { $0 }.joined(separator: " · ") : reset,
+                resetDate: resetDate,
+                lengthSeconds: 30 * 86_400,
+                overageBilled: overageBilled ? true : nil
+            )
         }
     }
 

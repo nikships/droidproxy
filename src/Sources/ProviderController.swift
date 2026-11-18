@@ -15,6 +15,7 @@ extension ServiceType {
         switch self {
         case .claude, .codex, .antigravity, .kimi: return .browser
         case .grok, .copilot, .meta: return .device
+        case .mistral: return .browser
         case .junie: return .app
         }
     }
@@ -25,7 +26,21 @@ extension ServiceType {
         case .codex: return .codexLogin
         case .antigravity: return .antigravityLogin
         case .kimi: return .kimiLogin
-        case .junie, .grok, .copilot, .meta: return nil
+        case .junie, .grok, .copilot, .meta, .mistral: return nil
+        }
+    }
+}
+
+enum MistralKeyError: Error, Equatable, LocalizedError {
+    case empty
+    case rejected
+    case couldNotSave
+
+    var errorDescription: String? {
+        switch self {
+        case .empty: return "Enter a Mistral API key."
+        case .rejected: return "That key was rejected by Mistral."
+        case .couldNotSave: return "Couldn't save the Mistral key."
         }
     }
 }
@@ -71,6 +86,7 @@ final class ProviderController: ObservableObject {
     private var generations: [ServiceType: Int] = [:]
     private var authProcesses: [ServiceType: Process] = [:]
     private var grokSession: GrokAuth.LoginSession?
+    private var mistralSignInTask: Task<Void, Never>?
     private var observers: [NSObjectProtocol] = []
 
     init(
@@ -90,12 +106,14 @@ final class ProviderController: ObservableObject {
         observers.append(center.addObserver(forName: .authDirectoryChanged, object: nil, queue: .main) { [weak self] _ in
             MainActor.assumeIsolated { self?.authManager.checkAuthStatus() }
         })
-        observers.append(center.addObserver(forName: .metaAccountsChanged, object: nil, queue: .main) { [weak self] _ in
-            MainActor.assumeIsolated {
-                self?.authManager.checkAuthStatus()
-                self?.refreshFactoryStatus()
-            }
-        })
+        for name in [Notification.Name.metaAccountsChanged, .mistralAccountsChanged] {
+            observers.append(center.addObserver(forName: name, object: nil, queue: .main) { [weak self] _ in
+                MainActor.assumeIsolated {
+                    self?.authManager.checkAuthStatus()
+                    self?.refreshFactoryStatus()
+                }
+            })
+        }
     }
 
     deinit {
@@ -144,6 +162,8 @@ final class ProviderController: ObservableObject {
             startCopilot(generation: generation, onMessage: onMessage)
         case .meta:
             startMeta(generation: generation, onMessage: onMessage)
+        case .mistral:
+            startMistral(generation: generation, onMessage: onMessage)
         default:
             startBrowser(type, generation: generation, onMessage: onMessage)
         }
@@ -160,6 +180,9 @@ final class ProviderController: ObservableObject {
             copilotGateway.cancelAuthentication()
         case .meta:
             metaMuseAuth.cancelAuthentication()
+        case .mistral:
+            mistralSignInTask?.cancel()
+            mistralSignInTask = nil
         default:
             if let process = authProcesses.removeValue(forKey: type), process.isRunning {
                 process.terminate()
@@ -186,6 +209,13 @@ final class ProviderController: ObservableObject {
         connect.error = error
         connect.userCode = nil
         connect.verificationURI = nil
+        connects[type] = connect
+    }
+
+    /// A sign-in that has a link but no code to type (Mistral).
+    private func showLink(_ type: ServiceType, _ generation: Int, uri: String) {
+        guard isCurrent(type, generation), var connect = connects[type], connect.isRunning else { return }
+        connect.verificationURI = uri
         connects[type] = connect
     }
 
@@ -257,6 +287,8 @@ final class ProviderController: ObservableObject {
             return "🌐 GitHub Copilot sign-in started."
         case .meta:
             return "🌐 Meta Muse sign-in started."
+        case .mistral:
+            return "🌐 Mistral sign-in started."
         }
     }
 
@@ -350,6 +382,53 @@ final class ProviderController: ObservableObject {
         )
     }
 
+    private func startMistral(generation: Int, onMessage: ((String) -> Void)?) {
+        mistralSignInTask?.cancel()
+        launching.insert(.mistral)
+        NSLog("[ProviderController] Starting Mistral sign-in")
+
+        mistralSignInTask = Task { [weak self] in
+            do {
+                try await MistralVibeSignIn().run { url in
+                    Task { @MainActor [weak self] in
+                        guard let self, self.isCurrent(.mistral, generation) else { return }
+                        self.showLink(.mistral, generation, uri: url.absoluteString)
+                        NSWorkspace.shared.open(url)
+                    }
+                }
+                guard let self, self.isCurrent(.mistral, generation) else { return }
+                self.mistralSignInTask = nil
+                self.finishConnect(.mistral, generation)
+                self.authManager.checkAuthStatus()
+                self.refreshFactoryStatus()
+                onMessage?("Mistral connected.\n\nMistral Large 4, Medium 3.5, Small 4 and GLM 5.3 are now available. Re-apply Factory custom models to pick them up.")
+            } catch {
+                guard let self, self.isCurrent(.mistral, generation) else { return }
+                self.mistralSignInTask = nil
+                if error as? MistralSignInError == .cancelled || error is CancellationError { return }
+                let message = (error as? LocalizedError)?.errorDescription ?? error.localizedDescription
+                self.failConnect(.mistral, generation, message)
+                onMessage?("Mistral sign-in failed: \(message)")
+            }
+        }
+    }
+
+    /// Mistral's pasted-key fallback. The key is checked against `GET /v1/models`
+    /// first; if Mistral can't be reached the key is kept, since a wrong key shows up on first use.
+    func saveMistralAPIKey(_ apiKey: String, label: String?) async -> Result<Void, MistralKeyError> {
+        let key = apiKey.trimmingCharacters(in: .whitespacesAndNewlines)
+        guard !key.isEmpty else { return .failure(.empty) }
+        if await MistralKeyCheck.check(apiKey: key) == .rejected {
+            return .failure(.rejected)
+        }
+        guard MistralCredentialStore.shared.save(apiKey: key, label: label, source: .pasted) else {
+            return .failure(.couldNotSave)
+        }
+        authManager.checkAuthStatus()
+        refreshFactoryStatus()
+        return .success(())
+    }
+
     /// Junie connects with an API key typed into the Settings window.
     func saveJunieAPIKey(_ apiKey: String) -> String? {
         guard !apiKey.isEmpty else { return nil }
@@ -381,7 +460,7 @@ final class ProviderController: ObservableObject {
     /// Forgets an account. Removing a backend account restarts a running
     /// backend around the file deletion, as the Settings window always has.
     func removeAccount(_ account: AuthAccount, completion: @escaping (Bool) -> Void) {
-        if account.type == .meta {
+        if account.type == .meta || account.type == .mistral {
             let removed = authManager.deleteAccount(account)
             refreshFactoryStatus()
             completion(removed)
@@ -435,6 +514,8 @@ final class ProviderController: ObservableObject {
             } else {
                 cancelConnect(.meta)
             }
+        case .mistral:
+            if !enabled { cancelConnect(.mistral) }
         default:
             break
         }

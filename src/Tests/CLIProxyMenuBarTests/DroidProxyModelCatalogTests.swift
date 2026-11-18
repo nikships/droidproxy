@@ -3,6 +3,32 @@ import XCTest
 @testable import CLIProxyMenuBar
 
 final class DroidProxyModelCatalogTests: XCTestCase {
+    func testMistralModelsRouteThroughTheChatCompletionsBlockWithTheirOwnLevels() throws {
+        let models = DroidProxyModelCatalog.mistralModels
+        XCTAssertEqual(models.map(\.baseModel), MistralCredentialStore.modelIDs)
+        XCTAssertEqual(models.map(\.idSlug), [
+            "mistral-large-4", "mistral-medium-3-5", "mistral-small-4", "mistral-glm-5-3", "mistral-glm-5-3-flash"
+        ])
+        XCTAssertEqual(models.map(\.displayName), [
+            "Mistral Large 4", "Mistral Medium 3.5", "Mistral Small 4", "GLM 5.3 (Mistral)", "GLM 5.3 Flash (Mistral)"
+        ])
+        for model in models {
+            let entry = model.settingsEntry
+            XCTAssertEqual(entry["provider"] as? String, "openai", model.idSlug)
+            XCTAssertEqual(entry["baseUrl"] as? String, "http://localhost:8317/v1", model.idSlug)
+            XCTAssertEqual(model.providerKey, "mistral")
+            XCTAssertEqual(entry["defaultReasoningEffort"] as? String, "high", model.idSlug)
+            XCTAssertEqual(entry["reasoningEffort"] as? String, "high", model.idSlug)
+            XCTAssertNil(entry["maxContextLimit"], "limits are unknown until checked against /v1/models")
+        }
+        let levels = Dictionary(uniqueKeysWithValues: models.map { ($0.baseModel, $0.settingsEntry["supportedReasoningEfforts"] as? [String]) })
+        XCTAssertEqual(levels["mistral-large-4"] ?? nil, ["low", "medium", "high"])
+        XCTAssertEqual(levels["mistral-medium-3-5"] ?? nil, ["none", "high"])
+        XCTAssertEqual(levels["mistral-small-latest"] ?? nil, ["none", "high"])
+        XCTAssertEqual(levels["zai-glm-5-3"] ?? nil, ["low", "high", "max"])
+        XCTAssertEqual(levels["zai-glm-5-3-flash"] ?? nil, ["low", "high", "max"])
+    }
+
     func testBothMuseVariantsApplyMaxReasoning() {
         for model in ["muse-wonder-1.0", "muse-wonder-1.0-contributor"] {
             let entry = DroidProxyModelCatalog.museModel(

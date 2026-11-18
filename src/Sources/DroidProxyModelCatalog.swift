@@ -9,6 +9,7 @@ enum DroidProxyModelKind {
     case grok
     case copilot
     case meta
+    case mistral
 }
 
 struct DroidProxyThinkingLevel: Equatable {
@@ -102,6 +103,7 @@ struct DroidProxyModelDefinition: Equatable {
 }
 
 enum DroidProxyModelCatalog {
+    private static let none = DroidProxyThinkingLevel(value: "none", displayName: "None")
     private static let minimal = DroidProxyThinkingLevel(value: "minimal", displayName: "Minimal")
     private static let low = DroidProxyThinkingLevel(value: "low", displayName: "Low")
     private static let medium = DroidProxyThinkingLevel(value: "medium", displayName: "Medium")
@@ -135,6 +137,52 @@ enum DroidProxyModelCatalog {
             levels: museLevels,
             defaultLevelValue: "max"
         )
+    }
+
+    /// Mistral's reasoning levels differ per model and are taken from its docs, not
+    /// live-verified here: confirm with `GET /v1/models` and a request per level
+    /// before changing them. Limits are unknown, so the context limit is left unset.
+    static func mistralModel(
+        baseModel: String,
+        idSlug: String,
+        displayName: String,
+        maxOutputTokens: Int = 32_768,
+        maxContextLimit: Int? = nil,
+        levels: [DroidProxyThinkingLevel],
+        defaultLevelValue: String
+    ) -> DroidProxyModelDefinition {
+        DroidProxyModelDefinition(
+            baseModel: baseModel,
+            idSlug: idSlug,
+            displayName: displayName,
+            maxOutputTokens: maxOutputTokens,
+            maxContextLimit: maxContextLimit,
+            provider: "openai",
+            providerKey: "mistral",
+            baseURL: "http://localhost:8317/v1",
+            kind: .mistral,
+            levels: levels,
+            defaultLevelValue: defaultLevelValue
+        )
+    }
+
+    /// Droid sends Responses; CLIProxyAPI's `openai-compatibility` block converts them to
+    /// Chat Completions (Mistral has no Responses API). See `MistralCredentialStore.payloadFilterConfig`.
+    /// Ids come from `MistralCredentialStore.modelIDs` so config and catalog agree.
+    static var mistralModels: [DroidProxyModelDefinition] {
+        let toggle = [none, high]
+        let ids = MistralCredentialStore.modelIDs
+        let specs: [(id: String, slug: String, name: String, levels: [DroidProxyThinkingLevel])] = [
+            ("mistral-large-4", "mistral-large-4", "Mistral Large 4", [low, medium, high]),
+            ("mistral-medium-3-5", "mistral-medium-3-5", "Mistral Medium 3.5", toggle),
+            ("mistral-small-latest", "mistral-small-4", "Mistral Small 4", toggle),
+            ("zai-glm-5-3", "mistral-glm-5-3", "GLM 5.3 (Mistral)", [low, high, max]),
+            ("zai-glm-5-3-flash", "mistral-glm-5-3-flash", "GLM 5.3 Flash (Mistral)", [low, high, max])
+        ]
+        return specs.filter { ids.contains($0.id) }.map {
+            mistralModel(baseModel: $0.id, idSlug: $0.slug, displayName: $0.name,
+                         levels: $0.levels, defaultLevelValue: "high")
+        }
     }
 
     private static func antigravityModel(
@@ -509,6 +557,11 @@ enum DroidProxyModelCatalog {
                     displayName: "Muse Wonder Full 1.0"
                 ))
             }
+        }
+
+        // Same eligibility rule as Meta: only with an enabled key, matching the backend config.
+        if MistralCredentialStore.shared.hasUsableAPIKey {
+            list.append(contentsOf: mistralModels)
         }
 
         return list

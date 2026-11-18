@@ -6,6 +6,10 @@ This project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.htm
 
 ## [Unreleased]
 
+### Added (Mistral)
+- **Mistral provider** -- Sign in with Mistral (browser flow copied from the Vibe CLI, which ends in an ordinary long-lived API key billed to your plan's Vibe Code usage) or paste a Vibe/Studio key. Several accounts are supported with per-account disable and remove, and requests fail over between keys. Registers `mistral-large-4`, `mistral-medium-3-5`, `mistral-small-latest`, `zai-glm-5-3`, and `zai-glm-5-3-flash` as Factory custom models over Chat Completions through CLIProxyAPI's `openai-compatibility` support (no backend upgrade needed). Keys live in `~/.droidproxy/mistral/accounts.json` (0600), never in `~/.cli-proxy-api`. Mistral has no usage endpoint, so there are no gauges and `GET /models` reports `unknown`. The browser flow is undocumented and can change; the pasted key keeps working regardless. Reasoning levels follow Mistral's docs and have not been verified live yet.
+- **One shared `openai-compatibility` block** -- Meta Muse and Mistral now contribute entries to a single block written by `OpenAICompatibilityConfig`, because the backend rejects a repeated top-level key. Meta-only output is byte-identical to before.
+
 ### Removed
 - **Gemini 3.1 Pro and GPT-OSS 120B removed** -- `antigravity-gemini-3.1-pro`, `gemini-3.1-pro-low`, and `gpt-oss-120b-medium` are no longer registered in the DroidProxy catalog. Re-applying Factory models will prune the old `custom:droidproxy:antigravity-gemini-3.1-pro`, `custom:droidproxy:gemini-3.1-pro-low`, and `custom:droidproxy:gpt-oss-120b-medium` ids from `~/.factory/settings.json`.
 
