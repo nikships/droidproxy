@@ -25,6 +25,12 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
                                    apiKeyExpiresAt: Date(timeIntervalSince1970: 2_000_000_000))
     }
 
+    private func compatibilityConfig(accounts: [MetaMuseAccount], enabled: Bool, now: Date = Date()) -> String {
+        OpenAICompatibilityConfig.render([
+            MetaMuseCredentialStore.compatibilityEntry(accounts: accounts, enabled: enabled, now: now)
+        ].compactMap { $0 })
+    }
+
     func testLegacyMigrationAndLastRemovalDoNotResurrectAccount() throws {
         try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
         let encoder = JSONEncoder()
@@ -94,7 +100,7 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
     func testConfigurationIncludesOnlyEnabledUnexpiredKeysAndEscapesYAML() throws {
         var alice = MetaMuseCredentialStore.account(for: try credentials("alice", key: "quote\"\\\nkey"))
         var bob = MetaMuseCredentialStore.account(for: try credentials("bob", key: "bob-key"))
-        let config = MetaMuseCredentialStore.compatibilityConfig(accounts: [alice, bob], enabled: true)
+        let config = compatibilityConfig(accounts: [alice, bob], enabled: true)
         XCTAssertEqual(config.components(separatedBy: "- api-key:").count - 1, 2)
         XCTAssertTrue(config.contains("quote\\\"\\\\\\nkey"))
         XCTAssertTrue(config.contains("muse-wonder-1.0-contributor"))
@@ -104,8 +110,8 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
         XCTAssertFalse(config.contains("muse-spark"))
         alice.disabled = true
         bob.credentials.apiKeyExpiresAt = .distantPast
-        XCTAssertEqual(MetaMuseCredentialStore.compatibilityConfig(accounts: [alice, bob], enabled: true), "")
-        XCTAssertEqual(MetaMuseCredentialStore.compatibilityConfig(accounts: [alice], enabled: false), "")
+        XCTAssertEqual(compatibilityConfig(accounts: [alice, bob], enabled: true), "")
+        XCTAssertEqual(compatibilityConfig(accounts: [alice], enabled: false), "")
     }
 
     func testCorruptStoreIsNotOverwrittenByNewLogin() throws {
@@ -129,12 +135,12 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
         XCTAssertTrue(store.toggleDisabled(id: try XCTUnwrap(store.accounts.first?.id)))
         XCTAssertTrue(store.hasCredentials)
         XCTAssertFalse(store.hasUsableAPIKey)
-        XCTAssertEqual(MetaMuseCredentialStore.compatibilityConfig(accounts: store.accounts, enabled: true), "")
+        XCTAssertEqual(compatibilityConfig(accounts: store.accounts, enabled: true), "")
 
         XCTAssertTrue(store.toggleDisabled(id: try XCTUnwrap(store.accounts.first?.id)))
         XCTAssertTrue(store.hasUsableAPIKey)
         XCTAssertEqual(MetaMuseCredentialStore.usableAPIKeys(accounts: store.accounts), [valid.apiKey])
-        XCTAssertFalse(MetaMuseCredentialStore.compatibilityConfig(accounts: store.accounts, enabled: true).isEmpty)
+        XCTAssertFalse(compatibilityConfig(accounts: store.accounts, enabled: true).isEmpty)
     }
 
     func testKeyExpiringExactlyNowIsNotUsable() throws {
@@ -143,7 +149,7 @@ final class MetaMuseCredentialStoreTests: XCTestCase {
         XCTAssertTrue(MetaMuseCredentialStore.usableAPIKeys(
             accounts: [account], now: credentials.apiKeyExpiresAt
         ).isEmpty)
-        XCTAssertEqual(MetaMuseCredentialStore.compatibilityConfig(
+        XCTAssertEqual(compatibilityConfig(
             accounts: [account], enabled: true, now: credentials.apiKeyExpiresAt
         ), "")
     }

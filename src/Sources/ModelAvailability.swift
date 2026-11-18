@@ -21,7 +21,7 @@ enum AvailabilityJudge {
     }
 
     /// Providers DroidProxy reads quota for (`OAuthUsageTracker`).
-    static let providersWithUsage: Set<ServiceType> = [.claude, .codex, .grok, .meta]
+    static let providersWithUsage: Set<ServiceType> = [.claude, .codex, .grok, .meta, .mistral]
 
     /// Model families a usage window can be named for, as in Claude's
     /// "Weekly (Opus)" and "Weekly (Sonnet)".
@@ -45,8 +45,10 @@ enum AvailabilityJudge {
     }
 
     /// Out of quota and not reset yet. A cached reading can be a few seconds
-    /// old, so a window whose reset time has passed no longer counts.
+    /// old, so a window whose reset time has passed no longer counts. A window
+    /// that bills its overage never blocks.
     static func isExhausted(_ window: OAuthUsageWindow, now: Date) -> Bool {
+        if window.overageBilled == true { return false }
         guard let remaining = window.remainingPercent, remaining <= 0 else { return false }
         if let reset = window.resetDate, reset <= now { return false }
         return true
@@ -76,15 +78,22 @@ enum AvailabilityJudge {
                 continue
             }
             anyUsage = true
-            let blocking = usage.windows.filter { window($0.title, covers: baseModel) && isExhausted($0, now: now) }
-            guard !blocking.isEmpty else {
+            let covering = usage.windows.filter { window($0.title, covers: baseModel) }
+            let blocking = covering.filter { isExhausted($0, now: now) }
+            // Mistral reports a Vibe and an API budget, and which one DroidProxy's
+            // traffic draws from is unverified, so it is blocked only when both are out.
+            let allMustBlock = provider == .mistral
+            guard !blocking.isEmpty, !allMustBlock || blocking.count == covering.count else {
                 anyFree = true
                 continue
             }
-            // The account is back once the last of its exhausted windows resets.
             if let unknownReset = blocking.first(where: { $0.resetDate == nil }) {
                 blocked.append((nil, unknownReset.title, account.label))
+            } else if allMustBlock, let soonest = blocking.min(by: { $0.resetDate! < $1.resetDate! }) {
+                // Back once any budget resets.
+                blocked.append((soonest.resetDate, soonest.title, account.label))
             } else if let latest = blocking.max(by: { $0.resetDate! < $1.resetDate! }) {
+                // The account is back once the last of its exhausted windows resets.
                 blocked.append((latest.resetDate, latest.title, account.label))
             }
         }

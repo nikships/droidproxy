@@ -9,6 +9,7 @@ enum DroidProxyModelKind {
     case grok
     case copilot
     case meta
+    case mistral
 }
 
 struct DroidProxyThinkingLevel: Equatable {
@@ -30,6 +31,11 @@ struct DroidProxyModelDefinition: Equatable {
     let levels: [DroidProxyThinkingLevel]
     let defaultLevelValue: String
     let noImageSupport: Bool
+    /// Factory's built-in model whose reasoning levels Droid should use. Droid ignores
+    /// `supportedReasoningEfforts` on custom models and instead matches `model` to a
+    /// built-in by the longest id it contains, so `zai-glm-5-3` resolves to the
+    /// deprecated `glm-5` (levels `[none]`) and the effort selector disappears.
+    let factoryBaseModelID: String?
 
     init(baseModel: String,
          idSlug: String,
@@ -42,7 +48,8 @@ struct DroidProxyModelDefinition: Equatable {
          kind: DroidProxyModelKind,
          levels: [DroidProxyThinkingLevel],
          defaultLevelValue: String,
-         noImageSupport: Bool = false) {
+         noImageSupport: Bool = false,
+         factoryBaseModelID: String? = nil) {
         self.baseModel = baseModel
         self.idSlug = idSlug
         self.displayName = displayName
@@ -55,6 +62,7 @@ struct DroidProxyModelDefinition: Equatable {
         self.levels = levels
         self.defaultLevelValue = defaultLevelValue
         self.noImageSupport = noImageSupport
+        self.factoryBaseModelID = factoryBaseModelID
     }
 
     var simpleID: String {
@@ -92,6 +100,9 @@ struct DroidProxyModelDefinition: Equatable {
         if let maxContextLimit {
             entry["maxContextLimit"] = maxContextLimit
         }
+        if let factoryBaseModelID {
+            entry["baseModelId"] = factoryBaseModelID
+        }
         guard !levels.isEmpty else { return entry }
         entry["enableThinking"] = true
         entry["supportedReasoningEfforts"] = levels.map(\.value)
@@ -102,6 +113,7 @@ struct DroidProxyModelDefinition: Equatable {
 }
 
 enum DroidProxyModelCatalog {
+    private static let none = DroidProxyThinkingLevel(value: "none", displayName: "None")
     private static let minimal = DroidProxyThinkingLevel(value: "minimal", displayName: "Minimal")
     private static let low = DroidProxyThinkingLevel(value: "low", displayName: "Low")
     private static let medium = DroidProxyThinkingLevel(value: "medium", displayName: "Medium")
@@ -135,6 +147,54 @@ enum DroidProxyModelCatalog {
             levels: museLevels,
             defaultLevelValue: "max"
         )
+    }
+
+    /// Mistral's reasoning levels differ per model and are taken from its docs, not
+    /// live-verified here: confirm with `GET /v1/models` and a request per level
+    /// before changing them. Limits are unknown, so the context limit is left unset.
+    static func mistralModel(
+        baseModel: String,
+        idSlug: String,
+        displayName: String,
+        maxOutputTokens: Int = 32_768,
+        maxContextLimit: Int? = nil,
+        levels: [DroidProxyThinkingLevel],
+        defaultLevelValue: String,
+        factoryBaseModelID: String? = nil
+    ) -> DroidProxyModelDefinition {
+        DroidProxyModelDefinition(
+            baseModel: baseModel,
+            idSlug: idSlug,
+            displayName: displayName,
+            maxOutputTokens: maxOutputTokens,
+            maxContextLimit: maxContextLimit,
+            provider: "openai",
+            providerKey: "mistral",
+            baseURL: "http://localhost:8317/v1",
+            kind: .mistral,
+            levels: levels,
+            defaultLevelValue: defaultLevelValue,
+            factoryBaseModelID: factoryBaseModelID
+        )
+    }
+
+    /// Droid sends Responses; CLIProxyAPI's `openai-compatibility` block converts them to
+    /// Chat Completions (Mistral has no Responses API). See `MistralCredentialStore.payloadFilterConfig`.
+    /// Ids come from `MistralCredentialStore.modelIDs` so config and catalog agree.
+    static var mistralModels: [DroidProxyModelDefinition] {
+        let toggle = [none, high]
+        let ids = MistralCredentialStore.modelIDs
+        let specs: [(id: String, slug: String, name: String, levels: [DroidProxyThinkingLevel], factoryBase: String?)] = [
+            ("mistral-large-4", "mistral-large-4", "Mistral Large 4", [low, medium, high], nil),
+            ("mistral-medium-3-5", "mistral-medium-3-5", "Mistral Medium 3.5", toggle, nil),
+            ("mistral-small-latest", "mistral-small-4", "Mistral Small 4", toggle, nil),
+            ("zai-glm-5-3", "mistral-glm-5-3", "GLM 5.3 (Mistral)", [low, high, max], "glm-5.3"),
+            ("zai-glm-5-3-flash", "mistral-glm-5-3-flash", "GLM 5.3 Flash (Mistral)", [low, high, max], "glm-5.3-flash")
+        ]
+        return specs.filter { ids.contains($0.id) }.map {
+            mistralModel(baseModel: $0.id, idSlug: $0.slug, displayName: $0.name,
+                         levels: $0.levels, defaultLevelValue: "high", factoryBaseModelID: $0.factoryBase)
+        }
     }
 
     private static func antigravityModel(
@@ -509,6 +569,11 @@ enum DroidProxyModelCatalog {
                     displayName: "Muse Wonder Full 1.0"
                 ))
             }
+        }
+
+        // Same eligibility rule as Meta: only with an enabled key, matching the backend config.
+        if MistralCredentialStore.shared.hasUsableAPIKey {
+            list.append(contentsOf: mistralModels)
         }
 
         return list

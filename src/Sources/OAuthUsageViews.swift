@@ -334,6 +334,7 @@ private func usageIconName(for provider: ServiceType) -> String? {
     case .grok: return "icon-grok.svg"
     case .meta: return "icon-meta.svg"
     case .antigravity: return "icon-gemini.png"
+    case .mistral: return "icon-mistral.svg"
     default: return nil
     }
 }

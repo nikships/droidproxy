@@ -326,6 +326,38 @@ struct ServiceRow<ExtraContent: View>: View {
     }
 }
 
+/// Mistral's Add Account choice and its pasted-key prompt, kept out of
+/// `SettingsView.body` so that chain of modifiers stays quick to type-check.
+private struct MistralAddAccountDialogs: ViewModifier {
+    @Binding var showingChoice: Bool
+    @Binding var showingKeyAlert: Bool
+    @Binding var apiKey: String
+    @Binding var label: String
+    let onSignIn: () -> Void
+    let onSave: () -> Void
+
+    func body(content: Content) -> some View {
+        content
+            .confirmationDialog("Add Mistral Account", isPresented: $showingChoice) {
+                Button("Sign in with Mistral", action: onSignIn)
+                Button("Paste API key") {
+                    apiKey = ""
+                    label = ""
+                    showingKeyAlert = true
+                }
+                Button("Cancel", role: .cancel) { }
+            }
+            .alert("Add Mistral API Key", isPresented: $showingKeyAlert) {
+                SecureField("Mistral API key", text: $apiKey)
+                TextField("Label (optional)", text: $label)
+                Button("Save", action: onSave)
+                Button("Cancel", role: .cancel) { }
+            } message: {
+                Text("Create a key in Mistral under Code › Vibe CLI (chat.mistral.ai/code/extensions). A Vibe key uses your plan's included usage; a Studio key is billed pay-as-you-go.")
+            }
+    }
+}
+
 struct SettingsView: View {
     @ObservedObject var serverManager: ServerManager
     @ObservedObject var copilotGateway: CopilotGatewayManager
@@ -353,6 +385,10 @@ struct SettingsView: View {
     @State private var redeemResultMessage: String?
     @State private var showingJunieApiKeyAlert = false
     @State private var junieApiKey = ""
+    @State private var showingMistralAddChoice = false
+    @State private var showingMistralKeyAlert = false
+    @State private var mistralApiKey = ""
+    @State private var mistralLabel = ""
     @State private var authDirectoryMonitor: AuthDirectoryMonitor?
     @State private var expandedRowCount = 0
     @State private var remoteManagementExpanded = false
@@ -373,6 +409,8 @@ struct SettingsView: View {
     private let copilotSelectionColor = Color(red: 0x77/255, green: 0xB9/255, blue: 0xFF/255)
     // Meta's brand blue ("Meta Blue", #0866FF).
     private let metaSelectionColor = Color(red: 0x08/255, green: 0x66/255, blue: 0xFF/255)
+    // Mistral's brand orange (#FA520F).
+    private let mistralSelectionColor = Color(red: 0xFA/255, green: 0x52/255, blue: 0x0F/255)
     private let oledFooterText = Color(red: 0xA8/255, green: 0xA8/255, blue: 0xA8/255)
 
     init(providers: ProviderController) {
@@ -570,7 +608,8 @@ struct SettingsView: View {
                    serverManager.isProviderEnabled(.claude) || authManager.hasAccounts(for: .claude) ||
                    serverManager.isProviderEnabled(.grok) || authManager.hasAccounts(for: .grok) ||
                    serverManager.isProviderEnabled(.meta) || authManager.hasAccounts(for: .meta) ||
-                   serverManager.isProviderEnabled(.antigravity) || authManager.hasAccounts(for: .antigravity) {
+                   serverManager.isProviderEnabled(.antigravity) || authManager.hasAccounts(for: .antigravity) ||
+                   authManager.hasAccounts(for: .mistral) {
                     Section {
                         HStack {
                             Text("OAuth Quota Usage")
@@ -679,6 +718,8 @@ struct SettingsView: View {
                             WindowPrimerRow(provider: .meta)
                         }
                     }
+
+                    mistralServiceRow()
 
                     providerServiceRow(
                         .antigravity,
@@ -857,6 +898,18 @@ struct SettingsView: View {
         } message: {
             Text(redeemResultMessage ?? "")
         }
+        .modifier(MistralAddAccountDialogs(
+            showingChoice: $showingMistralAddChoice,
+            showingKeyAlert: $showingMistralKeyAlert,
+            apiKey: $mistralApiKey,
+            label: $mistralLabel,
+            onSignIn: {
+                providers.connect(.mistral, replacing: true) { message in
+                    self.showAuthResult(message)
+                }
+            },
+            onSave: saveMistralKey
+        ))
         .alert("Add Junie API Key", isPresented: $showingJunieApiKeyAlert) {
             SecureField("Enter Junie Key", text: $junieApiKey)
             Button("Save") {
@@ -953,7 +1006,7 @@ struct SettingsView: View {
 
     @ViewBuilder
     private func factoryModelPicker() -> some View {
-        let providerTypes: [ServiceType] = [.claude, .codex, .meta, .antigravity, .kimi, .junie, .grok]
+        let providerTypes: [ServiceType] = [.claude, .codex, .meta, .mistral, .antigravity, .kimi, .junie, .grok]
             .filter { type in
                 serverManager.isProviderEnabled(type)
                     && !providers.factoryModelDefinitions(for: type).isEmpty
@@ -1549,6 +1602,78 @@ struct SettingsView: View {
         .padding(.leading, 28)
     }
 
+    // MARK: - Mistral
+
+    @ViewBuilder
+    private func mistralServiceRow() -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            providerServiceRow(
+                .mistral, iconName: "icon-mistral.svg", toggleTint: mistralSelectionColor,
+                helpText: "Sign in with Mistral, or paste a Vibe or Studio API key. Add several for automatic failover."
+            )
+            if serverManager.isProviderEnabled(.mistral) {
+                let connect = providers.connects[.mistral]
+                if connect?.isRunning == true {
+                    mistralSignInRow(url: connect?.verificationURI.flatMap(URL.init(string:)))
+                    Button("Cancel sign-in") { providers.cancelConnect(.mistral) }
+                        .droidGlassPlain()
+                        .controlSize(.small)
+                        .padding(.leading, 28)
+                }
+                if let error = connect?.error {
+                    Text(error)
+                        .font(.caption)
+                        .foregroundColor(.orange)
+                        .padding(.leading, 28)
+                        .fixedSize(horizontal: false, vertical: true)
+                }
+            }
+        }
+    }
+
+    @ViewBuilder
+    private func mistralSignInRow(url: URL?) -> some View {
+        VStack(alignment: .leading, spacing: 6) {
+            Text("Waiting for approval in your browser…")
+                .font(.caption)
+                .foregroundColor(.secondary)
+            if let url {
+                Text("To sign in on another device, open this link:")
+                    .font(.caption)
+                    .foregroundColor(.secondary)
+                HStack(spacing: 8) {
+                    Text(url.absoluteString)
+                        .font(.system(.caption, design: .monospaced))
+                        .lineLimit(2)
+                        .truncationMode(.middle)
+                        .textSelection(.enabled)
+                    Button("Copy") {
+                        NSPasteboard.general.clearContents()
+                        NSPasteboard.general.setString(url.absoluteString, forType: .string)
+                    }
+                    .droidGlassPlain()
+                    .controlSize(.small)
+                }
+            }
+        }
+        .padding(.leading, 28)
+    }
+
+    private func saveMistralKey() {
+        let key = mistralApiKey
+        let label = mistralLabel
+        mistralApiKey = ""
+        mistralLabel = ""
+        Task { @MainActor in
+            switch await providers.saveMistralAPIKey(key, label: label) {
+            case .success:
+                showAuthResult("✓ Added Mistral API key.\n\nRe-apply Factory custom models to pick up the Mistral models.")
+            case .failure(let error):
+                showAuthResult(error.localizedDescription)
+            }
+        }
+    }
+
     private func startMetaAuthentication() {
         providers.connect(.meta, replacing: true) { message in
             self.showAuthResult(message)
@@ -1667,7 +1792,8 @@ struct SettingsView: View {
             claudeAccounts: authManager.accounts(for: .claude),
             grokAccounts: serverManager.isProviderEnabled(.grok) ? authManager.accounts(for: .grok) : [],
             metaAccounts: serverManager.isProviderEnabled(.meta) ? authManager.accounts(for: .meta) : [],
-            antigravityAccounts: serverManager.isProviderEnabled(.antigravity) ? authManager.accounts(for: .antigravity) : []
+            antigravityAccounts: serverManager.isProviderEnabled(.antigravity) ? authManager.accounts(for: .antigravity) : [],
+            mistralAccounts: serverManager.isProviderEnabled(.mistral) ? authManager.accounts(for: .mistral) : []
         )
     }
 
@@ -1709,7 +1835,14 @@ struct SettingsView: View {
                 .sorted()
                 .joined(separator: "|")
             : ""
-        return "\(codexSig)||\(claudeSig)||\(grokSig)||\(metaSig)||\(antigravitySig)"
+        let mistralSig = serverManager.isProviderEnabled(.mistral)
+            ? authManager.accounts(for: .mistral)
+                .filter { !$0.isDisabled }
+                .map(\.id)
+                .sorted()
+                .joined(separator: "|")
+            : ""
+        return "\(codexSig)||\(claudeSig)||\(grokSig)||\(metaSig)||\(antigravitySig)||\(mistralSig)"
     }
     
     private func openAuthFolder() {
@@ -1744,6 +1877,10 @@ struct SettingsView: View {
     }
     
     private func connectService(_ serviceType: ServiceType) {
+        if serviceType == .mistral {
+            showingMistralAddChoice = true
+            return
+        }
         if serviceType == .junie {
             junieApiKey = ""
             showingJunieApiKeyAlert = true
