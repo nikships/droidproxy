@@ -29,7 +29,7 @@ Each release also ships a `DroidProxy-arm64.zip.sha256` checksum. Unzip and drag
 - **Fast Mode** -- Optional `service_tier=priority` for GPT 6.2 Astra, GPT 6.2 Sol, GPT 6.1 Terra, and GPT 6 Luna. Grok 4.7 Fast is a separate SuperGrok model (`grok-4.7-build-fast`).
 - **Usage tracking** -- Claude (5-hour + weekly), Codex (whichever of 5-hour, weekly, or monthly the plan has), and SuperGrok (weekly) quota windows rendered as compact ring-gauge cards in the **OAuth Quota Usage** section of the Settings window. Fetched directly from each provider's OAuth API (no `codex` CLI dependency) and refreshed on demand via the inline refresh button.
 - **Grok Imagine (image gen)** -- With Grok OAuth connected, DroidProxy also forwards OpenAI-compatible image requests (`POST /v1/images/generations` for `grok-imagine-*` models) to `api.x.ai` — no `XAI_API_KEY`. Factory/Droid does not call that endpoint on its own; use the bundled skill below.
-- **GPT Image (Codex OAuth)** -- The bundled skill now prepares GPT Image 2.6 Flare (speed, default) and Sunburst (quality/detail) requests, with opt-in complexity, markup-guided edits, SVG and GIF export. Requests go to `/v1/images/generations` or `/v1/images/edits`, not chat. **The current backend rejects both 2.6 IDs**; OAuth support for their new features is unverified. Older 2.5 models remain explicitly selectable. No `OPENAI_API_KEY`. See [compatibility and proof](skills/gpt-image/COMPATIBILITY.md).
+- **GPT Image (Codex OAuth)** -- The bundled skill uses GPT Image 2.6 Flare (speed, default) and Sunburst (quality/detail), with opt-in complexity and markup-guided edits. Requests go to `/v1/images/generations` or `/v1/images/edits`, not chat. SVG and GIF output are not available through this backend. Older 2.5 models remain explicitly selectable. No `OPENAI_API_KEY`. See [compatibility](skills/gpt-image/COMPATIBILITY.md).
 
 ## Setup
 
@@ -51,7 +51,7 @@ Copy the whole GPT skill directory, including its dependency-free Bun helper in 
 Then in Droid, ask to generate an image (or invoke the skill). Both skills post to `http://localhost:8317/v1/images/generations` with `Authorization: Bearer dummy-not-used`:
 
 - **Grok** — model `grok-imagine-image-2.0`; ThinkingProxy injects your Grok OAuth token and forwards to xAI.
-- **GPT** — default `gpt-image-2.6-flare`, or `gpt-image-2.6-sunburst` for detailed work. Until CLIProxyAPI accepts them, explicitly set `GPT_IMAGE_MODEL=gpt-image-2.5-flare` or `gpt-image-2.5-sunburst` for raster work. CLIProxyAPI injects Codex OAuth; older backends require Plus/Pro. The 2.6 all-tier announcement does not verify this backend's access.
+- **GPT** — default `gpt-image-2.6-flare`, or `gpt-image-2.6-sunburst` for detailed work. CLIProxyAPI injects Codex OAuth.
 
 **Requirements:** DroidProxy running, the matching provider connected in Settings. Image gen is separate from chat — selecting “DroidProxy: Grok 4.7” or “DroidProxy: GPT 5.x” alone does not generate images.
 

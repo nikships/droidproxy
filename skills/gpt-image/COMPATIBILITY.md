@@ -1,70 +1,40 @@
 # GPT Image 2.6 compatibility
 
-Checked November 4, 2026. This is **client-side request support**, not a
-claim that the bundled OAuth backend serves GPT Image 2.6.
-
-## Real proxy proof
-
-Both requests went through the existing installed DroidProxy route:
+DroidProxy serves GPT Image through CLIProxyAPI's Codex OAuth route:
 
 ```text
 POST http://localhost:8317/v1/images/generations
+POST http://localhost:8317/v1/images/edits
 Authorization: Bearer dummy-not-used
-prompt: A small red cube on a plain white background, no text.
-quality: low
-size: 1024x1024
-
-gpt-image-2.6-flare     -> HTTP 400, invalid_request_error
-gpt-image-2.6-sunburst  -> HTTP 400, invalid_request_error
-
-Model <id> is not supported on /v1/images/generations or /v1/images/edits.
 ```
 
-No images were generated, so there are no authentic 2.6 sample files.
-Complexity, markup, SVG, GIF, tier access, and 2.6 edit fidelity could not be
-live-verified behind this rejection. Unit tests use an isolated local contract
-server; they do not prove provider acceptance.
+| Request | Result through DroidProxy |
+|---|---|
+| `gpt-image-2.6-flare`, `gpt-image-2.6-sunburst` or `gpt-image-2.6` generation | Image returned |
+| 2.6 JSON edit with an `images` data URL | Edited image returned |
+| `complexity` | Accepted |
+| `markup` on a JSON edit | Accepted |
+| `background: "transparent"` with `output_format: "png"` | RGBA PNG with fully transparent pixels |
+| `output_format: "svg"` | PNG returned; the helper refuses to save it as SVG |
+| `output_format: "gif"` | HTTP 400, `GIF output is not enabled for this request.` |
+| `size`, `quality` | The response values can differ from the request |
+
+Unit tests use an isolated local contract server; they do not prove provider
+acceptance.
 
 ## Backend boundary
 
-ThinkingProxy already forwards non-Grok Images JSON bodies to CLIProxyAPI;
-it has no GPT image model allowlist or pricing table to extend. Keep that
-pass-through and all older IDs intact. Do not alias a 2.6 ID to a 2.5 ID.
-
-CLIProxyAPI upstream `main`, inspected November 4, has hard-coded image model
-lists in:
-
-- `sdk/api/handlers/openai/openai_images_handlers.go`: `isCodexImagesToolModel`
-  accepts 1.5, 2, 2.5 Flare/Sunburst and the 2.5 backend alias, not 2.6.
-- `internal/runtime/executor/codex_openai_images.go`: its direct image routing
-  and request preparation also need auditing for the new IDs/fields.
-  Its Responses-tool fallback copies selected fields, not arbitrary JSON;
-  complexity/markup/frame controls must not be assumed to survive it.
-
-Allowlisting alone would not prove that ChatGPT's private OAuth backend
-accepts the IDs or parameters. No unverified backend patch, binary swap,
-new credential flow, or public-API-key fallback is included here. After an
-upstream update, repeat the live requests and then test each opt-in, including
-markup preservation and decoded SVG/GIF bytes. Do not send a 2.6 image model
-as the top-level model of the public Responses or Chat Completions API.
+ThinkingProxy forwards non-Grok Images JSON bodies to CLIProxyAPI; it has no
+GPT image model allowlist or pricing table. CLIProxyAPI sends the 1.5, 2, 2.5
+and 2.6 image IDs directly to the Codex Images endpoints and forwards JSON
+bodies unchanged apart from `model` and `stream`. Do not alias a 2.6 ID to a
+2.5 ID. Do not send a 2.6 image model as the top-level model of the public
+Responses or Chat Completions API.
 
 Image models intentionally stay out of `DroidProxyModelCatalog.swift`:
 that catalog provisions Factory **chat** models. The skill's `models` export
 lists the image choices and preserves older IDs. API pricing belongs in the
 skill, not the Codex subscription quota gauge.
-
-## Related repositories, read-only inspection
-
-- **nikships/droidproxy-omarchy:** `skills/gpt-image/SKILL.md` is the old 2.5-only
-  version. Port this whole skill directory and its Bun tests/CI; update
-  README/SETUP image instructions. Its CLIProxyAPI dependency needs the same
-  image-handler/executor support before 2.6 can work. Do not put these IDs in
-  `internal/catalog/catalog.go` as chat models. No changes made there.
-- **/Users/nik/repos/droid-office:** no GPT image IDs found. The model picker
-  (`src/client/ui/models.ts`) consumes Droid's model catalogue, rather than a
-  hard-coded image model list. No chat model-list change is needed. If the
-  Office distributes a copy of this image skill in future, copy the whole
-  directory and preserve the same compatibility caveat. No changes made there.
 
 ## Official references
 

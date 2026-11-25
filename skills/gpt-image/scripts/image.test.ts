@@ -177,6 +177,13 @@ describe("proxy integration (isolated local contract server, not live OAuth)", (
       await expect(sendRequest(prepare(), `http://127.0.0.1:${server.port}`)).rejects.toThrow();
     } finally { server.stop(true); }
   });
+  test("reports backend detail errors", async () => {
+    const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () =>
+      Response.json({ detail: "GIF output is not enabled for this request." }, { status: 400 }) });
+    try {
+      await expect(sendRequest(prepare(), `http://127.0.0.1:${server.port}`)).rejects.toThrow("image_error: GIF output is not enabled for this request.");
+    } finally { server.stop(true); }
+  });
   test("reports non-JSON backend errors", async () => {
     const server = Bun.serve({ hostname: "127.0.0.1", port: 0, fetch: () =>
       new Response("Bad gateway", { status: 502 }) });
