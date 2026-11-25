@@ -53,14 +53,12 @@ cp -R skills/gpt-image ~/.factory/skills/
 Copy the whole directory, not just `SKILL.md`; the optional helper requires
 [Bun](https://bun.sh) and no dependencies. See
 [`skills/gpt-image/SKILL.md`](skills/gpt-image/SKILL.md) for generation/edit
-examples, complexity, markup, SVG and GIF opt-ins, pricing and limits.
+examples, complexity and markup opt-ins, pricing and limits.
 
 The skill defaults to `gpt-image-2.6-flare`; choose `gpt-image-2.6-sunburst`
 for detail and consistent edits. Both use `/v1/images/generations` or
-`/v1/images/edits`, with CLIProxyAPI injecting the Codex bearer. **The current
-backend rejects both 2.6 IDs with HTTP 400.** Until backend support arrives,
-explicitly select an older model, e.g. `GPT_IMAGE_MODEL=gpt-image-2.5-flare`,
-without new feature fields. See [compatibility proof](skills/gpt-image/COMPATIBILITY.md).
+`/v1/images/edits`, with CLIProxyAPI injecting the Codex bearer. SVG and GIF
+output are not available through this backend. See [compatibility](skills/gpt-image/COMPATIBILITY.md).
 Selecting a GPT chat model does not generate images; do not add image-only
 models to Factory's chat-model list.
 

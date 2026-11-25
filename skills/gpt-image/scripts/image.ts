@@ -150,7 +150,7 @@ export async function sendRequest(request: ReturnType<typeof prepareRequest>, ba
   const result = await response.json().catch(() => { throw new Error(`HTTP ${response.status}: non-JSON proxy response`); });
   if (!response.ok || result?.error) {
     const error = result?.error;
-    throw new Error(`HTTP ${response.status} (${request.body.model}): ${error?.code || error?.type || "image_error"}: ${error?.message || "Request failed"}. ` +
+    throw new Error(`HTTP ${response.status} (${request.body.model}): ${error?.code || error?.type || "image_error"}: ${String(error?.message || result?.detail || "Request failed").replace(/\.$/, "")}. ` +
       "OAuth support can lag the public Images API. Check the backend version; explicitly choose an older model or disable unsupported features. No automatic retry or model substitution.");
   }
   return result;

@@ -1,6 +1,6 @@
 ---
 name: gpt-image
-version: 3.0.0
+version: 3.0.1
 description: |
   Generate or edit images via GPT Image 2.6 Flare or Sunburst through
   DroidProxy Codex OAuth (no OPENAI_API_KEY). Use when the user asks to
@@ -19,14 +19,11 @@ choose `gpt-image-2.6-sunburst` for detail and edit consistency. No dated
 These are Images API models, not chat models: do not register them in the
 Factory chat-model picker or send them to `/v1/responses` or chat completions.
 
-**Compatibility, checked November 4, 2026:** the installed CLIProxyAPI route
-rejects both 2.6 IDs with HTTP 400 ("Model ... is not supported"). Upstream's
-image allowlist also lacks them. This skill prepares the documented requests,
-but does not upgrade that backend or claim working 2.6 OAuth access.
-OpenAI's all-tier ChatGPT/Codex availability announcement does not establish
-whether this OAuth backend accepts these IDs or new fields.
-Keep the model and new features explicit/configurable. Never silently rename
-2.6 to 2.5, drop markup, or return a raster image as an SVG/GIF.
+DroidProxy serves both 2.6 IDs and the `gpt-image-2.6` alias on generations
+and edits. Complexity and markup are accepted; SVG and GIF output are not
+available through this backend. Keep the model and opt-in features explicit.
+Never silently rename 2.6 to 2.5, drop markup, or return a raster image as an
+SVG/GIF.
 
 Default to **Flare** for fast, high-quality everyday generation. Use
 **Sunburst** when the user prioritizes demanding quality, editing precision,
@@ -60,19 +57,11 @@ It never retries, substitutes a model, reads OAuth tokens, or logs image data.
 | `GPT_IMAGE_MAX_FRAMES` | unset, API validates upper bound | Optional integer cap, e.g. `16` or `64`, while official docs disagree. |
 | `GPT_IMAGE_PROXY_URL` | `http://localhost:8317` | Loopback HTTP origin only; no API-key or remote-provider mode. |
 
-For a backend that rejects 2.6, explicitly select a known available older
-model for a raster-only request, without new unsupported fields:
-
-```bash
-GPT_IMAGE_MODEL=gpt-image-2.5-flare \
-  bun "$SKILL/scripts/image.ts" generate /absolute/request.json /absolute/workspace/asset
-```
-
 Preserve older API model IDs: `gpt-image-1-mini`, `gpt-image-1.5`,
 `gpt-image-2`, `gpt-image-2-2026-04-21`, `gpt-image-2.5-flare`,
 `gpt-image-2.5-flare-2026-09-08`, `gpt-image-2.5-sunburst`,
 `gpt-image-2.5-sunburst-2026-09-08`, and `chatgpt-image-latest`.
-The existing backend alias `gpt-image-2.5` is also passed through.
+The backend aliases `gpt-image-2.5` and `gpt-image-2.6` are also passed through.
 OpenAI API support is not a promise of OAuth backend support; older models
 may have different parameter limits. `gpt-image-1` shut down October 23, 2026.
 
@@ -164,10 +153,12 @@ GPT_IMAGE_FEATURES=markup bun "$SKILL/scripts/image.ts" edit /tmp/edit.json /abs
 
 The public API also accepts multipart field `markup` (PNG file) alongside
 `image` and `prompt` on `/v1/images/edits`. Prefer the JSON path through
-DroidProxy: binary multipart forwarding and markup handling by CLIProxyAPI
-are not verified. Markup has no extra fee.
+DroidProxy; multipart markup is not verified. Markup has no extra fee.
 
 ## SVG export (generations only, opt-in)
+
+Through DroidProxy, an SVG request returns a PNG and the helper refuses to
+save it. The request shape below applies to a backend that returns SVG.
 
 Example request file:
 
@@ -199,7 +190,8 @@ GPT_IMAGE_FEATURES=gif GPT_IMAGE_MAX_FRAMES=16 \
   bun "$SKILL/scripts/image.ts" generate /absolute/gif-request.json /absolute/workspace/balloon
 ```
 
-GIF may need preview access. The guide says `frame_count` 2–64, but the API
+Through DroidProxy, GIF requests return HTTP 400 `GIF output is not enabled
+for this request.` The guide says `frame_count` 2–64, but the API
 reference says 2–16. Do not hard-code either as universal: set an optional
 local cap and let the API validate. Defaults are 9 frames and 200 ms.
 `frame_duration_ms` is 20–2000, rounded by the API to 10 ms. Frame fields
@@ -256,7 +248,7 @@ GPT Image returns base64, so do not send `response_format`.
 extension from top-level `output_format` when present, otherwise from the
 decoded magic bytes (`PNG` / `JFIF` / `RIFF…WEBP`).
 
-Previously observed with 2.5: Codex OAuth often ignores `size` and sometimes `quality`. A `1024x1024` /
+Codex OAuth often ignores `size` and sometimes `quality`. A `1024x1024` /
 `low` request may come back `1536x1024` / `low`, or an off-enum size like
 `1312x1199` with `quality: medium`. Trust the response `size` / `quality` /
 `background` and the decoded IHDR. Do **not** retry just because they
@@ -337,10 +329,10 @@ Use returned usage/errors and reset information; do not probe in a loop.
 | Symptom | Fix |
 |---|---|
 | Connection refused | DroidProxy isn't running — tell the user to launch it |
-| `auth_not_found` / no auth for `codex` | Check Settings → Connect Codex. Older backends reject Free accounts; 2.6 is announced for all ChatGPT/Codex tiers, but this route's tier support is unverified. |
+| `auth_not_found` / no auth for `codex` | Check Settings → Connect Codex. Free-tier access on this route is unverified. |
 | `usage_limit_reached` (`plan_type`, `resets_in_seconds`) | Quota exhausted. Tell the user when it resets. Do not retry in a loop. |
 | 401 after a long idle | OAuth session dead — Settings → Connect Codex |
-| 400 unsupported model | The backend may not allow 2.6 yet. Report the rejection. Explicitly select a known older ID for raster-only work, or wait for a backend update; never silently downgrade. |
+| 400 unsupported model | The backend does not serve that ID. Report the rejection; never silently substitute another model. |
 | Unsupported complexity/markup/SVG/GIF | Disable that opt-in only if the user accepts losing the feature. Do not discard annotation guidance or claim a different format succeeded. |
 | Format mismatch | Helper refuses to save raster bytes under `.svg`/`.gif`. Report the backend's actual format. |
 | `jq: Argument list too long` | You put a data URL in `jq --arg`. Use `--rawfile` as in Edit. |
