@@ -7,7 +7,7 @@ import Foundation
 /// after roughly 30 seconds.
 ///
 /// Query parameters (both optional):
-/// - `provider`: `codex`, `claude`, `grok`, `meta`, or `antigravity`
+/// - `provider`: `codex`, `claude`, `grok`, `meta`, `antigravity`, or `mistral`
 /// - `account`: the auth file name, email, or Settings display name
 enum UsageEndpoint {
     static let path = "/droidproxy/usage"
@@ -67,9 +67,10 @@ enum UsageEndpoint {
         let grok = isEnabled(.grok) ? OAuthUsageTracker.activeGrokAccounts(candidates(.grok)) : []
         let meta = isEnabled(.meta) ? candidates(.meta).filter { !$0.isDisabled } : []
         let antigravity = isEnabled(.antigravity) ? candidates(.antigravity).filter { !$0.isDisabled && !$0.isExpired } : []
+        let mistral = isEnabled(.mistral) ? candidates(.mistral).filter { !$0.isDisabled } : []
 
-        guard !(codex.isEmpty && claude.isEmpty && grok.isEmpty && meta.isEmpty && antigravity.isEmpty) else {
-            let known = [ServiceType.codex, .claude, .grok, .meta, .antigravity].flatMap { snapshot[$0] ?? [] }
+        guard !(codex.isEmpty && claude.isEmpty && grok.isEmpty && meta.isEmpty && antigravity.isEmpty && mistral.isEmpty) else {
+            let known = [ServiceType.codex, .claude, .grok, .meta, .antigravity, .mistral].flatMap { snapshot[$0] ?? [] }
             return Response(statusCode: 404, body: encode([
                 "error": "No matching enabled OAuth account",
                 "available": known.map { ["provider": $0.type.rawValue, "account": $0.displayName, "id": $0.id] }
@@ -81,7 +82,8 @@ enum UsageEndpoint {
             claude: claude,
             grok: grok,
             meta: meta,
-            antigravity: antigravity
+            antigravity: antigravity,
+            mistral: mistral
         )
         return Response(statusCode: 200, body: json(for: usages, now: now))
     }

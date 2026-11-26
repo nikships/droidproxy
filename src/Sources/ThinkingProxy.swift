@@ -391,6 +391,12 @@ class ThinkingProxy {
                     return
                 }
             }
+            if MistralRequestRewriter.isMistralModel(requestFields?.model),
+               let result = MistralRequestRewriter.rewriteDeveloperRoles(modifiedBody) {
+                modifiedBody = result
+                requestFields = inspectRequestJSONFields(in: modifiedBody)
+                ThinkingProxy.fileLog("MISTRAL ROLES: rewrote developer role to system before Mistral upstream")
+            }
             if let result = processOpenAIFastMode(jsonString: modifiedBody, path: rewrittenPath, fields: requestFields) {
                 modifiedBody = result
                 requestFields = inspectRequestJSONFields(in: modifiedBody)

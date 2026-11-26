@@ -36,6 +36,7 @@ enum ProviderUsageColors {
         .meta,         // Muse
         .kimi,
         .junie,
+        .mistral,
     ]
 
     /// Primary, then secondary, then a further brand color. Primaries match the Settings toggles.
@@ -84,6 +85,11 @@ enum ProviderUsageColors {
             ProviderBrandSwatch(red: 0x48, green: 0xE0, blue: 0x54),
             ProviderBrandSwatch(red: 0x1F, green: 0x8F, blue: 0x3A),
             ProviderBrandSwatch(red: 0x08, green: 0x7C, blue: 0xFA),
+        ],
+        .mistral: [
+            ProviderBrandSwatch(red: 0xFA, green: 0x52, blue: 0x0F),
+            ProviderBrandSwatch(red: 0xFF, green: 0x8A, blue: 0x00),
+            ProviderBrandSwatch(red: 0xFF, green: 0xD8, blue: 0x00),
         ],
     ]
 

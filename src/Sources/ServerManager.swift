@@ -47,6 +47,7 @@ private struct RingBuffer<Element> {
 class ServerManager: ObservableObject {
     private var process: Process?
     private var metaAccountsObserver: AnyCancellable?
+    private var mistralAccountsObserver: AnyCancellable?
     @Published private(set) var isRunning = false
     private(set) var port = 8317
 
@@ -60,6 +61,11 @@ class ServerManager: ObservableObject {
     private var logBuffer: RingBuffer<String>
     private let maxLogLines = 1000
     private let processQueue = DispatchQueue(label: "io.automaze.droidproxy.server-process", qos: .userInitiated)
+    /// Serializes merged-config regeneration. `start()`, the Meta/Mistral account
+    /// observers (main queue) and the failover/provider toggles all call
+    /// `getConfigPath()` from different queues; without one queue the last write
+    /// can be an older snapshot (e.g. one that still lists a removed account).
+    private let configQueue = DispatchQueue(label: "io.automaze.droidproxy.config-write")
     
     private enum Timing {
         static let readinessCheckDelay: TimeInterval = 1.0
@@ -85,6 +91,11 @@ class ServerManager: ObservableObject {
             enabledProviders = saved
         }
         metaAccountsObserver = NotificationCenter.default.publisher(for: .metaAccountsChanged)
+            .receive(on: DispatchQueue.main)
+            .sink { [weak self] _ in
+                _ = self?.getConfigPath()
+            }
+        mistralAccountsObserver = NotificationCenter.default.publisher(for: .mistralAccountsChanged)
             .receive(on: DispatchQueue.main)
             .sink { [weak self] _ in
                 _ = self?.getConfigPath()
@@ -423,6 +434,10 @@ class ServerManager: ObservableObject {
     /// Returns the config path to use, merging bundled config with user settings and provider exclusions.
     /// User settings (allow-remote, secret-key) are stored in UserDefaults so they persist across app updates.
     func getConfigPath() -> String {
+        configQueue.sync { buildMergedConfigPath() }
+    }
+
+    private func buildMergedConfigPath() -> String {
         guard let resourcePath = Bundle.main.resourcePath else {
             return ""
         }
@@ -487,18 +502,36 @@ class ServerManager: ObservableObject {
             }
         }
 
-        // Completions still go through this compatibility block (and its
-        // account failover). Responses are TLS-forwarded by ThinkingProxy —
-        // CLIProxyAPI would otherwise rewrite them into `/chat/completions`.
-        configContent += MetaMuseCredentialStore.compatibilityConfig(
-            accounts: MetaMuseCredentialStore.shared.accounts,
-            enabled: isProviderEnabled(.meta)
+        // One shared `openai-compatibility:` block: the backend rejects a repeated key.
+        // One Mistral snapshot feeds both blocks below, so the routing entry and
+        // the reasoning_content filter can never disagree if the accounts change
+        // while the config is being built.
+        let mistralAccounts = MistralCredentialStore.shared.accounts
+        let mistralEnabled = isProviderEnabled(.mistral)
+        configContent += OpenAICompatibilityConfig.render([
+            MetaMuseCredentialStore.compatibilityEntry(
+                accounts: MetaMuseCredentialStore.shared.accounts,
+                enabled: isProviderEnabled(.meta)
+            ),
+            MistralCredentialStore.compatibilityEntry(accounts: mistralAccounts, enabled: mistralEnabled)
+        ].compactMap { $0 })
+
+        // The only writer of the top-level `payload:` key; see `payloadFilterConfig`.
+        configContent += MistralCredentialStore.payloadFilterConfig(
+            accounts: mistralAccounts,
+            enabled: mistralEnabled
         )
 
         let mergedConfigPath = authDir.appendingPathComponent("merged-config.yaml")
 
         do {
-            try FileManager.default.createDirectory(at: authDir, withIntermediateDirectories: true)
+            // The merged config carries Mistral (and Meta) keys, so the auth
+            // directory must be owner-only before the write lands in it: the
+            // 0o600 chmod below runs after the file exists, which would
+            // otherwise leave it briefly readable under a permissive umask.
+            try FileManager.default.createDirectory(at: authDir, withIntermediateDirectories: true,
+                                                    attributes: [.posixPermissions: 0o700])
+            try FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: authDir.path)
             try configContent.write(to: mergedConfigPath, atomically: true, encoding: .utf8)
             try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: mergedConfigPath.path)
             return mergedConfigPath.path

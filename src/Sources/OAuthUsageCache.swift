@@ -35,8 +35,19 @@ actor OAuthUsageCache {
         }
     }
 
+    /// Mistral accounts all live in one `accounts.json`, so their key adds the account id.
     private func key(for account: AuthAccount) -> String {
-        "\(account.type.rawValue):\(account.filePath.standardizedFileURL.path)"
+        let base = "\(account.type.rawValue):\(account.filePath.standardizedFileURL.path)"
+        return account.type == .mistral ? "\(base)#\(account.id)" : base
+    }
+
+    /// A monthly budget gains nothing from polling faster than Claude.
+    private static func interval(for provider: ServiceType) -> TimeInterval {
+        switch provider {
+        case .claude, .mistral: return 300
+        case .antigravity: return 60
+        default: return 15
+        }
     }
 
     /// The last stored sample for an account, without fetching. Callers
@@ -52,12 +63,7 @@ actor OAuthUsageCache {
         if let running = inFlight[key], running.generation == generation { return await running.task.value }
         if let entry = entries[key], now() < entry.nextAttemptAt { return entry.usage }
 
-        let interval: TimeInterval
-        switch account.type {
-        case .claude: interval = 300
-        case .antigravity: interval = 60
-        default: interval = 15
-        }
+        let interval = Self.interval(for: account.type)
         // Persist the request reservation before starting: a restart cannot immediately retry it.
         let placeholder = OAuthAccountUsage(id: account.id, provider: account.type, email: account.displayName, error: "Usage refresh pending")
         var entry = entries[key] ?? Entry(usage: placeholder, nextAttemptAt: now(), rateLimitFailures: 0)
@@ -108,7 +114,7 @@ actor OAuthUsageCache {
     /// instead of letting retries hammer the provider.
     func recordRateLimit(for account: AuthAccount, retryAfter: Date?) {
         let key = key(for: account)
-        let interval: TimeInterval = account.type == .claude ? 300 : 15
+        let interval = Self.interval(for: account.type)
         let failures = min(5, (entries[key]?.rateLimitFailures ?? 0) + 1)
         let placeholder = OAuthAccountUsage(id: account.id, provider: account.type, email: account.displayName, error: "Usage refresh pending")
         var entry = entries[key] ?? Entry(usage: placeholder, nextAttemptAt: now(), rateLimitFailures: 0)

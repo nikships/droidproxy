@@ -164,31 +164,25 @@ final class MetaMuseCredentialStore {
             .map(\.credentials.apiKey).filter { !$0.isEmpty }
     }
 
-    static func compatibilityConfig(accounts: [MetaMuseAccount], enabled: Bool, now: Date = Date()) -> String {
+    /// Completions still go through the `openai-compatibility` block (and its
+    /// account failover). Responses are TLS-forwarded by ThinkingProxy —
+    /// CLIProxyAPI would otherwise rewrite them into `/chat/completions`.
+    static func compatibilityEntry(
+        accounts: [MetaMuseAccount], enabled: Bool, now: Date = Date()
+    ) -> OpenAICompatibilityConfig.Entry? {
         let keys = usableAPIKeys(accounts: accounts, now: now)
-        guard enabled, !keys.isEmpty else { return "" }
-        // Completions still go through this compatibility block (and its
-        // account failover). Responses are TLS-forwarded by ThinkingProxy —
-        // CLIProxyAPI would otherwise rewrite them into `/chat/completions`.
-        // JSON strings are valid YAML scalars, including quotes/control characters.
-        let entries = keys.map { key in
-            let quoted = String(data: try! JSONEncoder().encode(key), encoding: .utf8)!
-            return "      - api-key: \(quoted)"
-        }.joined(separator: "\n")
-        return """
-
-        # Meta Muse subscription (auto-added by DroidProxy)
-        openai-compatibility:
-          - name: "meta"
-            base-url: "https://api.meta.ai/v1"
-            api-key-entries:
-        \(entries)
-            models:
-              - name: "muse-wonder-1.0"
-              - name: "muse-wonder-1.0-contributor"
-              - name: "muse-wonder-full-1.0"
-              - name: "muse-wonder-full-1.0-contributor"
-
-        """
+        guard enabled, !keys.isEmpty else { return nil }
+        return OpenAICompatibilityConfig.Entry(
+            comment: "Meta Muse subscription",
+            name: "meta",
+            baseURL: "https://api.meta.ai/v1",
+            apiKeys: keys,
+            models: [
+                "muse-wonder-1.0",
+                "muse-wonder-1.0-contributor",
+                "muse-wonder-full-1.0",
+                "muse-wonder-full-1.0-contributor"
+            ]
+        )
     }
 }

@@ -403,6 +403,7 @@ extension ServiceType {
         case .grok: return "Grok"
         case .copilot: return "GitHub Copilot"
         case .meta: return "Meta Muse"
+        case .mistral: return "Mistral"
         }
     }
 }
