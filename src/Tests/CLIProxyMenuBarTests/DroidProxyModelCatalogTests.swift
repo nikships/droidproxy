@@ -28,9 +28,125 @@ final class DroidProxyModelCatalogTests: XCTestCase {
         XCTAssertEqual(levels["zai-glm-5-3"] ?? nil, ["low", "high", "max"])
         XCTAssertEqual(levels["zai-glm-5-3-flash"] ?? nil, ["low", "high", "max"])
         let bases = Dictionary(uniqueKeysWithValues: models.map { ($0.baseModel, $0.settingsEntry["baseModelId"] as? String) })
+        XCTAssertEqual(bases["mistral-large-4"] ?? nil, "mistral-large-4")
+        XCTAssertEqual(bases["mistral-medium-3-5"] ?? nil, "mistral-medium-3.5")
+        XCTAssertNil(bases["mistral-small-latest"] ?? nil)
         XCTAssertEqual(bases["zai-glm-5-3"] ?? nil, "glm-5.3")
         XCTAssertEqual(bases["zai-glm-5-3-flash"] ?? nil, "glm-5.3-flash")
-        XCTAssertNil(bases["mistral-large-4"] ?? nil)
+    }
+
+    func testCatalogModelsSetVerifiedFactoryBaseModelIDs() throws {
+        let expected: [String: String] = [
+            "custom:droidproxy:fable-5-2": "claude-fable-5.2",
+            "custom:droidproxy:opus-5-5": "claude-opus-5-5",
+            "custom:droidproxy:sonnet-5-5": "claude-sonnet-5-5",
+            "custom:droidproxy:haiku-5-5": "claude-haiku-5-5",
+            "custom:droidproxy:gpt-6.2-astra": "gpt-6.2-astra",
+            "custom:droidproxy:gpt-6.2-sol": "gpt-6.2-sol",
+            "custom:droidproxy:gpt-6.1-terra": "gpt-6.1-terra",
+            "custom:droidproxy:gpt-6-luna": "gpt-6-luna",
+            "custom:droidproxy:gemini-3.8-flash-high": "gemini-3.8-flash",
+            "custom:droidproxy:gemini-4-argon-high": "gemini-4-argon",
+            "custom:droidproxy:gemini-4-carbon-high": "gemini-4-carbon",
+            "custom:droidproxy:gemini-4-hydrogen-xhigh": "gemini-4-hydrogen",
+            "custom:droidproxy:gemini-4-neon-xhigh": "gemini-4-neon",
+            "custom:droidproxy:ag-c55s-high": "claude-sonnet-5-5",
+            "custom:droidproxy:ag-c55o-high": "claude-opus-5-5",
+            "custom:droidproxy:ag-c46s-thinking": "claude-sonnet-4-6",
+            "custom:droidproxy:ag-c46o-thinking": "claude-opus-4-6",
+            "custom:droidproxy:kimi-k3.1-pro": "kimi-k3.1-pro",
+            "custom:droidproxy:kimi-k3.1-pro-highspeed": "kimi-k3.1-pro",
+            "custom:droidproxy:kimi-k3": "kimi-k3",
+            "custom:droidproxy:kimi-k2.6": "kimi-k2.6",
+            "custom:droidproxy:junie-claude-opus-5-5": "claude-opus-5-5",
+            "custom:droidproxy:junie-gpt-6.1-sol": "gpt-6.1-sol",
+            "custom:droidproxy:grok-4.7": "grok-4.7",
+            "custom:droidproxy:grok-4.7-build-fast": "grok-4.7"
+        ]
+
+        let staticEntries = DroidProxyModelCatalog.settingsModels {
+            $0 != "copilot" && $0 != "meta" && $0 != "mistral"
+        }
+        let actual = Dictionary(uniqueKeysWithValues: staticEntries.compactMap { entry -> (String, String?)? in
+            guard let id = entry["id"] as? String else { return nil }
+            return (id, entry["baseModelId"] as? String)
+        })
+        XCTAssertEqual(Set(actual.keys), Set(expected.keys))
+        for (id, baseModelID) in expected {
+            XCTAssertEqual(actual[id] ?? nil, baseModelID, id)
+        }
+
+        for model in ["muse-wonder-1.0", "muse-wonder-1.0-contributor", "muse-wonder-full-1.0", "muse-wonder-full-1.0-contributor"] {
+            let entry = DroidProxyModelCatalog.museModel(baseModel: model, idSlug: model, displayName: model).settingsEntry
+            XCTAssertNil(entry["baseModelId"], model)
+        }
+    }
+
+    func testBaseModelIDsSurviveApplyAndTriggerStaleWhenMissing() throws {
+        let directory = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true)
+        defer { try? FileManager.default.removeItem(at: directory) }
+        let url = directory.appendingPathComponent("settings.json")
+
+        let expected = DroidProxyModelCatalog.settingsModels {
+            $0 == "codex" || $0 == "antigravity" || $0 == "claude"
+        }
+        let catalogIDs = DroidProxyModelCatalog.allSettingsIDs
+
+        // Simulate a settings.json written before baseModelId was added to these entries.
+        let legacyEntries = expected.map { entry -> [String: Any] in
+            var copy = entry
+            copy.removeValue(forKey: "baseModelId")
+            return copy
+        }
+        try JSONSerialization.data(withJSONObject: ["customModels": legacyEntries]).write(to: url)
+
+        let beforeStatus = FactoryModels.status(settingsAt: url, expected: expected, catalogIDs: catalogIDs)
+        XCTAssertEqual(beforeStatus.installed, expected.count)
+        XCTAssertEqual(beforeStatus.available, expected.count)
+        XCTAssertTrue(beforeStatus.stale, "existing entries missing baseModelId should prompt Re-apply")
+
+        _ = try FactoryModels.apply(settingsAt: url, models: expected, catalogIDs: catalogIDs)
+        let afterStatus = FactoryModels.status(settingsAt: url, expected: expected, catalogIDs: catalogIDs)
+        XCTAssertTrue(afterStatus.isApplied)
+
+        let persisted = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let persistedModels = try XCTUnwrap(persisted["customModels"] as? [[String: Any]])
+        let byID = Dictionary(uniqueKeysWithValues: persistedModels.compactMap { entry -> (String, String?)? in
+            guard let id = entry["id"] as? String else { return nil }
+            return (id, entry["baseModelId"] as? String)
+        })
+        XCTAssertEqual(byID["custom:droidproxy:gpt-6.2-sol"] ?? nil, "gpt-6.2-sol")
+        XCTAssertEqual(byID["custom:droidproxy:fable-5-2"] ?? nil, "claude-fable-5.2")
+        XCTAssertEqual(byID["custom:droidproxy:ag-c55s-high"] ?? nil, "claude-sonnet-5-5")
+        XCTAssertEqual(byID["custom:droidproxy:ag-c55o-high"] ?? nil, "claude-opus-5-5")
+        XCTAssertEqual(byID["custom:droidproxy:ag-c46s-thinking"] ?? nil, "claude-sonnet-4-6")
+        XCTAssertEqual(byID["custom:droidproxy:ag-c46o-thinking"] ?? nil, "claude-opus-4-6")
+
+        // Mutating a persisted baseModelId to a wrong value also marks settings stale,
+        // and Re-apply restores the catalog's exact baseModelId values.
+        var mutated = persisted
+        mutated["customModels"] = persistedModels.map { entry -> [String: Any] in
+            var copy = entry
+            if (copy["id"] as? String) == "custom:droidproxy:gpt-6.2-sol" {
+                copy["baseModelId"] = "gpt-6.1-sol"
+            }
+            return copy
+        }
+        try JSONSerialization.data(withJSONObject: mutated).write(to: url)
+        XCTAssertTrue(FactoryModels.status(settingsAt: url, expected: expected, catalogIDs: catalogIDs).stale)
+
+        _ = try FactoryModels.apply(settingsAt: url, models: expected, catalogIDs: catalogIDs)
+        let reapplied = try XCTUnwrap(JSONSerialization.jsonObject(with: Data(contentsOf: url)) as? [String: Any])
+        let reappliedModels = try XCTUnwrap(reapplied["customModels"] as? [[String: Any]])
+        let reappliedByID = Dictionary(uniqueKeysWithValues: reappliedModels.compactMap { entry -> (String, String?)? in
+            guard let id = entry["id"] as? String else { return nil }
+            return (id, entry["baseModelId"] as? String)
+        })
+        XCTAssertEqual(reappliedByID["custom:droidproxy:gpt-6.2-sol"] ?? nil, "gpt-6.2-sol")
+        XCTAssertEqual(reappliedByID["custom:droidproxy:fable-5-2"] ?? nil, "claude-fable-5.2")
+        XCTAssertEqual(reappliedByID["custom:droidproxy:ag-c55s-high"] ?? nil, "claude-sonnet-5-5")
+        XCTAssertTrue(FactoryModels.status(settingsAt: url, expected: expected, catalogIDs: catalogIDs).isApplied)
     }
 
     func testBothMuseVariantsApplyMaxReasoning() {
