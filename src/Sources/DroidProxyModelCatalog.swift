@@ -31,10 +31,13 @@ struct DroidProxyModelDefinition: Equatable {
     let levels: [DroidProxyThinkingLevel]
     let defaultLevelValue: String
     let noImageSupport: Bool
-    /// Factory's built-in model whose reasoning levels Droid should use. Droid ignores
-    /// `supportedReasoningEfforts` on custom models and instead matches `model` to a
-    /// built-in by the longest id it contains, so `zai-glm-5-3` resolves to the
-    /// deprecated `glm-5` (levels `[none]`) and the effort selector disappears.
+    /// Factory's built-in model ID (`baseModelId` / "Behaves like") that this custom
+    /// model inherits prompts, tools, reasoning settings, and Script mode eligibility
+    /// from. Explicit mapping avoids relying on Factory's name heuristics (which fail on
+    /// aliased IDs like `ag-c55s-high`, mis-match `zai-glm-5-3` onto deprecated `glm-5`,
+    /// or miss exact-match checks on dot/dash/prefix differences like `claude-fable-5-2`
+    /// -> `claude-fable-5.2` and `junie-gpt-6.1-sol` -> `gpt-6.1-sol`). Leave `nil` when
+    /// Factory has no built-in counterpart (Muse Wonder, Mistral Small, dynamic Copilot).
     let factoryBaseModelID: String?
 
     init(baseModel: String,
@@ -185,8 +188,8 @@ enum DroidProxyModelCatalog {
         let toggle = [none, high]
         let ids = MistralCredentialStore.modelIDs
         let specs: [(id: String, slug: String, name: String, levels: [DroidProxyThinkingLevel], factoryBase: String?)] = [
-            ("mistral-large-4", "mistral-large-4", "Mistral Large 4", [low, medium, high], nil),
-            ("mistral-medium-3-5", "mistral-medium-3-5", "Mistral Medium 3.5", toggle, nil),
+            ("mistral-large-4", "mistral-large-4", "Mistral Large 4", [low, medium, high], "mistral-large-4"),
+            ("mistral-medium-3-5", "mistral-medium-3-5", "Mistral Medium 3.5", toggle, "mistral-medium-3.5"),
             ("mistral-small-latest", "mistral-small-4", "Mistral Small 4", toggle, nil),
             ("zai-glm-5-3", "mistral-glm-5-3", "GLM 5.3 (Mistral)", [low, high, max], "glm-5.3"),
             ("zai-glm-5-3-flash", "mistral-glm-5-3-flash", "GLM 5.3 Flash (Mistral)", [low, high, max], "glm-5.3-flash")
@@ -204,7 +207,8 @@ enum DroidProxyModelCatalog {
         maxOutputTokens: Int = 65536,
         maxContextLimit: Int? = nil,
         levels: [DroidProxyThinkingLevel] = [high],
-        defaultLevelValue: String = "high"
+        defaultLevelValue: String = "high",
+        factoryBaseModelID: String? = nil
     ) -> DroidProxyModelDefinition {
         DroidProxyModelDefinition(
             baseModel: baseModel,
@@ -217,7 +221,8 @@ enum DroidProxyModelCatalog {
             baseURL: "http://localhost:8317/v1",
             kind: .antigravity,
             levels: levels,
-            defaultLevelValue: defaultLevelValue
+            defaultLevelValue: defaultLevelValue,
+            factoryBaseModelID: factoryBaseModelID
         )
     }
 
@@ -265,7 +270,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317",
                 kind: .claudeAdaptive,
                 levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "claude-fable-5.2"
             ),
             DroidProxyModelDefinition(
                 baseModel: "claude-opus-5-5",
@@ -277,7 +283,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317",
                 kind: .claudeAdaptive,
                 levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "claude-opus-5-5"
             ),
             DroidProxyModelDefinition(
                 baseModel: "claude-sonnet-5-5",
@@ -289,7 +296,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317",
                 kind: .claudeAdaptive,
                 levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "claude-sonnet-5-5"
             ),
             DroidProxyModelDefinition(
                 baseModel: "claude-haiku-5-5",
@@ -302,7 +310,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317",
                 kind: .claudeAdaptive,
                 levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "claude-haiku-5-5"
             ),
 
             // Keep the conservative Codex input cap for the 6.2 upgrades until
@@ -318,7 +327,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .codex,
                 levels: gpt6Levels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "gpt-6.2-astra"
             ),
             DroidProxyModelDefinition(
                 baseModel: "gpt-6.2-sol",
@@ -331,7 +341,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .codex,
                 levels: gpt6Levels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "gpt-6.2-sol"
             ),
             DroidProxyModelDefinition(
                 baseModel: "gpt-6.1-terra",
@@ -344,7 +355,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .codex,
                 levels: gpt6Levels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "gpt-6.1-terra"
             ),
             DroidProxyModelDefinition(
                 baseModel: "gpt-6-luna",
@@ -357,7 +369,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .codex,
                 levels: gpt6Levels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "gpt-6-luna"
             ),
             // Antigravity subscription models routed through the antigravity executor via
             // OpenAI-compatible chat-completions. provider="openai" + baseURL ending in
@@ -366,7 +379,8 @@ enum DroidProxyModelCatalog {
             antigravityModel(
                 baseModel: "gemini-3.8-flash-high",
                 idSlug: "gemini-3.8-flash-high",
-                displayName: "Gemini 3.8 Flash (High)"
+                displayName: "Gemini 3.8 Flash (High)",
+                factoryBaseModelID: "gemini-3.8-flash"
             ),
             // Only the -high id is in the CLIProxyAPI registry. reasoning_effort still
             // selects low, medium, or high thinking on it (verified live 2026-10-29).
@@ -374,7 +388,8 @@ enum DroidProxyModelCatalog {
                 baseModel: "gemini-4-argon-high",
                 idSlug: "gemini-4-argon-high",
                 displayName: "Gemini 4 Argon",
-                levels: [low, medium, high]
+                levels: [low, medium, high],
+                factoryBaseModelID: "gemini-4-argon"
             ),
             // Carbon landed in fetchAvailableModels before the CLIProxyAPI
             // registry listed it; the account-gated -high id answers live
@@ -384,7 +399,8 @@ enum DroidProxyModelCatalog {
                 idSlug: "gemini-4-carbon-high",
                 displayName: "Gemini 4 Carbon",
                 maxOutputTokens: 262144,
-                levels: [low, medium, high]
+                levels: [low, medium, high],
+                factoryBaseModelID: "gemini-4-carbon"
             ),
             // Hydrogen is registered for Antigravity in CLIProxyAPI 8.0.68+ only
             // as the -xhigh id, which accepts low through xhigh.
@@ -393,7 +409,8 @@ enum DroidProxyModelCatalog {
                 idSlug: "gemini-4-hydrogen-xhigh",
                 displayName: "Gemini 4 Hydrogen",
                 levels: [low, medium, high, xhigh],
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "gemini-4-hydrogen"
             ),
             // Neon is registered for Antigravity in CLIProxyAPI 8.0.78+ only
             // as the -xhigh id, which accepts low through xhigh.
@@ -402,7 +419,8 @@ enum DroidProxyModelCatalog {
                 idSlug: "gemini-4-neon-xhigh",
                 displayName: "Gemini 4 Neon",
                 levels: [low, medium, high, xhigh],
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "gemini-4-neon"
             ),
             // Claude 5.5 is only served to directly billed (non-trial) Google AI Pro/Ultra accounts.
             // CLIProxyAPI registers an Antigravity model only when the account's
@@ -413,26 +431,30 @@ enum DroidProxyModelCatalog {
                 idSlug: "ag-c55s-high",
                 displayName: "Claude Sonnet 5.5 (High)",
                 maxOutputTokens: 128000,
-                maxContextLimit: 1_000_000
+                maxContextLimit: 1_000_000,
+                factoryBaseModelID: "claude-sonnet-5-5"
             ),
             antigravityModel(
                 baseModel: "ag-c55o-high",
                 idSlug: "ag-c55o-high",
                 displayName: "Claude Opus 5.5 (High)",
                 maxOutputTokens: 128000,
-                maxContextLimit: 1_000_000
+                maxContextLimit: 1_000_000,
+                factoryBaseModelID: "claude-opus-5-5"
             ),
             antigravityModel(
                 baseModel: "ag-c46s-thinking",
                 idSlug: "ag-c46s-thinking",
                 displayName: "Claude Sonnet 4.6 (Thinking)",
-                maxOutputTokens: 64000
+                maxOutputTokens: 64000,
+                factoryBaseModelID: "claude-sonnet-4-6"
             ),
             antigravityModel(
                 baseModel: "ag-c46o-thinking",
                 idSlug: "ag-c46o-thinking",
                 displayName: "Claude Opus 4.6 (Thinking)",
-                maxOutputTokens: 64000
+                maxOutputTokens: 64000,
+                factoryBaseModelID: "claude-opus-4-6"
             ),
             // CLIProxyAPI recognizes these catalog IDs and removes the `kimi-`
             // prefix, sending Kimi Code's native model ID upstream.
@@ -446,7 +468,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .kimi,
                 levels: [max],
-                defaultLevelValue: "max"
+                defaultLevelValue: "max",
+                factoryBaseModelID: "kimi-k3.1-pro"
             ),
             DroidProxyModelDefinition(
                 baseModel: "kimi-k3.1-pro-highspeed",
@@ -458,7 +481,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .kimi,
                 levels: [max],
-                defaultLevelValue: "max"
+                defaultLevelValue: "max",
+                factoryBaseModelID: "kimi-k3.1-pro"
             ),
             DroidProxyModelDefinition(
                 baseModel: "kimi-k3",
@@ -470,7 +494,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .kimi,
                 levels: [max],
-                defaultLevelValue: "max"
+                defaultLevelValue: "max",
+                factoryBaseModelID: "kimi-k3"
             ),
             DroidProxyModelDefinition(
                 baseModel: "kimi-k2.6",
@@ -482,7 +507,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .kimi,
                 levels: [high],
-                defaultLevelValue: "high"
+                defaultLevelValue: "high",
+                factoryBaseModelID: "kimi-k2.6"
             ),
 
             // Junie (JetBrains AI) subscription models. Routed through the Junie
@@ -500,7 +526,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317",
                 kind: .junie,
                 levels: claudeAdvancedLevels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "claude-opus-5-5"
             ),
             DroidProxyModelDefinition(
                 baseModel: "junie-gpt-6.1-sol",
@@ -513,7 +540,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .junie,
                 levels: gpt6Levels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "gpt-6.1-sol"
             ),
 
             // Grok OAuth (SuperGrok / X Premium+) .
@@ -532,7 +560,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .grok,
                 levels: codexLevels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "grok-4.7"
             ),
             DroidProxyModelDefinition(
                 baseModel: GrokAuth.fastModelID,
@@ -545,7 +574,8 @@ enum DroidProxyModelCatalog {
                 baseURL: "http://localhost:8317/v1",
                 kind: .grok,
                 levels: codexLevels,
-                defaultLevelValue: "xhigh"
+                defaultLevelValue: "xhigh",
+                factoryBaseModelID: "grok-4.7"
             )
         ]
 

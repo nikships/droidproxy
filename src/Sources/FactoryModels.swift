@@ -47,16 +47,33 @@ enum FactoryModels {
     }
 
     static func status(settingsAt url: URL, expected: [[String: Any]], catalogIDs: Set<String>) -> Status {
-        let expectedIDs = Set(expected.compactMap { $0["id"] as? String })
-        let installedIDs: Set<String>
+        let expectedEntries = Dictionary(
+            expected.compactMap { entry -> (String, String?)? in
+                guard let id = entry["id"] as? String else { return nil }
+                return (id, entry["baseModelId"] as? String)
+            },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let installedModels: [[String: Any]]
         if let data = try? Data(contentsOf: url),
            let json = try? JSONSerialization.jsonObject(with: data) as? [String: Any],
            let models = json["customModels"] as? [[String: Any]] {
-            installedIDs = Set(models.compactMap { $0["id"] as? String }.filter { isDroidProxyID($0, catalogIDs: catalogIDs) })
+            installedModels = models.filter {
+                guard let id = $0["id"] as? String else { return false }
+                return isDroidProxyID(id, catalogIDs: catalogIDs)
+            }
         } else {
-            installedIDs = []
+            installedModels = []
         }
-        return Status(installed: installedIDs.count, available: expectedIDs.count, stale: installedIDs != expectedIDs)
+        let installedEntries = Dictionary(
+            installedModels.compactMap { entry -> (String, String?)? in
+                guard let id = entry["id"] as? String else { return nil }
+                return (id, entry["baseModelId"] as? String)
+            },
+            uniquingKeysWith: { _, latest in latest }
+        )
+        let stale = installedEntries != expectedEntries || installedModels.count != installedEntries.count
+        return Status(installed: installedEntries.count, available: expectedEntries.count, stale: stale)
     }
 
     /// Replaces every earlier DroidProxy entry with `models`, keeps the user's
